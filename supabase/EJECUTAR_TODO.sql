@@ -561,24 +561,23 @@ alter table public.factura_venta_items enable row level security;
 alter table public.pagos enable row level security;
 
 -- Politica unica: usuarios autenticados tienen acceso total
-do $$
-declare
-  t text;
-begin
-  for t in select unnest(array[
-    'socios','movimientos_socio','proveedores','clientes',
-    'categorias_producto','productos','producto_nombres_proveedor','precios_cliente',
-    'cotizaciones','cotizacion_items','ordenes_compra','orden_compra_items',
-    'facturas_compra','factura_compra_items','facturas_venta','factura_venta_items','pagos'
-  ])
-  loop
-    execute format(
-      'create policy "auth_all_%s" on public.%I for all using (auth.role() = ''authenticated'') with check (auth.role() = ''authenticated'')',
-      t, t
-    );
-  end loop;
-end;
-$$;
+create policy "auth_all_socios" on public.socios for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_movimientos_socio" on public.movimientos_socio for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_proveedores" on public.proveedores for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_clientes" on public.clientes for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_categorias_producto" on public.categorias_producto for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_productos" on public.productos for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_producto_nombres_proveedor" on public.producto_nombres_proveedor for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_precios_cliente" on public.precios_cliente for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_cotizaciones" on public.cotizaciones for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_cotizacion_items" on public.cotizacion_items for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_ordenes_compra" on public.ordenes_compra for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_orden_compra_items" on public.orden_compra_items for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_facturas_compra" on public.facturas_compra for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_factura_compra_items" on public.factura_compra_items for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_facturas_venta" on public.facturas_venta for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_factura_venta_items" on public.factura_venta_items for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "auth_all_pagos" on public.pagos for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
 
 -- ============================================================
