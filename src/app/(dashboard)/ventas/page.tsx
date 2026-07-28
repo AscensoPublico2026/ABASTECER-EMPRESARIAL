@@ -85,7 +85,9 @@ export default async function VentasPage() {
                     const utilidadPositiva = c.utilidad_estimada >= 0
                     return (
                       <tr key={c.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
-                        <td className="px-6 py-4 font-mono text-gray-700 whitespace-nowrap">{c.numero}</td>
+                        <td className="px-6 py-4 font-mono text-gray-700 whitespace-nowrap">
+                          <a href={`/ventas/${c.id}`} className="hover:text-blue-600 hover:underline">{c.numero}</a>
+                        </td>
                         <td className="px-6 py-4 font-medium text-gray-800">{c.cliente_nombre ?? 'Sin cliente'}</td>
                         <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatFecha(c.fecha)}</td>
                         <td className="px-6 py-4 text-right tabular-nums text-gray-700">{formatCOP(c.total)}</td>
