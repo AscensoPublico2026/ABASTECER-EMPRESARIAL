@@ -4,6 +4,7 @@ import { ESTADOS_COTIZACION, type EstadoCotizacion } from '@/types/cotizaciones'
 import { formatCOP, formatFecha } from '@/lib/format'
 import { Receipt } from 'lucide-react'
 import FormCotizacion from './FormCotizacion'
+import AccionesCotizacion from './AccionesCotizacion'
 import { obtenerClientesParaSelect } from '@/lib/queries/clientes'
 import { obtenerProductoParaSelect } from '@/lib/queries/productos'
 
@@ -75,6 +76,7 @@ export default async function VentasPage() {
                     <th className="px-6 py-3 font-medium text-gray-500 text-right">Utilidad</th>
                     <th className="px-6 py-3 font-medium text-gray-500 text-right">Margen %</th>
                     <th className="px-6 py-3 font-medium text-gray-500">Estado</th>
+                    <th className="px-6 py-3 font-medium text-gray-500">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -91,6 +93,9 @@ export default async function VentasPage() {
                         <td className={`px-6 py-4 text-right tabular-nums ${utilidadPositiva ? 'text-green-600' : 'text-red-600'}`}>{c.margen_pct.toFixed(1)}%</td>
                         <td className="px-6 py-4">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${estado.color}`}>{estado.etiqueta}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <AccionesCotizacion cotizacionId={c.id} estado={c.estado} numero={c.numero} />
                         </td>
                       </tr>
                     )
