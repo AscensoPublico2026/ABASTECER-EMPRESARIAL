@@ -1,7 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Header from '@/components/layout/Header'
-import { formatCOP } from '@/lib/format'
 import { ESTADOS_CLIENTE } from '@/types/clientes'
 import type { EstadoCliente } from '@/types/clientes'
 import Link from 'next/link'
