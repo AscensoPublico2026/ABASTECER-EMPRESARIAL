@@ -69,10 +69,8 @@ export default async function ClientesPage() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3">
-                          <a href={`/clientes/${c.id}`} className="hover:text-blue-600 hover:underline">
-                            <h4 className="font-medium text-gray-800 truncate">
-                              {c.razon_social}
-                            </h4>
+                          <a href={`/clientes/${c.id}`} className="text-blue-600 hover:text-blue-800 hover:underline font-medium">
+                            {c.razon_social}
                           </a>
                           <span
                             className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${estado.color}`}
