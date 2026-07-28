@@ -27,3 +27,19 @@ export async function obtenerClientes(): Promise<{
     return { data: [], error: e instanceof Error ? e.message : 'Error desconocido' }
   }
 }
+
+
+
+export async function obtenerClientesParaSelect(): Promise<{ id: string; razon_social: string }[]> {
+  try {
+    const supabase = createServerSupabaseClient()
+    const { data } = await supabase
+      .from('clientes')
+      .select('id, razon_social')
+      .in('estado', ['ACTIVO', 'CREDITO_APROBADO'])
+      .order('razon_social')
+    return (data ?? []).map((c) => ({ id: String(c.id), razon_social: String(c.razon_social) }))
+  } catch {
+    return []
+  }
+}

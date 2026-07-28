@@ -4,7 +4,7 @@ import { ESTADOS_COTIZACION, type EstadoCotizacion } from '@/types/cotizaciones'
 import { formatCOP, formatFecha } from '@/lib/format'
 import { Receipt } from 'lucide-react'
 import FormCotizacion from './FormCotizacion'
-import { obtenerClientesParaSelect } from '@/lib/queries/ventas'
+import { obtenerClientesParaSelect } from '@/lib/queries/clientes'
 import { obtenerProductoParaSelect } from '@/lib/queries/productos'
 
 export const dynamic = 'force-dynamic'
