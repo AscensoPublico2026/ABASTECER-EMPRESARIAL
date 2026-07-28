@@ -4,6 +4,7 @@ import { ESTADOS_COTIZACION, type EstadoCotizacion } from '@/types/cotizaciones'
 import { formatCOP, formatFecha } from '@/lib/format'
 import { Receipt } from 'lucide-react'
 import FormCotizacion from './FormCotizacion'
+import FormVentaDirecta from './FormVentaDirecta'
 import AccionesCotizacion from './AccionesCotizacion'
 import { obtenerClientesParaSelect } from '@/lib/queries/clientes'
 import { obtenerProductoParaSelect } from '@/lib/queries/productos'
@@ -54,6 +55,7 @@ export default async function VentasPage() {
               <p className="text-sm text-gray-500 mt-0.5">El costo se calcula automaticamente del catalogo</p>
             </div>
             <FormCotizacion clientes={clientes} productos={productos} />
+            <FormVentaDirecta clientes={clientes} productos={productos} />
           </div>
 
           {error && <div className="px-6 py-4 bg-red-50 text-red-700 text-sm border-b border-red-100">Error: {error}</div>}

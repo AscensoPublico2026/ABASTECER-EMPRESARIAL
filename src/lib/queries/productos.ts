@@ -63,13 +63,13 @@ export async function obtenerCategorias(): Promise<Categoria[]> {
 }
 
 export async function obtenerProductoParaSelect(): Promise<
-  { id: string; codigo: string; nombre: string; costo_promedio: number; iva_porcentaje: number; stock_actual: number }[]
+  { id: string; codigo: string; nombre: string; costo_promedio: number; iva_porcentaje: number; stock_actual: number; precio_sugerido: number; margen_minimo_pct: number }[]
 > {
   try {
     const supabase = createServerSupabaseClient()
     const { data } = await supabase
       .from('productos')
-      .select('id, codigo, nombre, costo_promedio, iva_porcentaje, stock_actual')
+      .select('id, codigo, nombre, costo_promedio, iva_porcentaje, stock_actual, precio_sugerido, margen_minimo_pct')
       .eq('activo', true)
       .order('nombre')
     return (data ?? []).map((p) => ({
@@ -79,6 +79,8 @@ export async function obtenerProductoParaSelect(): Promise<
       costo_promedio: Number(p.costo_promedio ?? 0),
       iva_porcentaje: Number(p.iva_porcentaje ?? 19),
       stock_actual: Number(p.stock_actual ?? 0),
+      precio_sugerido: Number(p.precio_sugerido ?? 0),
+      margen_minimo_pct: Number(p.margen_minimo_pct ?? 20),
     }))
   } catch {
     return []
