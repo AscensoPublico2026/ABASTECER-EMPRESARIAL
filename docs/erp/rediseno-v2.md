@@ -318,7 +318,164 @@ CRUCE:
 
 ---
 
-## Orden de reconstruccion
+## Ejemplo REAL: Extintores y camilla para Evolti (Julio 2026)
+
+> Este ejemplo documenta la primera operacion real de Abastecer y sirve como
+> caso de prueba para validar que el ERP funcione correctamente.
+
+### Contexto:
+- Cliente: Evolti (credito 30 dias, requiere Orden de Compra)
+- Productos: Extintores + 1 camilla
+- Proveedor: Se buscara el menor precio (contado)
+
+### Flujo paso a paso:
+
+```
+PASO 1 — COTIZACION A EVOLTI
+  → Julio crea cotizacion COT-2026-001
+  → Productos: X extintores + 1 camilla
+  → Precio de venta definido por Julio (precio cliente Evolti)
+  → IVA 19% sobre cada item
+  → Se envia a Evolti para aprobacion
+  → Estado: PENDIENTE
+
+PASO 2 — EVOLTI APRUEBA + GENERA ORDEN DE COMPRA
+  → Evolti responde: "Aprobado"
+  → Evolti envia su Orden de Compra (PDF/documento)
+  → Se carga la OC de Evolti al sistema (vinculada a COT-2026-001)
+  → Cotizacion pasa a estado: APROBADA
+  → Se genera automaticamente: Cuenta por cobrar a 30 dias
+
+PASO 3 — JULIO BUSCA PROVEEDOR Y COMPRA
+  → Julio busca extintores y camilla al menor precio
+  → Va al lugar fisicamente, paga de contado (dinero de Bold)
+  → El proveedor le genera factura electronica
+  → Julio registra la compra en el ERP:
+    - Selecciona proveedor (o lo crea si es nuevo)
+    - Carga la factura (PDF adjunto)
+    - Registra items: producto, cantidad, precio, IVA
+    - Forma de pago: Contado (ya pagado)
+  → El sistema automaticamente:
+    - Actualiza el costo promedio ponderado del producto
+    - Registra el IVA pagado (descontable)
+    - Registra la salida de dinero (pago a proveedor)
+    - Entrada al inventario
+
+PASO 4 — GENERAR FACTURA DE VENTA (DIAN)
+  → Julio genera la factura en el sistema DIAN (gratuito)
+  → Ingresa el numero de factura DIAN en el ERP
+  → La factura se vincula a la cotizacion COT-2026-001
+  → El sistema calcula:
+    - Subtotal venta
+    - IVA cobrado (19%)
+    - Total factura
+    - Costo (promedio ponderado)
+    - UTILIDAD BRUTA
+    - Margen %
+  → Salida del inventario (los productos salen del stock)
+  → Estado: FACTURADA
+  → Cuenta por cobrar: Total factura, vence en 30 dias
+
+PASO 5 — DESPACHO / ENTREGA
+  → Julio entrega los extintores y la camilla a Evolti
+  → Se registra la entrega (fecha, quien recibio)
+  → Estado: ENTREGADA
+
+PASO 6 — EVOLTI PAGA (30 dias despues)
+  → Entra el dinero a la cuenta Bold
+  → Se registra el pago (monto, fecha, referencia)
+  → Se vincula con la factura correspondiente
+  → La cuenta por cobrar se CIERRA
+  → Estado: COBRADA
+  → El dinero se distribuye automaticamente:
+    - IVA cobrado → "Reserva IVA" (Politica #014: no tocar)
+    - Utilidad → "Utilidad operativa"
+    - Costo ya se pago en el Paso 3
+```
+
+### Lo que el ERP debe mostrar despues de esta operacion:
+
+**Centro Financiero:**
+- IVA cobrado: +$X (de la venta a Evolti)
+- IVA pagado: -$Y (de la compra al proveedor)
+- IVA neto a pagar: X - Y
+- Utilidad: precio venta - costo compra
+- La Regla del Dia Siguiente se recalcula con el nuevo saldo
+
+**Ficha Evolti (cliente):**
+- Cotizacion COT-2026-001 (estado: COBRADA)
+- Factura DIAN FE-xxx
+- Pago recibido: fecha, monto
+- Historial: "compro extintores y camilla"
+
+**Ficha proveedor:**
+- Factura de compra registrada
+- Productos comprados con precio
+- Pago realizado (contado)
+
+---
+
+## Orden de Compra del CLIENTE (OC del cliente)
+
+### Regla para credito:
+> Todo cliente a CREDITO debe presentar Orden de Compra antes de que
+> Abastecer proceda a comprar, facturar y despachar. Sin OC no hay despacho.
+
+### Flujo con OC:
+```
+1. Se envia cotizacion al cliente
+2. Cliente aprueba verbalmente o por correo
+3. Cliente genera y envia su Orden de Compra (PDF)
+4. Se carga la OC al sistema vinculada a la cotizacion
+5. AHORA SI se procede a: comprar + facturar + despachar
+```
+
+### Para contado:
+- No se requiere OC
+- El cliente paga con la cotizacion como referencia
+- Se procede inmediatamente
+
+---
+
+## Precios por cliente y descuentos
+
+### Cada cliente puede tener un precio diferente:
+- Tabla: `precios_cliente` (cliente_id, producto_id, precio_especial)
+- Al crear cotizacion: si el cliente tiene precio especial, se usa ese
+- Si no tiene: se usa el precio sugerido (costo * (1 + margen%))
+
+### Descuentos:
+- Cada producto tiene un `margen_minimo_pct` (ej: 20%)
+- Si el vendedor da descuento, el sistema muestra:
+  "Margen baja del 35% al 22% — ALERTA si baja del minimo"
+- Si baja del minimo → requiere autorizacion (de ambos socios)
+- Se registra cuanto "se dejo de ganar" vs precio de lista
+
+---
+
+## Nombres de producto: Proveedor vs Nuestro
+
+### Problema:
+- El proveedor llama al producto "Gafa B105"
+- Nosotros lo llamamos "Gafa de seguridad transparente"
+- El sistema debe entender que es EL MISMO producto
+
+### Solucion: Tabla de equivalencias
+```
+Producto nuestro: PRD-045 "Gafa de seguridad transparente"
+  └─ Nombre en Proveedor A: "Gafa B105"
+  └─ Nombre en Proveedor B: "Lente seguridad claro ref 105"
+  └─ Nombre en Proveedor C: "Gafa proteccion B-105"
+```
+
+### Como funciona:
+- Al registrar una compra y escribir "Gafa B105", el sistema sugiere:
+  "Quieres decir PRD-045 (Gafa de seguridad transparente)?"
+- Se vincula automaticamente
+- Cada proveedor puede tener SU nombre para nuestro mismo producto
+- Tabla: `producto_nombres_proveedor` (producto_id, proveedor_id, nombre_proveedor, ref_proveedor)
+
+---
 
 1. **Catalogo de Productos** (el corazon — todo depende de esto)
 2. **Cotizaciones a clientes** (con items del catalogo)
