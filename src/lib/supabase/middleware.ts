@@ -1,10 +1,28 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Detecta si Supabase esta realmente configurado (no placeholders)
+function isSupabaseConfigured() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  return Boolean(
+    url &&
+    key &&
+    !url.includes('placeholder') &&
+    !key.includes('placeholder')
+  )
+}
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
     request: { headers: request.headers },
   })
+
+  // Si Supabase no esta configurado, dejamos pasar todo para que el ERP
+  // sea navegable (modo demo). Asi nunca se cae por falta de credenciales.
+  if (!isSupabaseConfigured()) {
+    return response
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
