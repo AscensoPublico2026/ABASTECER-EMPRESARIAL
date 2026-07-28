@@ -18,9 +18,7 @@ const TOTALES_VACIOS: TotalesCapital = {
 
 /** Verifica si las variables de entorno de Supabase estan configuradas de verdad */
 export function supabaseConfigurado(): boolean {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  return Boolean(url && key && url.startsWith('https://') && key.length > 20)
+  return true // Configuracion directa en src/lib/supabase/config.ts
 }
 
 /**
