@@ -9,6 +9,7 @@ export interface ResultadoAccion {
 }
 
 interface ItemInput {
+  producto_id: string | null
   descripcion: string
   cantidad: number
   precio_unitario: number
@@ -16,13 +17,12 @@ interface ItemInput {
   iva_porcentaje: number
 }
 
-export async function registrarVenta(formData: FormData): Promise<ResultadoAccion> {
+export async function crearCotizacion(formData: FormData): Promise<ResultadoAccion> {
   const cliente_id = String(formData.get('cliente_id') ?? '').trim()
-  const numero_cotizacion = String(formData.get('numero_cotizacion') ?? '').trim()
   const fecha = String(formData.get('fecha') ?? '').trim()
+  const fecha_validez = String(formData.get('fecha_validez') ?? '').trim()
   const forma_pago = String(formData.get('forma_pago') ?? 'Contado').trim()
-  const estado = String(formData.get('estado') ?? 'COTIZACION').trim()
-  const notas = String(formData.get('notas') ?? '').trim()
+  const observaciones = String(formData.get('observaciones') ?? '').trim()
   const itemsJson = String(formData.get('items') ?? '[]')
 
   let items: ItemInput[]
@@ -47,6 +47,7 @@ export async function registrarVenta(formData: FormData): Promise<ResultadoAccio
     iva_total += iva
     costo_total += costo
     return {
+      producto_id: item.producto_id || null,
       descripcion: item.descripcion,
       cantidad: item.cantidad,
       precio_unitario: item.precio_unitario,
@@ -60,63 +61,58 @@ export async function registrarVenta(formData: FormData): Promise<ResultadoAccio
   })
 
   const total = Math.round(subtotal + iva_total)
-  const utilidad_bruta = Math.round(subtotal - costo_total)
-  const margen_pct = subtotal > 0 ? Math.round((utilidad_bruta / subtotal) * 10000) / 100 : 0
+  const utilidad_estimada = Math.round(subtotal - costo_total)
+  const margen_pct = subtotal > 0 ? Math.round((utilidad_estimada / subtotal) * 10000) / 100 : 0
 
   let dias_credito = 0
-  let fecha_vencimiento: string | null = null
   if (forma_pago.includes('15')) dias_credito = 15
   else if (forma_pago.includes('30')) dias_credito = 30
   else if (forma_pago.includes('45')) dias_credito = 45
   else if (forma_pago.includes('60')) dias_credito = 60
 
-  if (dias_credito > 0 && fecha) {
-    const fv = new Date(fecha)
-    fv.setDate(fv.getDate() + dias_credito)
-    fecha_vencimiento = fv.toISOString().slice(0, 10)
-  }
-
   try {
     const supabase = createServerSupabaseClient()
 
-    const { data: venta, error: errorVenta } = await supabase
-      .from('ventas')
+    const { data: cot, error: errorCot } = await supabase
+      .from('cotizaciones')
       .insert({
+        numero: '', // trigger genera COT-2026-001
         cliente_id: cliente_id || null,
-        numero_cotizacion: numero_cotizacion || null,
         fecha: fecha || new Date().toISOString().slice(0, 10),
+        fecha_validez: fecha_validez || null,
         subtotal: Math.round(subtotal),
         iva_total: Math.round(iva_total),
         total,
         costo_total: Math.round(costo_total),
-        utilidad_bruta,
+        utilidad_estimada,
         margen_pct,
+        estado: 'PENDIENTE',
         forma_pago,
         dias_credito,
-        fecha_vencimiento,
-        estado,
-        notas: notas || null,
+        observaciones: observaciones || null,
       })
-      .select('id')
+      .select('id, numero')
       .single()
 
-    if (errorVenta) return { ok: false, mensaje: errorVenta.message }
+    if (errorCot) return { ok: false, mensaje: errorCot.message }
 
-    const itemsConVentaId = itemsCalculados.map((item) => ({
+    const itemsConId = itemsCalculados.map((item) => ({
       ...item,
-      venta_id: venta.id,
+      cotizacion_id: cot.id,
     }))
 
-    const { error: errorItems } = await supabase.from('venta_items').insert(itemsConVentaId)
+    const { error: errorItems } = await supabase.from('cotizacion_items').insert(itemsConId)
     if (errorItems) return { ok: false, mensaje: errorItems.message }
 
     revalidatePath('/ventas')
     revalidatePath('/')
-    revalidatePath('/financiero')
 
     const fmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 })
-    return { ok: true, mensaje: `Venta registrada: ${fmt.format(total)} | Utilidad: ${fmt.format(utilidad_bruta)} (${margen_pct}%)` }
+    return {
+      ok: true,
+      mensaje: `Cotizacion ${cot.numero} creada: ${fmt.format(total)} | Utilidad estimada: ${fmt.format(utilidad_estimada)} (${margen_pct}%)`,
+    }
   } catch (e) {
-    return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al registrar.' }
+    return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al crear.' }
   }
 }

@@ -1,15 +1,17 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { registrarVenta } from './actions'
+import { crearCotizacion } from './actions'
 import { formatCOP } from '@/lib/format'
 import { PlusCircle, X, Loader2, CheckCircle2, AlertCircle, Trash2, Plus } from 'lucide-react'
 
 interface Props {
   clientes: { id: string; razon_social: string }[]
+  productos: { id: string; codigo: string; nombre: string; costo_promedio: number; iva_porcentaje: number; stock_actual: number }[]
 }
 
 interface ItemLocal {
+  producto_id: string
   descripcion: string
   cantidad: string
   precio_unitario: string
@@ -17,9 +19,19 @@ interface ItemLocal {
   iva_porcentaje: string
 }
 
-const ITEM_VACIO: ItemLocal = { descripcion: '', cantidad: '1', precio_unitario: '', costo_unitario: '', iva_porcentaje: '19' }
+const ITEM_VACIO: ItemLocal = { producto_id: '', descripcion: '', cantidad: '1', precio_unitario: '', costo_unitario: '', iva_porcentaje: '19' }
 
-export default function FormVenta({ clientes }: Props) {
+function hoy() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function hoyMas15() {
+  const d = new Date()
+  d.setDate(d.getDate() + 15)
+  return d.toISOString().slice(0, 10)
+}
+
+export default function FormCotizacion({ clientes, productos }: Props) {
   const [abierto, setAbierto] = useState(false)
   const [items, setItems] = useState<ItemLocal[]>([{ ...ITEM_VACIO }])
   const [pendiente, startTransition] = useTransition()
@@ -36,6 +48,21 @@ export default function FormVenta({ clientes }: Props) {
 
   function actualizarItem(idx: number, campo: keyof ItemLocal, valor: string) {
     setItems(items.map((item, i) => i === idx ? { ...item, [campo]: valor } : item))
+  }
+
+  function seleccionarProducto(idx: number, productoId: string) {
+    const producto = productos.find((p) => p.id === productoId)
+    setItems(items.map((item, i) => {
+      if (i !== idx) return item
+      if (!producto) return { ...item, producto_id: '', costo_unitario: '', iva_porcentaje: '19' }
+      return {
+        ...item,
+        producto_id: producto.id,
+        descripcion: `${producto.codigo} - ${producto.nombre}`,
+        costo_unitario: String(producto.costo_promedio),
+        iva_porcentaje: String(producto.iva_porcentaje),
+      }
+    }))
   }
 
   function calcularTotales() {
@@ -59,6 +86,7 @@ export default function FormVenta({ clientes }: Props) {
 
   function handleSubmit(formData: FormData) {
     const itemsParseados = items.map((item) => ({
+      producto_id: item.producto_id || null,
       descripcion: item.descripcion,
       cantidad: Number(item.cantidad) || 1,
       precio_unitario: Number(item.precio_unitario.replace(/\./g, '').replace(',', '.')) || 0,
@@ -69,7 +97,7 @@ export default function FormVenta({ clientes }: Props) {
     formData.set('items', JSON.stringify(itemsParseados))
     setResultado(null)
     startTransition(async () => {
-      const res = await registrarVenta(formData)
+      const res = await crearCotizacion(formData)
       setResultado(res)
       if (res.ok) {
         setTimeout(() => { setAbierto(false); setResultado(null); setItems([{ ...ITEM_VACIO }]) }, 1500)
@@ -92,14 +120,14 @@ export default function FormVenta({ clientes }: Props) {
       <div className="bg-white rounded-2xl w-full max-w-2xl my-8 shadow-xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
-            <h3 className="font-semibold text-gray-800">Registrar venta / cotizacion</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Cotizacion o factura de venta a cliente</p>
+            <h3 className="font-semibold text-gray-800">Crear cotizacion</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Numeracion automatica COT-2026-XXX</p>
           </div>
           <button onClick={() => { setAbierto(false); setResultado(null) }} className="p-1.5 rounded-lg hover:bg-gray-100"><X className="w-5 h-5 text-gray-400" /></button>
         </div>
 
         <form action={handleSubmit} className="p-6 space-y-5">
-          {/* Cliente y cotizacion */}
+          {/* Cliente y fechas */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
@@ -107,17 +135,6 @@ export default function FormVenta({ clientes }: Props) {
                 <option value="">Sin cliente registrado</option>
                 {clientes.map((c) => <option key={c.id} value={c.id}>{c.razon_social}</option>)}
               </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">No. Cotizacion</label>
-              <input name="numero_cotizacion" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" placeholder="COT-001" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
-              <input name="fecha" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Forma de pago</label>
@@ -131,41 +148,98 @@ export default function FormVenta({ clientes }: Props) {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-            <select name="estado" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
-              <option value="COTIZACION">Cotizacion</option>
-              <option value="APROBADA">Aprobada</option>
-              <option value="FACTURADA">Facturada</option>
-              <option value="COBRADA">Cobrada</option>
-            </select>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+              <input name="fecha" type="date" defaultValue={hoy()} required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha validez</label>
+              <input name="fecha_validez" type="date" defaultValue={hoyMas15()} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
+            </div>
           </div>
 
           {/* Items */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700">Items de la venta</label>
+              <label className="text-sm font-medium text-gray-700">Items de la cotizacion</label>
               <button type="button" onClick={agregarItem} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
                 <Plus className="w-3.5 h-3.5" /> Agregar item
               </button>
             </div>
             <div className="space-y-3">
               {items.map((item, idx) => (
-                <div key={idx} className="flex gap-2 items-start bg-gray-50 p-3 rounded-xl">
-                  <div className="flex-1 grid grid-cols-5 gap-2">
-                    <input value={item.descripcion} onChange={(e) => actualizarItem(idx, 'descripcion', e.target.value)} placeholder="Producto" className="col-span-2 px-2 py-2 border border-gray-200 rounded-lg text-sm" />
-                    <input value={item.cantidad} onChange={(e) => actualizarItem(idx, 'cantidad', e.target.value)} placeholder="Cant" type="number" min="1" className="px-2 py-2 border border-gray-200 rounded-lg text-sm text-center" />
-                    <input value={item.precio_unitario} onChange={(e) => actualizarItem(idx, 'precio_unitario', e.target.value)} placeholder="P. Venta" inputMode="numeric" className="px-2 py-2 border border-gray-200 rounded-lg text-sm text-right" />
-                    <input value={item.costo_unitario} onChange={(e) => actualizarItem(idx, 'costo_unitario', e.target.value)} placeholder="Costo" inputMode="numeric" className="px-2 py-2 border border-gray-200 rounded-lg text-sm text-right" />
+                <div key={idx} className="bg-gray-50 p-3 rounded-xl space-y-2">
+                  <div className="flex gap-2 items-start">
+                    <div className="flex-1">
+                      <select
+                        value={item.producto_id}
+                        onChange={(e) => seleccionarProducto(idx, e.target.value)}
+                        className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm"
+                      >
+                        <option value="">-- Seleccionar producto del catalogo --</option>
+                        {productos.map((p) => (
+                          <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button type="button" onClick={() => eliminarItem(idx)} disabled={items.length === 1} className="p-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                  <select value={item.iva_porcentaje} onChange={(e) => actualizarItem(idx, 'iva_porcentaje', e.target.value)} className="w-20 px-1 py-2 border border-gray-200 rounded-lg text-xs">
-                    <option value="19">19%</option>
-                    <option value="5">5%</option>
-                    <option value="0">0%</option>
-                  </select>
-                  <button type="button" onClick={() => eliminarItem(idx)} disabled={items.length === 1} className="p-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex gap-2 items-start">
+                    <input
+                      value={item.descripcion}
+                      onChange={(e) => actualizarItem(idx, 'descripcion', e.target.value)}
+                      placeholder="Descripcion (manual si no esta en catalogo)"
+                      className="flex-1 px-2 py-2 border border-gray-200 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-0.5">Cantidad</label>
+                      <input
+                        value={item.cantidad}
+                        onChange={(e) => actualizarItem(idx, 'cantidad', e.target.value)}
+                        placeholder="Cant"
+                        type="number"
+                        min="1"
+                        className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm text-center"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-0.5">P. Venta</label>
+                      <input
+                        value={item.precio_unitario}
+                        onChange={(e) => actualizarItem(idx, 'precio_unitario', e.target.value)}
+                        placeholder="Precio venta"
+                        inputMode="numeric"
+                        className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm text-right"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-0.5">Costo</label>
+                      <input
+                        value={item.costo_unitario}
+                        onChange={(e) => actualizarItem(idx, 'costo_unitario', e.target.value)}
+                        placeholder="Costo"
+                        inputMode="numeric"
+                        className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm text-right"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-0.5">IVA</label>
+                      <select
+                        value={item.iva_porcentaje}
+                        onChange={(e) => actualizarItem(idx, 'iva_porcentaje', e.target.value)}
+                        className="w-full px-1 py-2 border border-gray-200 rounded-lg text-sm"
+                      >
+                        <option value="19">19%</option>
+                        <option value="5">5%</option>
+                        <option value="0">0%</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -182,7 +256,7 @@ export default function FormVenta({ clientes }: Props) {
             <div className={`rounded-xl p-4 space-y-1.5 text-sm ${totales.utilidad >= 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
               <div className="flex justify-between text-gray-600"><span>Costo total:</span><span className="tabular-nums">{formatCOP(totales.costoTotal)}</span></div>
               <div className={`flex justify-between font-bold text-base pt-1.5 border-t ${totales.utilidad >= 0 ? 'border-green-200 text-green-700' : 'border-red-200 text-red-700'}`}>
-                <span>UTILIDAD BRUTA:</span><span className="tabular-nums">{formatCOP(totales.utilidad)}</span>
+                <span>UTILIDAD ESTIMADA:</span><span className="tabular-nums">{formatCOP(totales.utilidad)}</span>
               </div>
               <div className={`flex justify-between text-xs ${totales.utilidad >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 <span>Margen:</span><span className="tabular-nums">{totales.margen.toFixed(2)} %</span>
@@ -190,10 +264,10 @@ export default function FormVenta({ clientes }: Props) {
             </div>
           </div>
 
-          {/* Notas */}
+          {/* Observaciones */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
-            <textarea name="notas" rows={2} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none" placeholder="Observaciones..." />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+            <textarea name="observaciones" rows={2} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none" placeholder="Observaciones..." />
           </div>
 
           {resultado && (
@@ -206,7 +280,7 @@ export default function FormVenta({ clientes }: Props) {
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={() => { setAbierto(false); setResultado(null) }} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50">Cancelar</button>
             <button type="submit" disabled={pendiente} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-              {pendiente && <Loader2 className="w-4 h-4 animate-spin" />} Registrar venta
+              {pendiente && <Loader2 className="w-4 h-4 animate-spin" />} Crear cotizacion
             </button>
           </div>
         </form>
