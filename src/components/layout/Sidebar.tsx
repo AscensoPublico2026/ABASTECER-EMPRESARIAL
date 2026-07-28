@@ -3,18 +3,18 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { clsx } from 'clsx'
-import { Building2, LayoutDashboard, Users, ShoppingCart, Receipt, Truck, UserCheck, Package, BarChart3, DollarSign, LogOut } from 'lucide-react'
+import { LayoutDashboard, Users, ShoppingCart, Receipt, Truck, UserCheck, Package, BarChart3, DollarSign, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Centro Financiero', href: '/financiero', icon: DollarSign },
   { name: 'Socios & Capital', href: '/socios', icon: Users },
+  { name: 'Catalogo', href: '/inventario', icon: Package },
+  { name: 'Cotizaciones', href: '/ventas', icon: Receipt },
   { name: 'Compras', href: '/compras', icon: ShoppingCart },
-  { name: 'Ventas', href: '/ventas', icon: Receipt },
   { name: 'Proveedores', href: '/proveedores', icon: Truck },
   { name: 'Clientes', href: '/clientes', icon: UserCheck },
-  { name: 'Inventario', href: '/inventario', icon: Package },
   { name: 'Indicadores', href: '/indicadores', icon: BarChart3 },
 ]
 
@@ -30,9 +30,7 @@ export default function Sidebar() {
     <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-900 text-white flex flex-col">
       <div className="p-6 border-b border-slate-700">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
-            <Building2 className="w-5 h-5 text-white" />
-          </div>
+          <img src="/logo.png" alt="Abastecer" className="w-10 h-10 rounded-xl object-contain bg-white p-0.5" />
           <div>
             <h1 className="font-bold text-lg leading-tight">ABASTECER</h1>
             <p className="text-xs text-slate-400">ERP Empresarial</p>
