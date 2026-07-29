@@ -129,7 +129,7 @@ export default async function VentasPage() {
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${estado.color}`}>{estado.etiqueta}</span>
                           </td>
                           <td className="px-6 py-4">
-                            <AccionesCotizacion cotizacionId={c.id} estado={c.estado} numero={c.numero} />
+                            <AccionesCotizacion cotizacionId={c.id} estado={c.estado} numero={c.numero} diasCredito={c.dias_credito} />
                           </td>
                         </tr>
                       )

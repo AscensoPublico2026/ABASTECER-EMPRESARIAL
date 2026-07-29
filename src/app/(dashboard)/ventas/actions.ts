@@ -139,6 +139,40 @@ export async function cerrarVenta(formData: FormData): Promise<ResultadoAccion> 
     // Actualizar cotizacion a FACTURADA
     await supabase.from('cotizaciones').update({ estado: 'FACTURADA' }).eq('id', cotizacion_id)
 
+    // Registrar documentos adjuntos (PDFs subidos desde el cliente)
+    const factura_pdf_url = String(formData.get('factura_pdf_url') ?? '').trim()
+    const factura_pdf_nombre = String(formData.get('factura_pdf_nombre') ?? '').trim()
+    const oc_pdf_url = String(formData.get('oc_pdf_url') ?? '').trim()
+    const oc_pdf_nombre = String(formData.get('oc_pdf_nombre') ?? '').trim()
+
+    const docsAInsertar = []
+
+    if (factura_pdf_url) {
+      docsAInsertar.push({
+        entidad_tipo: 'FACTURA_VENTA',
+        entidad_id: fv.id,
+        tipo_documento: 'FACTURA',
+        nombre_archivo: factura_pdf_nombre || 'factura.pdf',
+        url_archivo: factura_pdf_url,
+      })
+    }
+
+    if (oc_pdf_url) {
+      docsAInsertar.push({
+        entidad_tipo: 'FACTURA_VENTA',
+        entidad_id: fv.id,
+        tipo_documento: 'ORDEN_COMPRA',
+        nombre_archivo: oc_pdf_nombre || 'oc.pdf',
+        url_archivo: oc_pdf_url,
+      })
+      // Guardar URL de OC en la factura tambien
+      await supabase.from('facturas_venta').update({ oc_cliente_url: oc_pdf_url }).eq('id', fv.id)
+    }
+
+    if (docsAInsertar.length > 0) {
+      await supabase.from('documentos').insert(docsAInsertar)
+    }
+
     revalidatePath('/ventas')
     revalidatePath('/financiero')
     return { ok: true, mensaje: `Venta cerrada. Factura DIAN: ${numero_factura_dian}. ${cot.dias_credito > 0 ? 'Cuenta por cobrar registrada.' : 'Cobrada (contado).'}` }
