@@ -240,3 +240,85 @@ export async function ventaDirecta(formData: FormData): Promise<ResultadoAccion>
     return { ok: true, mensaje: `Venta directa registrada: ${fmt.format(total)} | Utilidad: ${fmt.format(utilidad)} (${margen_pct}%)` }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
+
+
+/** Editar cotizacion (solo si NO esta FACTURADA) */
+export async function editarCotizacion(formData: FormData): Promise<ResultadoAccion> {
+  const cotizacion_id = String(formData.get('cotizacion_id') ?? '').trim()
+  const cliente_id = String(formData.get('cliente_id') ?? '').trim()
+  const fecha = String(formData.get('fecha') ?? '').trim()
+  const fecha_validez = String(formData.get('fecha_validez') ?? '').trim()
+  const forma_pago = String(formData.get('forma_pago') ?? 'Contado').trim()
+  const observaciones = String(formData.get('observaciones') ?? '').trim()
+  const itemsJson = String(formData.get('items') ?? '[]')
+
+  if (!cotizacion_id) return { ok: false, mensaje: 'Cotizacion no valida.' }
+
+  let items: ItemInput[]
+  try { items = JSON.parse(itemsJson) } catch { return { ok: false, mensaje: 'Error en los items.' } }
+  if (items.length === 0) return { ok: false, mensaje: 'Agrega al menos un item.' }
+
+  let subtotal = 0, iva_total = 0, costo_total = 0
+  const itemsCalculados = items.map((item) => {
+    const sub = item.cantidad * item.precio_unitario
+    const iva = sub * (item.iva_porcentaje / 100)
+    const costo = item.cantidad * item.costo_unitario
+    subtotal += sub; iva_total += iva; costo_total += costo
+    return { producto_id: item.producto_id || null, descripcion: item.descripcion, cantidad: item.cantidad, precio_unitario: item.precio_unitario, costo_unitario: item.costo_unitario, iva_porcentaje: item.iva_porcentaje, iva_valor: Math.round(iva), subtotal: Math.round(sub), total: Math.round(sub + iva), utilidad: Math.round(sub - costo) }
+  })
+
+  const total = Math.round(subtotal + iva_total)
+  const utilidad_estimada = Math.round(subtotal - costo_total)
+  const margen_pct = subtotal > 0 ? Math.round((utilidad_estimada / subtotal) * 10000) / 100 : 0
+
+  let dias_credito = 0
+  if (forma_pago.includes('15')) dias_credito = 15
+  else if (forma_pago.includes('30')) dias_credito = 30
+  else if (forma_pago.includes('45')) dias_credito = 45
+  else if (forma_pago.includes('60')) dias_credito = 60
+
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Verificar que la cotizacion existe y NO esta facturada
+    const { data: cotActual, error: errCheck } = await supabase
+      .from('cotizaciones')
+      .select('estado')
+      .eq('id', cotizacion_id)
+      .single()
+
+    if (errCheck || !cotActual) return { ok: false, mensaje: 'Cotizacion no encontrada.' }
+    if (cotActual.estado === 'FACTURADA') return { ok: false, mensaje: 'No se puede editar una cotizacion ya facturada.' }
+
+    // Actualizar la cotizacion
+    const { error: errorUpdate } = await supabase.from('cotizaciones').update({
+      cliente_id: cliente_id || null,
+      fecha: fecha || new Date().toISOString().slice(0, 10),
+      fecha_validez: fecha_validez || null,
+      subtotal: Math.round(subtotal),
+      iva_total: Math.round(iva_total),
+      total,
+      costo_total: Math.round(costo_total),
+      utilidad_estimada,
+      margen_pct,
+      forma_pago,
+      dias_credito,
+      observaciones: observaciones || null,
+    }).eq('id', cotizacion_id)
+
+    if (errorUpdate) return { ok: false, mensaje: errorUpdate.message }
+
+    // Eliminar items anteriores y crear los nuevos
+    await supabase.from('cotizacion_items').delete().eq('cotizacion_id', cotizacion_id)
+
+    const { error: errorItems } = await supabase.from('cotizacion_items').insert(
+      itemsCalculados.map((item) => ({ ...item, cotizacion_id }))
+    )
+    if (errorItems) return { ok: false, mensaje: errorItems.message }
+
+    revalidatePath('/ventas')
+    revalidatePath(`/ventas/${cotizacion_id}`)
+    const fmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 })
+    return { ok: true, mensaje: `Cotizacion actualizada: ${fmt.format(total)} | Utilidad: ${fmt.format(utilidad_estimada)} (${margen_pct}%)` }
+  } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al editar.' } }
+}

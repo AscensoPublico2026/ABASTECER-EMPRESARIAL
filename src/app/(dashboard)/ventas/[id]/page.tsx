@@ -29,7 +29,14 @@ export default async function CotizacionDetallePage({ params }: { params: { id: 
         <Link href="/ventas" className="flex items-center gap-2 text-gray-600 hover:text-gray-800 text-sm">
           <ArrowLeft className="w-4 h-4" /> Volver a cotizaciones
         </Link>
-        <BotonImprimir />
+        <div className="flex items-center gap-3">
+          {cot.estado !== 'FACTURADA' && (
+            <Link href={`/ventas/${params.id}/editar`} className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition">
+              Editar cotizacion
+            </Link>
+          )}
+          <BotonImprimir />
+        </div>
       </div>
 
       {/* Documento de cotizacion (imprimible) */}

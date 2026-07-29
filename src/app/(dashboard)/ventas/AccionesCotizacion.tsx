@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef } from 'react'
 import { aprobarCotizacion, cerrarVenta } from './actions'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle2, FileText, Loader2, AlertCircle, X, Upload, FileCheck } from 'lucide-react'
+import { CheckCircle2, FileText, Loader2, AlertCircle, X, Upload, FileCheck, Pencil } from 'lucide-react'
 
 interface Props {
   cotizacionId: string
@@ -120,6 +120,17 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
 
   return (
     <div className="flex items-center gap-2">
+      {/* Boton Editar (solo PENDIENTE o APROBADA) */}
+      {(estado === 'PENDIENTE' || estado === 'APROBADA') && (
+        <a
+          href={`/ventas/${cotizacionId}/editar`}
+          className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-100 transition"
+        >
+          <Pencil className="w-3 h-3" />
+          Editar
+        </a>
+      )}
+
       {estado === 'PENDIENTE' && (
         <button
           onClick={handleAprobar}
