@@ -46,65 +46,73 @@ export async function obtenerDatosFinancieros(): Promise<{
   try {
     const supabase = createServerSupabaseClient()
 
-    const [ventasRes, comprasRes, sociosRes] = await Promise.all([
-      supabase.from('ventas').select('subtotal, iva_total, total, costo_total, utilidad_bruta, margen_pct, estado, dias_credito'),
-      supabase.from('compras').select('subtotal, iva_total, total, estado, dias_credito'),
+    // Consultar las tablas correctas: cotizaciones, facturas_venta, facturas_compra
+    const [cotizacionesRes, facturasVentaRes, comprasRes, sociosRes] = await Promise.all([
+      supabase.from('cotizaciones').select('subtotal, iva_total, total, costo_total, utilidad_estimada, margen_pct, estado, dias_credito'),
+      supabase.from('facturas_venta').select('subtotal, iva_total, total, costo_total, utilidad, margen_pct, estado, dias_credito'),
+      supabase.from('facturas_compra').select('subtotal, iva_total, total, estado, dias_credito'),
       supabase.from('resumen_socios').select('capital_aportado, prestamo_pendiente, dividendos_recibidos'),
     ])
 
-    if (ventasRes.error) return { datos: DATOS_VACIOS, error: ventasRes.error.message }
+    if (cotizacionesRes.error) return { datos: DATOS_VACIOS, error: cotizacionesRes.error.message }
+    if (facturasVentaRes.error) return { datos: DATOS_VACIOS, error: facturasVentaRes.error.message }
     if (comprasRes.error) return { datos: DATOS_VACIOS, error: comprasRes.error.message }
 
-    const ventas = ventasRes.data ?? []
+    const cotizaciones = cotizacionesRes.data ?? []
+    const facturasVenta = facturasVentaRes.data ?? []
     const compras = comprasRes.data ?? []
     const socios = sociosRes.data ?? []
 
-    // Ventas (excluyendo anuladas y cotizaciones para totales)
-    const ventasActivas = ventas.filter((v) => v.estado !== 'ANULADA' && v.estado !== 'COTIZACION')
-    const ventasTotales = ventasActivas.reduce((s, v) => s + Number(v.total ?? 0), 0)
-    const ivaCobrado = ventasActivas.reduce((s, v) => s + Number(v.iva_total ?? 0), 0)
-    const utilidadBruta = ventasActivas.reduce((s, v) => s + Number(v.utilidad_bruta ?? 0), 0)
-    const costoTotalVentas = ventasActivas.reduce((s, v) => s + Number(v.costo_total ?? 0), 0)
-    const subtotalVentas = ventasActivas.reduce((s, v) => s + Number(v.subtotal ?? 0), 0)
+    // --- VENTAS (facturas_venta) ---
+    // Las facturas de venta representan ventas reales (ya facturadas con DIAN)
+    const ventasTotales = facturasVenta.reduce((s, fv) => s + Number(fv.total ?? 0), 0)
+    const ivaCobrado = facturasVenta.reduce((s, fv) => s + Number(fv.iva_total ?? 0), 0)
+    const utilidadBruta = facturasVenta.reduce((s, fv) => s + Number(fv.utilidad ?? 0), 0)
+    const costoTotalVentas = facturasVenta.reduce((s, fv) => s + Number(fv.costo_total ?? 0), 0)
+    const subtotalVentas = facturasVenta.reduce((s, fv) => s + Number(fv.subtotal ?? 0), 0)
     const margenPromedio = subtotalVentas > 0 ? (utilidadBruta / subtotalVentas) * 100 : 0
-    const cuentasPorCobrar = ventas
-      .filter((v) => v.estado === 'FACTURADA')
-      .reduce((s, v) => s + Number(v.total ?? 0), 0)
-    const numeroCotizaciones = ventas.filter((v) => v.estado === 'COTIZACION').length
-    const numeroVentasFacturadas = ventas.filter((v) => v.estado === 'FACTURADA' || v.estado === 'COBRADA').length
 
-    // Compras (excluyendo anuladas)
+    // Cuentas por cobrar = facturas emitidas (a credito, pendientes de pago)
+    const cuentasPorCobrar = facturasVenta
+      .filter((fv) => fv.estado === 'EMITIDA')
+      .reduce((s, fv) => s + Number(fv.total ?? 0), 0)
+
+    // Conteo de cotizaciones (todas las activas, no rechazadas)
+    const numeroCotizaciones = cotizaciones.filter((c) => c.estado !== 'RECHAZADA').length
+    const numeroVentasFacturadas = facturasVenta.length
+
+    // --- COMPRAS (facturas_compra) ---
     const comprasActivas = compras.filter((c) => c.estado !== 'ANULADA')
     const comprasTotales = comprasActivas.reduce((s, c) => s + Number(c.total ?? 0), 0)
     const ivaPagado = comprasActivas.reduce((s, c) => s + Number(c.iva_total ?? 0), 0)
     const cuentasPorPagar = compras
-      .filter((c) => c.estado === 'POR_PAGAR' || c.estado === 'VENCIDA')
+      .filter((c) => c.estado === 'REGISTRADA' || c.estado === 'POR_PAGAR' || c.estado === 'VENCIDA')
       .reduce((s, c) => s + Number(c.total ?? 0), 0)
     const numeroCompras = comprasActivas.length
 
-    // IVA
+    // --- IVA ---
     const ivaPorPagar = ivaCobrado - ivaPagado
 
-    // Socios
+    // --- SOCIOS ---
     const capitalSocial = socios.reduce((s, r) => s + Number(r.capital_aportado ?? 0), 0)
     const prestamosSocios = socios.reduce((s, r) => s + Number(r.prestamo_pendiente ?? 0), 0)
     const dividendosPagados = socios.reduce((s, r) => s + Number(r.dividendos_recibidos ?? 0), 0)
 
-    // Semaforo de dividendos (Politica #007 - 7 condiciones)
+    // --- SEMAFORO DE DIVIDENDOS (Politica #007 - 7 condiciones) ---
     const motivoSemaforo: string[] = []
     if (capitalSocial <= 0) motivoSemaforo.push('No hay capital aportado')
     if (utilidadBruta <= 0) motivoSemaforo.push('No hay utilidad positiva')
-    if (cuentasPorPagar > 0) motivoSemaforo.push(`Cuentas por pagar: hay proveedores pendientes`)
+    if (cuentasPorPagar > 0) motivoSemaforo.push('Cuentas por pagar: hay proveedores pendientes')
     if (ivaPorPagar > 0 && ivaPorPagar > capitalSocial * 0.3) motivoSemaforo.push('IVA por pagar es significativo')
-    if (ventasActivas.length < 3) motivoSemaforo.push('Menos de 3 ventas — sin datos suficientes')
+    if (facturasVenta.length < 3) motivoSemaforo.push('Menos de 3 ventas facturadas — sin datos suficientes')
 
     let semaforoDividendos: 'VERDE' | 'AMARILLO' | 'ROJO' = 'ROJO'
     if (motivoSemaforo.length === 0) semaforoDividendos = 'VERDE'
     else if (motivoSemaforo.length <= 2 && utilidadBruta > 0) semaforoDividendos = 'AMARILLO'
 
-    // Regla del dia siguiente (Decision #010)
+    // --- REGLA DEL DIA SIGUIENTE (Decision #010) ---
     // Gastos fijos mensuales estimados = costo promedio mensual
-    const mesesOperando = ventasActivas.length > 0 ? Math.max(1, ventasActivas.length / 4) : 1
+    const mesesOperando = facturasVenta.length > 0 ? Math.max(1, facturasVenta.length / 4) : 1
     const gastoMensualEstimado = costoTotalVentas > 0 ? costoTotalVentas / mesesOperando : capitalSocial * 0.3 || 500000
     const cajaDisponible = capitalSocial + utilidadBruta - dividendosPagados - cuentasPorPagar
     const diasEstimados = gastoMensualEstimado > 0 ? Math.round((cajaDisponible / gastoMensualEstimado) * 30) : 0
