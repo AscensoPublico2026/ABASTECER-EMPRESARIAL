@@ -7,6 +7,7 @@ import type { EstadoCliente } from '@/types/clientes'
 import Link from 'next/link'
 import { ArrowLeft, Receipt, ShoppingBag } from 'lucide-react'
 import FormEditarCliente from './FormEditarCliente'
+import DescargarEstadoCuenta from './DescargarEstadoCuenta'
 import SubirDocumento from '@/components/documentos/SubirDocumento'
 
 export const dynamic = 'force-dynamic'
@@ -26,7 +27,7 @@ export default async function ClienteDetallePage({ params }: { params: { id: str
 
   const { data: facturas } = await supabase
     .from('facturas_venta')
-    .select('id, numero_factura_dian, fecha, total, utilidad, estado')
+    .select('id, numero_factura_dian, fecha, fecha_vencimiento, total, utilidad, estado, dias_credito, forma_pago')
     .eq('cliente_id', params.id)
     .order('fecha', { ascending: false })
     .limit(20)
@@ -111,32 +112,54 @@ export default async function ClienteDetallePage({ params }: { params: { id: str
 
         {/* Historial de facturas de venta */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-green-600" />
-            <h3 className="font-semibold text-gray-800">Facturas de venta ({historialFact.length})</h3>
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5 text-green-600" />
+              <h3 className="font-semibold text-gray-800">Estado de cuenta — Facturas ({historialFact.length})</h3>
+            </div>
+            {historialFact.length > 0 && (
+              <DescargarEstadoCuenta facturas={historialFact} clienteNombre={cliente.razon_social} />
+            )}
           </div>
           {historialFact.length === 0 ? (
             <p className="px-6 py-6 text-sm text-gray-400">Sin facturas emitidas a este cliente.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b border-gray-100 text-left">
-                  <th className="px-6 py-2 font-medium text-gray-500">Factura DIAN</th>
-                  <th className="px-6 py-2 font-medium text-gray-500">Fecha</th>
-                  <th className="px-6 py-2 font-medium text-gray-500 text-right">Total</th>
-                  <th className="px-6 py-2 font-medium text-gray-500 text-right">Utilidad</th>
-                  <th className="px-6 py-2 font-medium text-gray-500">Estado</th>
+                <thead><tr className="border-b border-gray-100 text-left bg-gray-50/50">
+                  <th className="px-4 py-2 font-medium text-gray-500">Factura DIAN</th>
+                  <th className="px-4 py-2 font-medium text-gray-500">Fecha</th>
+                  <th className="px-4 py-2 font-medium text-gray-500">Vencimiento</th>
+                  <th className="px-4 py-2 font-medium text-gray-500">Dias</th>
+                  <th className="px-4 py-2 font-medium text-gray-500">Pago</th>
+                  <th className="px-4 py-2 font-medium text-gray-500 text-right">Total</th>
+                  <th className="px-4 py-2 font-medium text-gray-500">Estado</th>
                 </tr></thead>
                 <tbody>
-                  {historialFact.map((f) => (
-                    <tr key={f.id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                      <td className="px-6 py-3 font-mono text-xs">{f.numero_factura_dian ?? '-'}</td>
-                      <td className="px-6 py-3 text-gray-500">{formatFecha(f.fecha)}</td>
-                      <td className="px-6 py-3 text-right tabular-nums">{formatCOP(Number(f.total))}</td>
-                      <td className="px-6 py-3 text-right tabular-nums text-green-600">{formatCOP(Number(f.utilidad))}</td>
-                      <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded-full text-xs ${f.estado === 'COBRADA' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{f.estado}</span></td>
-                    </tr>
-                  ))}
+                  {historialFact.map((f) => {
+                    let dias: number | null = null
+                    if (f.fecha_vencimiento && f.estado === 'EMITIDA') {
+                      const h = new Date(); h.setHours(0,0,0,0)
+                      const [y2,m2,d2] = (f.fecha_vencimiento as string).split('-').map(Number)
+                      dias = Math.ceil((new Date(y2,m2-1,d2).getTime() - h.getTime()) / 86400000)
+                    }
+                    const enMoraFlag = dias !== null && dias < 0
+                    const estadoLabel = f.estado === 'COBRADA' ? 'Cobrada' : enMoraFlag ? `Mora (${Math.abs(dias!)}d)` : 'Pendiente'
+                    const estadoColor = f.estado === 'COBRADA' ? 'bg-green-100 text-green-700' : enMoraFlag ? 'bg-red-100 text-red-700 font-semibold' : 'bg-amber-100 text-amber-700'
+                    return (
+                      <tr key={f.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                        <td className="px-4 py-3 font-mono text-xs"><a href={`/ventas/factura/${f.id}`} className="text-blue-600 hover:underline">{f.numero_factura_dian ?? '-'}</a></td>
+                        <td className="px-4 py-3 text-gray-500 text-xs">{formatFecha(f.fecha)}</td>
+                        <td className="px-4 py-3 text-gray-500 text-xs">{f.fecha_vencimiento ? formatFecha(f.fecha_vencimiento as string) : '—'}</td>
+                        <td className={`px-4 py-3 text-xs ${dias !== null && dias < 0 ? 'text-red-600 font-bold' : dias !== null && dias <= 5 ? 'text-amber-600' : 'text-gray-500'}`}>
+                          {dias === null ? '—' : dias < 0 ? `${Math.abs(dias)}d mora` : `${dias}d`}
+                        </td>
+                        <td className="px-4 py-3 text-xs">{Number(f.dias_credito) > 0 ? `Credito ${f.dias_credito}d` : 'Contado'}</td>
+                        <td className="px-4 py-3 text-right tabular-nums font-medium">{formatCOP(Number(f.total))}</td>
+                        <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs ${estadoColor}`}>{estadoLabel}</span></td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

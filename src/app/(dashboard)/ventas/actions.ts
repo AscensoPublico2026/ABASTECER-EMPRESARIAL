@@ -327,21 +327,37 @@ export async function editarCotizacion(formData: FormData): Promise<ResultadoAcc
 /** Marcar factura de venta como cobrada */
 export async function marcarFacturaCobrada(formData: FormData): Promise<ResultadoAccion> {
   const factura_venta_id = String(formData.get('factura_venta_id') ?? '').trim()
+  const fecha_pago = String(formData.get('fecha_pago') ?? '').trim()
   const soporte_url = String(formData.get('soporte_url') ?? '').trim()
   const soporte_nombre = String(formData.get('soporte_nombre') ?? '').trim()
 
   if (!factura_venta_id) return { ok: false, mensaje: 'Factura no valida.' }
+  if (!fecha_pago) return { ok: false, mensaje: 'Selecciona la fecha en que se recibio el pago.' }
 
   try {
     const supabase = createServerSupabaseClient()
 
-    // Actualizar estado a COBRADA
+    // Actualizar estado a COBRADA + registrar fecha de pago
     const { error } = await supabase
       .from('facturas_venta')
-      .update({ estado: 'COBRADA' })
+      .update({ estado: 'COBRADA', notas: `Pago recibido: ${fecha_pago}` })
       .eq('id', factura_venta_id)
 
     if (error) return { ok: false, mensaje: error.message }
+
+    // Registrar pago en tabla pagos
+    const { data: fvData } = await supabase.from('facturas_venta').select('cliente_id, total').eq('id', factura_venta_id).single()
+    if (fvData) {
+      await supabase.from('pagos').insert({
+        tipo: 'COBRO_CLIENTE',
+        cliente_id: fvData.cliente_id,
+        factura_venta_id,
+        monto: fvData.total,
+        fecha: fecha_pago,
+        medio_pago: 'Transferencia',
+        notas: soporte_url ? 'Con soporte adjunto' : null,
+      })
+    }
 
     // Registrar soporte de pago si se subio
     if (soporte_url) {
@@ -355,7 +371,8 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
     }
 
     revalidatePath('/ventas')
+    revalidatePath('/facturacion')
     revalidatePath('/financiero')
-    return { ok: true, mensaje: 'Factura marcada como cobrada.' }
+    return { ok: true, mensaje: `Cobro registrado. Fecha de pago: ${fecha_pago}` }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }

@@ -31,6 +31,7 @@ export default function TablaVentas({ facturas, clientes }: Props) {
   // Modal cobrar
   const [modalCobrar, setModalCobrar] = useState<FacturaVentaConCliente | null>(null)
   const [soportePdf, setSoportePdf] = useState<File | null>(null)
+  const [fechaPago, setFechaPago] = useState(new Date().toISOString().slice(0, 10))
   const [subiendo, setSubiendo] = useState(false)
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
   const [pendiente, startTransition] = useTransition()
@@ -61,6 +62,7 @@ export default function TablaVentas({ facturas, clientes }: Props) {
     try {
       const fd = new FormData()
       fd.set('factura_venta_id', modalCobrar.id)
+      fd.set('fecha_pago', fechaPago)
 
       // Subir soporte de pago si hay
       if (soportePdf) {
@@ -87,7 +89,7 @@ export default function TablaVentas({ facturas, clientes }: Props) {
         setResultado(res)
         setSubiendo(false)
         if (res.ok) {
-          setTimeout(() => { setModalCobrar(null); setSoportePdf(null); setResultado(null) }, 1500)
+          setTimeout(() => { setModalCobrar(null); setSoportePdf(null); setFechaPago(new Date().toISOString().slice(0, 10)); setResultado(null) }, 1500)
         }
       })
     } catch (err) {
@@ -233,6 +235,18 @@ export default function TablaVentas({ facturas, clientes }: Props) {
               <div className="bg-green-50 rounded-xl p-4">
                 <p className="text-sm text-green-800 font-medium">Monto a cobrar: {formatCOP(modalCobrar.total)}</p>
                 <p className="text-xs text-green-600 mt-1">Al marcar como cobrada, esta factura pasa a estado &quot;Cobrada&quot;</p>
+              </div>
+
+              {/* Fecha de pago */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha en que se recibio el pago *</label>
+                <input
+                  type="date"
+                  value={fechaPago}
+                  onChange={(e) => setFechaPago(e.target.value)}
+                  required
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                />
               </div>
 
               {/* Soporte de pago */}
