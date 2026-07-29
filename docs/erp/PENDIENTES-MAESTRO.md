@@ -36,9 +36,63 @@
 - OC obligatoria para clientes a credito
 - Numero factura DIAN requerido para cerrar venta
 
+## BUGS CONOCIDOS (arreglar primero)
+
+| Bug | Descripcion | Solucion |
+|-----|-------------|----------|
+| 🔴 Centro Financiero: "Could not find table public.ventas" | La consulta en src/lib/queries/financiero.ts busca tabla 'ventas' que fue eliminada en el rediseno. Ahora son 'cotizaciones' + 'facturas_venta'. | Cambiar la query para consultar cotizaciones y facturas_venta en vez de ventas |
+| 🟡 Cotizacion creada no aparece | Julio creo una cotizacion pero no se ve en la tabla. Verificar que la tabla cotizaciones tenga datos y que la query funcione. | Revisar RLS y que el usuario este autenticado correctamente |
+| 🟡 Sidebar no muestra "Gastos" | El commit del sidebar con Gastos puede no haberse pusheado correctamente | Verificar que Sidebar.tsx importe Wallet y tenga la ruta /gastos |
+
 ---
 
-## PENDIENTES POR IMPLEMENTAR (prioridad de ejecucion)
+## OBSERVACIONES DE JULIO (28/Jul/2026) — IMPLEMENTAR
+
+### Sobre la composicion accionaria:
+- Cuando un socio aporta MAS capital que el otro, el % NO debe cambiar automaticamente
+- Solo cambia si ambos socios lo ACUERDAN formalmente (requiere acta de asamblea + Camara de Comercio)
+- Para aportes temporales: usar PRESTAMO (no cambia %)
+- El ERP actual NO cambia % automaticamente (correcto)
+
+### Sobre la cotizacion/venta:
+- Al seleccionar una cotizacion en la tabla, debe abrir un DETALLE completo con:
+  - Datos de la cotizacion
+  - Factura DIAN vinculada (si ya se cerro)
+  - PDF de la factura cargado
+  - OC del cliente (numero + PDF)
+  - Soporte de pago (si ya pago)
+  - Fecha y hora de cada accion
+  - Que usuario hizo cada cosa
+- Columna adicional en tabla de cotizaciones: "Credito/Contado"
+- Columna adicional: "Estado factura" (pagada o pendiente)
+- Al cerrar venta: obligatorio cargar PDF de factura (no solo el numero)
+- Al registrar OC: obligatorio cargar PDF de la OC del cliente
+
+### Sobre los productos:
+- Poder EDITAR cada producto (nombre, referencia, categoria, imagen)
+- Poder ELIMINAR productos
+- Poder cargar IMAGEN del producto
+
+### Sobre los cobros (cuando el cliente paga):
+- El cobro se registra MANUALMENTE (el usuario marca como pagado)
+- Contado: cliente envia soporte → verificar en Bold → marcar COBRADA
+- Credito: llega la fecha, cliente paga → envia soporte → marcar COBRADA
+- Poder subir soporte de pago del cliente (PDF/imagen)
+
+### Sobre retenciones:
+- Los clientes grandes (agentes de retencion) pagan MENOS de lo facturado
+- Diferencia = retenciones (Retefuente ~2.5%, ReteIVA 15% del IVA, ReteICA variable)
+- En el cobro: monto recibido < monto factura. La diferencia son retenciones.
+- Implementar campo "Retenciones aplicadas" en el registro de cobro
+- Las retenciones se cruzan con impuestos al final del año
+
+### Sobre transporte:
+- Crear producto "Servicio de transporte" en el catalogo con IVA 19%
+- Cobrarlo como ITEM APARTE en la cotizacion/factura (no sumarlo a cada producto)
+- Costo = lo que cobra el domiciliario. Margen = lo que cobras al cliente menos el costo.
+- Aunque el domiciliario no facture, a Evolti SI se le cobra con IVA (porque somos responsables)
+
+---
 
 ### BLOQUE 1 — Exportar Excel + Mejoras de tablas
 
@@ -164,3 +218,56 @@
 ---
 
 > **Este documento es la guia maestra. Actualizarlo cada vez que se complete algo.**
+
+
+
+---
+
+## MIGRACIONES PENDIENTES POR CORRER EN SUPABASE
+
+Julio debe correr este SQL en Supabase SQL Editor para activar Gastos:
+
+```sql
+create table if not exists public.gastos (
+  id uuid primary key default gen_random_uuid(),
+  fecha date not null default current_date,
+  concepto text not null,
+  categoria text not null default 'OTROS',
+  monto numeric(15,2) not null check (monto > 0),
+  iva_incluido numeric(15,2) default 0,
+  pagado_por text,
+  forma_pago text default 'Efectivo',
+  soporte_url text,
+  notas text,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_gastos_fecha on public.gastos(fecha desc);
+alter table public.gastos enable row level security;
+create policy "gastos_auth_all" on public.gastos for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+```
+
+---
+
+## RESUMEN PARA LA PROXIMA SESION
+
+**PRIORIDAD 1 (hacer primero):**
+1. Arreglar bug Centro Financiero (tabla ventas → cotizaciones/facturas_venta)
+2. Verificar que Gastos aparezca en el sidebar
+3. Verificar que cotizaciones se muestren en la tabla
+
+**PRIORIDAD 2 (funcionalidades):**
+4. Exportar a Excel (boton en todas las tablas)
+5. Editar productos (nombre, categoria, imagen, eliminar)
+6. Detalle completo de cotizacion (factura, OC, soporte, timeline)
+7. Cerrar venta con PDF obligatorio de factura + OC
+
+**PRIORIDAD 3 (perfiles):**
+8. Perfiles maestros (Julio + Laura)
+9. Crear empleados con modulos asignados
+10. Auditoria (quien hizo que)
+
+**PRIORIDAD 4 (inteligencia):**
+11. Historial por producto (proveedores, precios)
+12. CRM clientes y proveedores
+13. Alertas predictivas
+14. Dashboard de indicadores real
