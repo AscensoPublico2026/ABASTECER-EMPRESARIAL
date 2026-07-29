@@ -322,3 +322,40 @@ export async function editarCotizacion(formData: FormData): Promise<ResultadoAcc
     return { ok: true, mensaje: `Cotizacion actualizada: ${fmt.format(total)} | Utilidad: ${fmt.format(utilidad_estimada)} (${margen_pct}%)` }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al editar.' } }
 }
+
+
+/** Marcar factura de venta como cobrada */
+export async function marcarFacturaCobrada(formData: FormData): Promise<ResultadoAccion> {
+  const factura_venta_id = String(formData.get('factura_venta_id') ?? '').trim()
+  const soporte_url = String(formData.get('soporte_url') ?? '').trim()
+  const soporte_nombre = String(formData.get('soporte_nombre') ?? '').trim()
+
+  if (!factura_venta_id) return { ok: false, mensaje: 'Factura no valida.' }
+
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Actualizar estado a COBRADA
+    const { error } = await supabase
+      .from('facturas_venta')
+      .update({ estado: 'COBRADA' })
+      .eq('id', factura_venta_id)
+
+    if (error) return { ok: false, mensaje: error.message }
+
+    // Registrar soporte de pago si se subio
+    if (soporte_url) {
+      await supabase.from('documentos').insert({
+        entidad_tipo: 'FACTURA_VENTA',
+        entidad_id: factura_venta_id,
+        tipo_documento: 'SOPORTE_PAGO',
+        nombre_archivo: soporte_nombre || 'soporte_pago.pdf',
+        url_archivo: soporte_url,
+      })
+    }
+
+    revalidatePath('/ventas')
+    revalidatePath('/financiero')
+    return { ok: true, mensaje: 'Factura marcada como cobrada.' }
+  } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
+}

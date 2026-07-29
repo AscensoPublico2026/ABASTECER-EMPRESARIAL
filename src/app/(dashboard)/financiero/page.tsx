@@ -1,16 +1,22 @@
 import Header from '@/components/layout/Header'
 import { obtenerDatosFinancieros } from '@/lib/queries/financiero'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { formatCOP } from '@/lib/format'
 import {
   DollarSign, TrendingUp, AlertTriangle,
   ArrowDownLeft, ArrowUpRight, Shield, CheckCircle2,
-  XCircle, Info,
+  XCircle, Info, Wallet,
 } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
 export default async function FinancieroPage() {
   const { datos, error } = await obtenerDatosFinancieros()
+
+  // Gastos operativos
+  const supabase = createServerSupabaseClient()
+  const { data: gastosData } = await supabase.from('gastos').select('monto')
+  const totalGastos = (gastosData ?? []).reduce((s, g) => s + Number(g.monto ?? 0), 0)
 
   const semaforoColor = {
     VERDE: 'bg-green-500',
@@ -166,11 +172,11 @@ export default async function FinancieroPage() {
         {/* Resumen de operaciones */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <h3 className="font-semibold text-gray-800 mb-4">Resumen de operaciones</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
             <div>
-              <p className="text-sm text-gray-500">Ventas (facturadas/cobradas)</p>
+              <p className="text-sm text-gray-500">Ventas facturadas</p>
               <p className="text-xl font-bold text-gray-800 mt-1 tabular-nums">{formatCOP(datos.ventasTotales)}</p>
-              <p className="text-xs text-gray-400">{datos.numeroVentasFacturadas} operaciones</p>
+              <p className="text-xs text-gray-400">{datos.numeroVentasFacturadas} facturas</p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Compras</p>
@@ -178,14 +184,19 @@ export default async function FinancieroPage() {
               <p className="text-xs text-gray-400">{datos.numeroCompras} facturas</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Cotizaciones pendientes</p>
-              <p className="text-xl font-bold text-blue-600 mt-1">{datos.numeroCotizaciones}</p>
-              <p className="text-xs text-gray-400">En espera de aprobacion</p>
+              <p className="text-sm text-gray-500">Gastos operativos</p>
+              <p className="text-xl font-bold text-purple-600 mt-1 tabular-nums">{formatCOP(totalGastos)}</p>
+              <p className="text-xs text-gray-400">Gastos registrados</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Prestamos de socios</p>
+              <p className="text-sm text-gray-500">Cotizaciones activas</p>
+              <p className="text-xl font-bold text-blue-600 mt-1">{datos.numeroCotizaciones}</p>
+              <p className="text-xs text-gray-400">Pendientes/aprobadas</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Prestamos socios</p>
               <p className="text-xl font-bold text-indigo-600 mt-1 tabular-nums">{formatCOP(datos.prestamosSocios)}</p>
-              <p className="text-xs text-gray-400">Por devolver a socios</p>
+              <p className="text-xs text-gray-400">Por devolver</p>
             </div>
           </div>
         </div>
