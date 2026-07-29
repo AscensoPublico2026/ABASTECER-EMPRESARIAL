@@ -7,6 +7,7 @@ import type { EstadoCliente } from '@/types/clientes'
 import Link from 'next/link'
 import { ArrowLeft, Receipt, ShoppingBag } from 'lucide-react'
 import FormEditarCliente from './FormEditarCliente'
+import SubirDocumento from '@/components/documentos/SubirDocumento'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,16 @@ export default async function ClienteDetallePage({ params }: { params: { id: str
     .order('fecha', { ascending: false })
     .limit(20)
 
+  // Documentos adjuntos
+  const { data: docsData } = await supabase
+    .from('documentos')
+    .select('id, tipo_documento, nombre_archivo, url_archivo, created_at')
+    .eq('entidad_tipo', 'CLIENTE')
+    .eq('entidad_id', params.id)
+    .order('created_at', { ascending: false })
+
+  const documentos = docsData ?? []
+
   const estado = ESTADOS_CLIENTE[cliente.estado as EstadoCliente]
   const historialCot = cotizaciones ?? []
   const historialFact = facturas ?? []
@@ -49,6 +60,20 @@ export default async function ClienteDetallePage({ params }: { params: { id: str
         </div>
 
         <FormEditarCliente cliente={cliente} />
+
+        {/* Documentos */}
+        <SubirDocumento
+          entidadTipo="CLIENTE"
+          entidadId={params.id}
+          tiposPermitidos={[
+            { value: 'RUT', label: 'RUT' },
+            { value: 'CAMARA_COMERCIO', label: 'Camara de Comercio' },
+            { value: 'CERTIFICADO_BANCARIO', label: 'Certificado Bancario' },
+            { value: 'ESTADOS_FINANCIEROS', label: 'Estados Financieros' },
+            { value: 'OTRO', label: 'Otro documento' },
+          ]}
+          documentosExistentes={documentos}
+        />
 
         {/* Historial de cotizaciones */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">

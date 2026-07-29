@@ -5,6 +5,7 @@ import { formatCOP, formatFecha } from '@/lib/format'
 import Link from 'next/link'
 import { ArrowLeft, ShoppingCart } from 'lucide-react'
 import FormEditarProveedor from './FormEditarProveedor'
+import SubirDocumento from '@/components/documentos/SubirDocumento'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +33,16 @@ export default async function ProveedorDetallePage({ params }: { params: { id: s
   const totalComprado = historialCompras.reduce((s, c) => s + Number(c.total ?? 0), 0)
   const categorias = (proveedor.categorias ?? []) as string[]
 
+  // Documentos adjuntos
+  const { data: docsData } = await supabase
+    .from('documentos')
+    .select('id, tipo_documento, nombre_archivo, url_archivo, created_at')
+    .eq('entidad_tipo', 'PROVEEDOR')
+    .eq('entidad_id', params.id)
+    .order('created_at', { ascending: false })
+
+  const documentos = docsData ?? []
+
   return (
     <>
       <Header title={proveedor.razon_social} subtitle="Perfil completo del proveedor" />
@@ -57,6 +68,20 @@ export default async function ProveedorDetallePage({ params }: { params: { id: s
         )}
 
         <FormEditarProveedor proveedor={proveedor} />
+
+        {/* Documentos */}
+        <SubirDocumento
+          entidadTipo="PROVEEDOR"
+          entidadId={params.id}
+          tiposPermitidos={[
+            { value: 'RUT', label: 'RUT' },
+            { value: 'CAMARA_COMERCIO', label: 'Camara de Comercio' },
+            { value: 'CERTIFICADO_BANCARIO', label: 'Certificado Bancario' },
+            { value: 'ESTADOS_FINANCIEROS', label: 'Estados Financieros' },
+            { value: 'OTRO', label: 'Otro documento' },
+          ]}
+          documentosExistentes={documentos}
+        />
 
         {/* Historial de compras */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
