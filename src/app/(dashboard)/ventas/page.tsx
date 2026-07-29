@@ -1,13 +1,12 @@
 import Header from '@/components/layout/Header'
 import { obtenerCotizaciones } from '@/lib/queries/cotizaciones'
 import { obtenerFacturasVenta } from '@/lib/queries/facturasVenta'
-import { ESTADOS_COTIZACION, type EstadoCotizacion } from '@/types/cotizaciones'
-import { ESTADOS_FACTURA_VENTA, type EstadoFacturaVenta } from '@/types/facturasVenta'
-import { formatCOP, formatFecha } from '@/lib/format'
+import { formatCOP } from '@/lib/format'
 import { Receipt, FileCheck2, TrendingUp } from 'lucide-react'
 import FormCotizacion from './FormCotizacion'
 import FormVentaDirecta from './FormVentaDirecta'
-import AccionesCotizacion from './AccionesCotizacion'
+import TablaCotizaciones from './TablaCotizaciones'
+import TablaVentas from './TablaVentas'
 import { obtenerClientesParaSelect } from '@/lib/queries/clientes'
 import { obtenerProductoParaSelect } from '@/lib/queries/productos'
 
@@ -21,11 +20,11 @@ export default async function VentasPage() {
   const clientes = await obtenerClientesParaSelect()
   const productos = await obtenerProductoParaSelect()
 
-  // Separar cotizaciones: solo las que NO están facturadas (pendientes/aprobadas/rechazadas/vencidas)
+  // Separar cotizaciones: solo las que NO están facturadas
   const cotizacionesActivas = cotizaciones.filter((c) => c.estado !== 'FACTURADA')
   const cotizacionesPendientes = cotizacionesActivas.filter((c) => c.estado === 'PENDIENTE' || c.estado === 'APROBADA')
 
-  // KPIs
+  // KPIs Cotizaciones
   const totalCotizado = cotizacionesPendientes.reduce((sum, c) => sum + c.total, 0)
   const utilidadEstimadaCot = cotizacionesPendientes.reduce((sum, c) => sum + c.utilidad_estimada, 0)
   const pendientes = cotizacionesActivas.filter((c) => c.estado === 'PENDIENTE').length
@@ -39,6 +38,10 @@ export default async function VentasPage() {
 
   const error = errorCot || errorFv
 
+  // Extraer lista de clientes unicos para filtros
+  const nombresClientesCot = [...new Set(cotizacionesActivas.map((c) => c.cliente_nombre).filter(Boolean))] as string[]
+  const nombresClientesFv = [...new Set(facturas.map((fv) => fv.cliente_nombre).filter(Boolean))] as string[]
+
   return (
     <>
       <Header title="Ventas" subtitle="Cotizaciones en proceso y ventas cerradas" />
@@ -50,13 +53,19 @@ export default async function VentasPage() {
         {/* SECCION 1: COTIZACIONES (en proceso) */}
         {/* ============================================================ */}
         <section>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-              <Receipt className="w-4 h-4 text-blue-600" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                <Receipt className="w-4 h-4 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">Cotizaciones</h2>
+                <p className="text-sm text-gray-500">En proceso — pendientes de aprobacion o por facturar</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-800">Cotizaciones</h2>
-              <p className="text-sm text-gray-500">En proceso — pendientes de aprobacion o por facturar</p>
+            <div className="flex items-center gap-2">
+              <FormCotizacion clientes={clientes} productos={productos} />
+              <FormVentaDirecta clientes={clientes} productos={productos} />
             </div>
           </div>
 
@@ -80,65 +89,8 @@ export default async function VentasPage() {
             </div>
           </div>
 
-          {/* Tabla Cotizaciones */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
-              <p className="text-sm text-gray-500">El costo se calcula automaticamente del catalogo</p>
-              <div className="flex items-center gap-2">
-                <FormCotizacion clientes={clientes} productos={productos} />
-                <FormVentaDirecta clientes={clientes} productos={productos} />
-              </div>
-            </div>
-
-            {cotizacionesActivas.length === 0 ? (
-              <div className="text-center py-10 text-gray-400">
-                <Receipt className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                <p className="font-medium">Sin cotizaciones en proceso</p>
-                <p className="text-sm mt-1">Crea tu primera cotizacion arriba.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100 text-left bg-gray-50/50">
-                      <th className="px-6 py-3 font-medium text-gray-500">Numero</th>
-                      <th className="px-6 py-3 font-medium text-gray-500">Cliente</th>
-                      <th className="px-6 py-3 font-medium text-gray-500">Fecha</th>
-                      <th className="px-6 py-3 font-medium text-gray-500 text-right">Total</th>
-                      <th className="px-6 py-3 font-medium text-gray-500 text-right">Utilidad</th>
-                      <th className="px-6 py-3 font-medium text-gray-500 text-right">Margen %</th>
-                      <th className="px-6 py-3 font-medium text-gray-500">Estado</th>
-                      <th className="px-6 py-3 font-medium text-gray-500">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cotizacionesActivas.map((c) => {
-                      const estado = ESTADOS_COTIZACION[c.estado as EstadoCotizacion] ?? ESTADOS_COTIZACION.PENDIENTE
-                      const utilidadPositiva = c.utilidad_estimada >= 0
-                      return (
-                        <tr key={c.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
-                          <td className="px-6 py-4 font-mono text-gray-700 whitespace-nowrap">
-                            <a href={`/ventas/${c.id}`} className="hover:text-blue-600 hover:underline">{c.numero}</a>
-                          </td>
-                          <td className="px-6 py-4 font-medium text-gray-800">{c.cliente_nombre ?? 'Sin cliente'}</td>
-                          <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatFecha(c.fecha)}</td>
-                          <td className="px-6 py-4 text-right tabular-nums text-gray-700">{formatCOP(c.total)}</td>
-                          <td className={`px-6 py-4 text-right tabular-nums font-medium ${utilidadPositiva ? 'text-green-600' : 'text-red-600'}`}>{formatCOP(c.utilidad_estimada)}</td>
-                          <td className={`px-6 py-4 text-right tabular-nums ${utilidadPositiva ? 'text-green-600' : 'text-red-600'}`}>{c.margen_pct.toFixed(1)}%</td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${estado.color}`}>{estado.etiqueta}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <AccionesCotizacion cotizacionId={c.id} estado={c.estado} numero={c.numero} diasCredito={c.dias_credito} />
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          {/* Tabla Cotizaciones con filtros */}
+          <TablaCotizaciones cotizaciones={cotizacionesActivas} clientes={nombresClientesCot} />
         </section>
 
         {/* ============================================================ */}
@@ -190,61 +142,8 @@ export default async function VentasPage() {
             </div>
           </div>
 
-          {/* Tabla Ventas Cerradas */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            {facturas.length === 0 ? (
-              <div className="text-center py-10 text-gray-400">
-                <FileCheck2 className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                <p className="font-medium">Sin ventas cerradas</p>
-                <p className="text-sm mt-1">Cuando cierres una cotizacion (factura DIAN), aparecera aqui.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100 text-left bg-gray-50/50">
-                      <th className="px-6 py-3 font-medium text-gray-500">Factura DIAN</th>
-                      <th className="px-6 py-3 font-medium text-gray-500">Cotizacion</th>
-                      <th className="px-6 py-3 font-medium text-gray-500">Cliente</th>
-                      <th className="px-6 py-3 font-medium text-gray-500">Fecha</th>
-                      <th className="px-6 py-3 font-medium text-gray-500">Pago</th>
-                      <th className="px-6 py-3 font-medium text-gray-500 text-right">Total</th>
-                      <th className="px-6 py-3 font-medium text-gray-500 text-right">Utilidad</th>
-                      <th className="px-6 py-3 font-medium text-gray-500 text-right">Margen %</th>
-                      <th className="px-6 py-3 font-medium text-gray-500">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {facturas.map((fv) => {
-                      const estado = ESTADOS_FACTURA_VENTA[fv.estado as EstadoFacturaVenta] ?? ESTADOS_FACTURA_VENTA.EMITIDA
-                      const utilidadPositiva = fv.utilidad >= 0
-                      return (
-                        <tr key={fv.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
-                          <td className="px-6 py-4 font-mono font-medium text-gray-800 whitespace-nowrap">
-                            {fv.numero_factura_dian ?? '—'}
-                          </td>
-                          <td className="px-6 py-4 font-mono text-gray-500 whitespace-nowrap text-xs">
-                            {fv.numero_cotizacion ?? '—'}
-                          </td>
-                          <td className="px-6 py-4 font-medium text-gray-800">{fv.cliente_nombre ?? 'Sin cliente'}</td>
-                          <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatFecha(fv.fecha)}</td>
-                          <td className="px-6 py-4 text-gray-600 whitespace-nowrap text-xs">
-                            {fv.dias_credito > 0 ? `Credito ${fv.dias_credito}d` : 'Contado'}
-                          </td>
-                          <td className="px-6 py-4 text-right tabular-nums text-gray-700">{formatCOP(fv.total)}</td>
-                          <td className={`px-6 py-4 text-right tabular-nums font-medium ${utilidadPositiva ? 'text-green-600' : 'text-red-600'}`}>{formatCOP(fv.utilidad)}</td>
-                          <td className={`px-6 py-4 text-right tabular-nums ${utilidadPositiva ? 'text-green-600' : 'text-red-600'}`}>{fv.margen_pct.toFixed(1)}%</td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${estado.color}`}>{estado.etiqueta}</span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          {/* Tabla Ventas con filtros */}
+          <TablaVentas facturas={facturas} clientes={nombresClientesFv} />
         </section>
 
       </div>
