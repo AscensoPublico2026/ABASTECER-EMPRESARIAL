@@ -83,19 +83,30 @@ export default function FormEditarProveedor({ proveedor }: Props) {
           <label className="block text-sm font-medium text-gray-700 mb-1">Tiempo de entrega</label>
           <input name="tiempo_entrega" defaultValue={String(proveedor.tiempo_entrega ?? '')} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" placeholder="3 dias habiles" />
         </div>
+      </div>
+
+      <h4 className="font-medium text-gray-800 pt-2">Datos bancarios del proveedor</h4>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
-          <textarea name="notas" defaultValue={String(proveedor.notas ?? '')} rows={2} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none" />
+          <label className="block text-sm font-medium text-gray-700 mb-1">Banco</label>
+          <input name="banco" defaultValue={String(proveedor.banco ?? '')} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" placeholder="Bancolombia" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-          <select name="estado" defaultValue={String(proveedor.estado ?? 'ACTIVO')} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
-            <option value="ACTIVO">Activo</option>
-            <option value="INACTIVO">Inactivo</option>
-            <option value="EN_EVALUACION">En evaluacion</option>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de cuenta</label>
+          <select name="tipo_cuenta" defaultValue={String(proveedor.tipo_cuenta ?? '')} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
+            <option value="">Sin definir</option>
+            <option value="Ahorros">Ahorros</option>
+            <option value="Corriente">Corriente</option>
+            <option value="Deposito">Deposito</option>
           </select>
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Numero de cuenta</label>
+          <input name="numero_cuenta" defaultValue={String(proveedor.numero_cuenta ?? '')} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" placeholder="123-456-789" />
+        </div>
       </div>
+
+      <h4 className="font-medium text-gray-800 pt-2">Otros</h4>
 
       {resultado && (
         <div className={`flex items-start gap-2 p-3 rounded-xl text-sm ${resultado.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>

@@ -23,6 +23,9 @@ export async function actualizarCliente(formData: FormData) {
       direccion_entrega: formData.get('direccion_entrega') || null,
       sector: formData.get('sector') || null,
       estado: formData.get('estado') || 'ACTIVO',
+      tiene_credito: formData.get('tiene_credito') === 'true',
+      dias_credito: Number(formData.get('dias_credito')) || 0,
+      cupo_credito: Number(formData.get('cupo_credito')) || 0,
       notas: formData.get('notas') || null,
     }).eq('id', id)
 

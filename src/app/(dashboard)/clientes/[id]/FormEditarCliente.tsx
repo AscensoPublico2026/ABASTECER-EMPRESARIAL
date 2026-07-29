@@ -75,6 +75,31 @@ export default function FormEditarCliente({ cliente }: Props) {
         </div>
       </div>
 
+      <h4 className="font-medium text-gray-800 pt-2">Condiciones comerciales</h4>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de cliente</label>
+          <select name="tiene_credito" defaultValue={cliente.tiene_credito ? 'true' : 'false'} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
+            <option value="false">Contado</option>
+            <option value="true">Credito</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Dias de credito</label>
+          <select name="dias_credito" defaultValue={String(cliente.dias_credito ?? 0)} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
+            <option value="0">N/A (Contado)</option>
+            <option value="15">15 dias</option>
+            <option value="30">30 dias</option>
+            <option value="45">45 dias</option>
+            <option value="60">60 dias</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Cupo de credito ($)</label>
+          <input name="cupo_credito" type="number" defaultValue={String(cliente.cupo_credito ?? 0)} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" placeholder="5000000" />
+        </div>
+      </div>
+
       <h4 className="font-medium text-gray-800 pt-2">Direccion y otros</h4>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
