@@ -86,6 +86,12 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero }: Pro
                 <p className="text-xs text-gray-400 mt-1">Este es el numero que te da el sistema de la DIAN al facturar</p>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">OC del cliente (numero)</label>
+                <input name="oc_cliente" placeholder="Ej: OC-12345 (obligatorio para credito)" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
+                <p className="text-xs text-gray-400 mt-1">Orden de compra que el cliente genero. Sin OC no se despacha a credito.</p>
+              </div>
+
               {resultado && !resultado.ok && (
                 <div className="flex items-start gap-2 p-3 rounded-xl text-sm bg-red-50 text-red-700">
                   <AlertCircle className="w-4 h-4 mt-0.5" />

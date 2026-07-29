@@ -86,6 +86,7 @@ export async function aprobarCotizacion(formData: FormData): Promise<ResultadoAc
 export async function cerrarVenta(formData: FormData): Promise<ResultadoAccion> {
   const cotizacion_id = String(formData.get('cotizacion_id') ?? '').trim()
   const numero_factura_dian = String(formData.get('numero_factura_dian') ?? '').trim()
+  const oc_cliente = String(formData.get('oc_cliente') ?? '').trim()
   if (!cotizacion_id) return { ok: false, mensaje: 'Cotizacion no valida.' }
   if (!numero_factura_dian) return { ok: false, mensaje: 'Ingresa el numero de factura DIAN.' }
 
@@ -97,6 +98,11 @@ export async function cerrarVenta(formData: FormData): Promise<ResultadoAccion> 
       .select('*, cotizacion_items(*)')
       .eq('id', cotizacion_id).single()
     if (errorCot || !cot) return { ok: false, mensaje: errorCot?.message ?? 'Cotizacion no encontrada.' }
+
+    // Verificar OC obligatoria para credito
+    if (cot.dias_credito > 0 && !oc_cliente) {
+      return { ok: false, mensaje: 'Para clientes a credito, la Orden de Compra es obligatoria (Decision #019). Sin OC no se despacha.' }
+    }
 
     // Calcular fecha vencimiento
     let fecha_vencimiento: string | null = null
@@ -114,7 +120,7 @@ export async function cerrarVenta(formData: FormData): Promise<ResultadoAccion> 
       costo_total: cot.costo_total, utilidad: cot.utilidad_estimada, margen_pct: cot.margen_pct,
       forma_pago: cot.forma_pago, dias_credito: cot.dias_credito,
       estado: cot.dias_credito > 0 ? 'EMITIDA' : 'COBRADA',
-      oc_cliente: cot.oc_cliente,
+      oc_cliente: oc_cliente || cot.oc_cliente,
     }).select('id').single()
     if (errorFv) return { ok: false, mensaje: errorFv.message }
 
