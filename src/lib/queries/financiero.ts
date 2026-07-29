@@ -77,8 +77,8 @@ export async function obtenerDatosFinancieros(): Promise<{
       .filter((fv) => fv.estado === 'EMITIDA')
       .reduce((s, fv) => s + Number(fv.total ?? 0), 0)
 
-    // Conteo de cotizaciones (todas las activas, no rechazadas)
-    const numeroCotizaciones = cotizaciones.filter((c) => c.estado !== 'RECHAZADA').length
+    // Conteo de cotizaciones (solo pendientes y aprobadas — las que requieren accion)
+    const numeroCotizaciones = cotizaciones.filter((c) => c.estado === 'PENDIENTE' || c.estado === 'APROBADA').length
     const numeroVentasFacturadas = facturasVenta.length
 
     // --- COMPRAS (facturas_compra) ---
