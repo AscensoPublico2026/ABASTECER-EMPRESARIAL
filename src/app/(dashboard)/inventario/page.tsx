@@ -3,6 +3,7 @@ import { obtenerProductos, obtenerCategorias } from '@/lib/queries/productos'
 import { formatCOP } from '@/lib/format'
 import { Package, AlertTriangle } from 'lucide-react'
 import FormProducto from './FormProducto'
+import AccionesProducto from './AccionesProducto'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,6 +80,7 @@ export default async function InventarioPage() {
                     <th className="px-6 py-3 font-medium text-gray-500 text-right">P. lista</th>
                     <th className="px-6 py-3 font-medium text-gray-500 text-center">Stock</th>
                     <th className="px-6 py-3 font-medium text-gray-500 text-center">IVA</th>
+                    <th className="px-6 py-3 font-medium text-gray-500">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -118,6 +120,9 @@ export default async function InventarioPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-center text-xs text-gray-500">{p.iva_porcentaje}%</td>
+                        <td className="px-6 py-4">
+                          <AccionesProducto producto={{ id: p.id, codigo: p.codigo, nombre: p.nombre, descripcion: p.descripcion, categoria_id: p.categoria_id, unidad_medida: p.unidad_medida, iva_porcentaje: p.iva_porcentaje, margen_minimo_pct: p.margen_minimo_pct, precio_lista: p.precio_lista, stock_minimo: p.stock_minimo, notas: p.notas }} categorias={categorias} />
+                        </td>
                       </tr>
                     )
                   })}
