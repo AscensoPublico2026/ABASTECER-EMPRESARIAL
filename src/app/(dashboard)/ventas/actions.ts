@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { obtenerNombreUsuarioActual } from '@/lib/queries/perfil'
 
 export interface ResultadoAccion {
   ok: boolean
@@ -50,11 +51,13 @@ export async function crearCotizacion(formData: FormData): Promise<ResultadoAcci
 
   try {
     const supabase = createServerSupabaseClient()
+    const usuario = await obtenerNombreUsuarioActual()
     const { data: cot, error: errorCot } = await supabase.from('cotizaciones').insert({
       numero: '', cliente_id: cliente_id || null, fecha: fecha || new Date().toISOString().slice(0, 10),
       fecha_validez: fecha_validez || null, subtotal: Math.round(subtotal), iva_total: Math.round(iva_total),
       total, costo_total: Math.round(costo_total), utilidad_estimada, margen_pct, estado: 'PENDIENTE',
       forma_pago, dias_credito, observaciones: observaciones || null,
+      creado_por_id: usuario.id, creado_por_nombre: usuario.nombre,
     }).select('id, numero').single()
     if (errorCot) return { ok: false, mensaje: errorCot.message }
 
@@ -113,6 +116,7 @@ export async function cerrarVenta(formData: FormData): Promise<ResultadoAccion> 
     }
 
     // Crear factura de venta
+    const usuario = await obtenerNombreUsuarioActual()
     const { data: fv, error: errorFv } = await supabase.from('facturas_venta').insert({
       cotizacion_id, cliente_id: cot.cliente_id, numero_factura_dian,
       fecha: new Date().toISOString().slice(0, 10), fecha_vencimiento,
@@ -121,6 +125,7 @@ export async function cerrarVenta(formData: FormData): Promise<ResultadoAccion> 
       forma_pago: cot.forma_pago, dias_credito: cot.dias_credito,
       estado: cot.dias_credito > 0 ? 'EMITIDA' : 'COBRADA',
       oc_cliente: oc_cliente || cot.oc_cliente,
+      creado_por_id: usuario.id, creado_por_nombre: usuario.nombre,
     }).select('id').single()
     if (errorFv) return { ok: false, mensaje: errorFv.message }
 

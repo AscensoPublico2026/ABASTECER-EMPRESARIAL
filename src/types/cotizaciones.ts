@@ -37,6 +37,7 @@ export interface Cotizacion {
 export interface CotizacionConCliente extends Cotizacion {
   cliente_nombre: string | null
   num_items: number
+  creado_por_nombre: string | null
 }
 
 export interface CotizacionItem {

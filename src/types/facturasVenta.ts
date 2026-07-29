@@ -37,4 +37,5 @@ export interface FacturaVenta {
 export interface FacturaVentaConCliente extends FacturaVenta {
   cliente_nombre: string | null
   numero_cotizacion: string | null
+  creado_por_nombre: string | null
 }

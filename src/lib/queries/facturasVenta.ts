@@ -41,6 +41,7 @@ export async function obtenerFacturasVenta(): Promise<{
         created_at: fv.created_at,
         cliente_nombre: cli?.razon_social ?? null,
         numero_cotizacion: cot?.numero ?? null,
+        creado_por_nombre: fv.creado_por_nombre ?? null,
       }
     })
 

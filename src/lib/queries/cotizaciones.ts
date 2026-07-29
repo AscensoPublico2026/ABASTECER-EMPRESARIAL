@@ -39,6 +39,7 @@ export async function obtenerCotizaciones(): Promise<{
         created_at: c.created_at,
         cliente_nombre: cli?.razon_social ?? null,
         num_items: 0,
+        creado_por_nombre: c.creado_por_nombre ?? null,
       }
     })
 

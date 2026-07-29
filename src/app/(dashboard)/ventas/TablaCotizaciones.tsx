@@ -91,6 +91,7 @@ export default function TablaCotizaciones({ cotizaciones, clientes }: Props) {
                 <th className="px-6 py-3 font-medium text-gray-500 text-right">Utilidad</th>
                 <th className="px-6 py-3 font-medium text-gray-500 text-right">Margen %</th>
                 <th className="px-6 py-3 font-medium text-gray-500">Estado</th>
+                <th className="px-6 py-3 font-medium text-gray-500">Creado por</th>
                 <th className="px-6 py-3 font-medium text-gray-500">Acciones</th>
               </tr>
             </thead>
@@ -116,6 +117,7 @@ export default function TablaCotizaciones({ cotizaciones, clientes }: Props) {
                     <td className="px-6 py-4">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${estado.color}`}>{estado.etiqueta}</span>
                     </td>
+                    <td className="px-6 py-4 text-xs text-gray-500">{c.creado_por_nombre ?? '—'}</td>
                     <td className="px-6 py-4">
                       <AccionesCotizacion cotizacionId={c.id} estado={c.estado} numero={c.numero} diasCredito={c.dias_credito} />
                     </td>
