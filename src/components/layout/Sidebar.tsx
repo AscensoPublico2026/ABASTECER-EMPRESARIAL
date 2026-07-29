@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { clsx } from 'clsx'
-import { LayoutDashboard, Users, ShoppingCart, Receipt, Truck, UserCheck, Package, BarChart3, DollarSign, LogOut, Wallet, FileText, UserCog } from 'lucide-react'
+import { LayoutDashboard, Users, ShoppingCart, Receipt, Truck, UserCheck, Package, BarChart3, DollarSign, LogOut, Wallet, FileText, UserCog, Settings } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const navigation = [
@@ -19,6 +19,7 @@ const navigation = [
   { name: 'Clientes', href: '/clientes', icon: UserCheck },
   { name: 'Indicadores', href: '/indicadores', icon: BarChart3 },
   { name: 'Perfiles', href: '/perfiles', icon: UserCog },
+  { name: 'Configuracion', href: '/configuracion', icon: Settings },
 ]
 
 export default function Sidebar() {

@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useRef } from 'react'
 import { editarProducto, eliminarProducto } from './actions'
-import { Pencil, Trash2, X, Loader2, CheckCircle2, AlertCircle, Save } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { Pencil, Trash2, X, Loader2, CheckCircle2, AlertCircle, Save, Upload, FileCheck } from 'lucide-react'
 
 interface Producto {
   id: string
@@ -32,15 +33,57 @@ export default function AccionesProducto({ producto, categorias }: Props) {
   const [editando, setEditando] = useState(false)
   const [pendiente, startTransition] = useTransition()
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
+  const [fichaPdf, setFichaPdf] = useState<File | null>(null)
+  const [subiendo, setSubiendo] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
-  function handleEditar(formData: FormData) {
+  async function handleEditar(formData: FormData) {
     formData.set('id', producto.id)
     setResultado(null)
-    startTransition(async () => {
-      const res = await editarProducto(formData)
-      setResultado(res)
-      if (res.ok) setTimeout(() => { setEditando(false); setResultado(null) }, 1000)
-    })
+    setSubiendo(true)
+
+    try {
+      // Subir ficha tecnica si se selecciono
+      if (fichaPdf) {
+        const supabase = createClient()
+        const ext = fichaPdf.name.split('.').pop()
+        const path = `productos/${producto.id}/${Date.now()}_ficha.${ext}`
+        const { error: errUpload } = await supabase.storage
+          .from('documentos')
+          .upload(path, fichaPdf, { contentType: fichaPdf.type })
+
+        if (errUpload) {
+          setResultado({ ok: false, mensaje: `Error subiendo ficha: ${errUpload.message}` })
+          setSubiendo(false)
+          return
+        }
+
+        const { data: urlData } = supabase.storage.from('documentos').getPublicUrl(path)
+
+        // Registrar en tabla documentos
+        await supabase.from('documentos').insert({
+          entidad_tipo: 'COTIZACION', // usamos tipo generico para productos
+          entidad_id: producto.id,
+          tipo_documento: 'OTRO',
+          nombre_archivo: fichaPdf.name,
+          url_archivo: urlData.publicUrl,
+          notas: 'Ficha tecnica del producto',
+        })
+      }
+
+      startTransition(async () => {
+        const res = await editarProducto(formData)
+        setResultado(res)
+        setSubiendo(false)
+        if (res.ok) {
+          setFichaPdf(null)
+          setTimeout(() => { setEditando(false); setResultado(null) }, 1000)
+        }
+      })
+    } catch (err) {
+      setResultado({ ok: false, mensaje: err instanceof Error ? err.message : 'Error.' })
+      setSubiendo(false)
+    }
   }
 
   function handleEliminar() {
@@ -130,6 +173,37 @@ export default function AccionesProducto({ producto, categorias }: Props) {
                 <input name="precio_lista" defaultValue={producto.precio_lista > 0 ? producto.precio_lista : ''} inputMode="numeric" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" placeholder="Opcional" />
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ficha tecnica (PDF)</label>
+                <div
+                  onClick={() => fileRef.current?.click()}
+                  className={`flex items-center gap-3 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition ${
+                    fichaPdf ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'
+                  }`}
+                >
+                  {fichaPdf ? (
+                    <>
+                      <FileCheck className="w-5 h-5 text-green-600 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-green-700 font-medium truncate">{fichaPdf.name}</p>
+                        <p className="text-xs text-green-600">{(fichaPdf.size / 1024).toFixed(0)} KB</p>
+                      </div>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setFichaPdf(null); if (fileRef.current) fileRef.current.value = '' }} className="text-gray-400 hover:text-red-500 p-1">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm text-gray-600">Cargar ficha tecnica</p>
+                        <p className="text-xs text-gray-400">PDF, PNG o JPG</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setFichaPdf(e.target.files?.[0] ?? null)} className="hidden" />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
                 <textarea name="notas" rows={2} defaultValue={producto.notas ?? ''} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none" />
               </div>
@@ -143,8 +217,8 @@ export default function AccionesProducto({ producto, categorias }: Props) {
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => { setEditando(false); setResultado(null) }} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50">Cancelar</button>
-                <button type="submit" disabled={pendiente} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                  {pendiente ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar
+                <button type="submit" disabled={pendiente || subiendo} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                  {(pendiente || subiendo) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} {subiendo ? 'Subiendo...' : 'Guardar'}
                 </button>
               </div>
             </form>
