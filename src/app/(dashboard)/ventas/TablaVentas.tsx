@@ -170,12 +170,12 @@ export default function TablaVentas({ facturas, clientes }: Props) {
                   return (
                     <tr key={fv.id} className="border-b border-gray-50 last:border-0 hover:bg-green-50/30">
                       <td className="px-4 py-3 font-mono font-medium whitespace-nowrap">
-                        <a href={`/ventas/${fv.cotizacion_id ?? fv.id}`} className="text-blue-600 hover:underline">
+                        <a href={`/ventas/factura/${fv.id}`} className="text-blue-600 hover:underline">
                           {fv.numero_factura_dian ?? '—'}
                         </a>
                       </td>
                       <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
-                        {fv.numero_cotizacion ? (
+                        {fv.numero_cotizacion && fv.cotizacion_id ? (
                           <a href={`/ventas/${fv.cotizacion_id}`} className="text-blue-500 hover:underline">{fv.numero_cotizacion}</a>
                         ) : '—'}
                       </td>
