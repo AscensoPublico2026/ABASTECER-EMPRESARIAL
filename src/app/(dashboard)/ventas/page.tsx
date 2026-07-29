@@ -39,8 +39,8 @@ export default async function VentasPage() {
   const error = errorCot || errorFv
 
   // Extraer lista de clientes unicos para filtros
-  const nombresClientesCot = [...new Set(cotizacionesActivas.map((c) => c.cliente_nombre).filter(Boolean))] as string[]
-  const nombresClientesFv = [...new Set(facturas.map((fv) => fv.cliente_nombre).filter(Boolean))] as string[]
+  const nombresClientesCot = Array.from(new Set(cotizacionesActivas.map((c) => c.cliente_nombre).filter(Boolean))) as string[]
+  const nombresClientesFv = Array.from(new Set(facturas.map((fv) => fv.cliente_nombre).filter(Boolean))) as string[]
 
   return (
     <>

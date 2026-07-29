@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { editarCotizacion } from '../../actions'
 import { formatCOP } from '@/lib/format'
-import { X, Loader2, CheckCircle2, AlertCircle, Trash2, Plus, Save } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertCircle, Trash2, Plus, Save } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 interface ItemLocal {

@@ -5,7 +5,7 @@ import { formatCOP } from '@/lib/format'
 import {
   DollarSign, TrendingUp, AlertTriangle,
   ArrowDownLeft, ArrowUpRight, Shield, CheckCircle2,
-  XCircle, Info, Wallet,
+  XCircle, Info,
 } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
