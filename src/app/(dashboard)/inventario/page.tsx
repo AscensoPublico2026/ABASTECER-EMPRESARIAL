@@ -90,8 +90,10 @@ export default async function InventarioPage() {
                       <tr key={p.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
                         <td className="px-6 py-4 font-mono text-xs text-gray-500">{p.codigo}</td>
                         <td className="px-6 py-4">
-                          <p className="font-medium text-gray-800">{p.nombre}</p>
-                          {p.descripcion && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{p.descripcion}</p>}
+                          <a href={`/inventario/${p.id}`} className="hover:text-blue-600 hover:underline">
+                            <p className="font-medium text-gray-800">{p.nombre}</p>
+                            {p.descripcion && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{p.descripcion}</p>}
+                          </a>
                         </td>
                         <td className="px-6 py-4">
                           {p.categoria_nombre ? (
