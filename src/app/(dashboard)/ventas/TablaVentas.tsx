@@ -32,6 +32,10 @@ export default function TablaVentas({ facturas, clientes }: Props) {
   const [modalCobrar, setModalCobrar] = useState<FacturaVentaConCliente | null>(null)
   const [soportePdf, setSoportePdf] = useState<File | null>(null)
   const [fechaPago, setFechaPago] = useState(new Date().toISOString().slice(0, 10))
+  const [aplicaRetenciones, setAplicaRetenciones] = useState(false)
+  const [retefuente, setRetefuente] = useState('')
+  const [reteIva, setReteIva] = useState('')
+  const [reteIca, setReteIca] = useState('')
   const [subiendo, setSubiendo] = useState(false)
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
   const [pendiente, startTransition] = useTransition()
@@ -54,6 +58,8 @@ export default function TablaVentas({ facturas, clientes }: Props) {
 
   const hayFiltros = filtroCliente || filtroEstado || filtroPago || busqueda
 
+  const totalRetenciones = (Number(retefuente.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIva.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIca.replace(/\./g, '').replace(',', '.')) || 0)
+
   async function handleCobrar() {
     if (!modalCobrar) return
     setSubiendo(true)
@@ -63,6 +69,13 @@ export default function TablaVentas({ facturas, clientes }: Props) {
       const fd = new FormData()
       fd.set('factura_venta_id', modalCobrar.id)
       fd.set('fecha_pago', fechaPago)
+
+      // Retenciones
+      if (aplicaRetenciones) {
+        fd.set('retefuente', String(Number(retefuente.replace(/\./g, '').replace(',', '.')) || 0))
+        fd.set('rete_iva', String(Number(reteIva.replace(/\./g, '').replace(',', '.')) || 0))
+        fd.set('rete_ica', String(Number(reteIca.replace(/\./g, '').replace(',', '.')) || 0))
+      }
 
       // Subir soporte de pago si hay
       if (soportePdf) {
@@ -89,7 +102,7 @@ export default function TablaVentas({ facturas, clientes }: Props) {
         setResultado(res)
         setSubiendo(false)
         if (res.ok) {
-          setTimeout(() => { setModalCobrar(null); setSoportePdf(null); setFechaPago(new Date().toISOString().slice(0, 10)); setResultado(null) }, 1500)
+          setTimeout(() => { setModalCobrar(null); setSoportePdf(null); setFechaPago(new Date().toISOString().slice(0, 10)); setAplicaRetenciones(false); setRetefuente(''); setReteIva(''); setReteIca(''); setResultado(null) }, 1500)
         }
       })
     } catch (err) {
@@ -247,6 +260,46 @@ export default function TablaVentas({ facturas, clientes }: Props) {
                   required
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
                 />
+              </div>
+
+              {/* Retenciones */}
+              <div className="bg-amber-50 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-amber-800">¿El cliente aplico retenciones?</p>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={aplicaRetenciones} onChange={(e) => setAplicaRetenciones(e.target.checked)} className="rounded border-gray-300 text-amber-600" />
+                    Si, retuvo
+                  </label>
+                </div>
+                {aplicaRetenciones && (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-xs text-amber-700 mb-1">Retefuente</label>
+                        <input value={retefuente} onChange={(e) => setRetefuente(e.target.value)} inputMode="numeric" placeholder="0" className="w-full px-2 py-2 border border-amber-200 rounded-lg text-sm text-right bg-white" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-amber-700 mb-1">ReteIVA</label>
+                        <input value={reteIva} onChange={(e) => setReteIva(e.target.value)} inputMode="numeric" placeholder="0" className="w-full px-2 py-2 border border-amber-200 rounded-lg text-sm text-right bg-white" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-amber-700 mb-1">ReteICA</label>
+                        <input value={reteIca} onChange={(e) => setReteIca(e.target.value)} inputMode="numeric" placeholder="0" className="w-full px-2 py-2 border border-amber-200 rounded-lg text-sm text-right bg-white" />
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-amber-200 space-y-1">
+                      <div className="flex justify-between text-xs text-amber-700">
+                        <span>Total retenciones:</span>
+                        <span className="font-bold">{formatCOP(totalRetenciones)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-medium text-amber-900">
+                        <span>Monto que recibes:</span>
+                        <span>{formatCOP(modalCobrar.total - totalRetenciones)}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-amber-600">Las retenciones se cruzan con impuestos al final del año. No son perdida.</p>
+                  </div>
+                )}
               </div>
 
               {/* Soporte de pago */}

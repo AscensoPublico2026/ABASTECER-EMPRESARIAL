@@ -335,17 +335,28 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
   const fecha_pago = String(formData.get('fecha_pago') ?? '').trim()
   const soporte_url = String(formData.get('soporte_url') ?? '').trim()
   const soporte_nombre = String(formData.get('soporte_nombre') ?? '').trim()
+  const retefuente = Number(formData.get('retefuente') ?? 0)
+  const rete_iva = Number(formData.get('rete_iva') ?? 0)
+  const rete_ica = Number(formData.get('rete_ica') ?? 0)
 
   if (!factura_venta_id) return { ok: false, mensaje: 'Factura no valida.' }
   if (!fecha_pago) return { ok: false, mensaje: 'Selecciona la fecha en que se recibio el pago.' }
 
+  const total_retenciones = retefuente + rete_iva + rete_ica
+
   try {
     const supabase = createServerSupabaseClient()
 
-    // Actualizar estado a COBRADA + registrar fecha de pago
+    // Actualizar estado a COBRADA + registrar retenciones
     const { error } = await supabase
       .from('facturas_venta')
-      .update({ estado: 'COBRADA', notas: `Pago recibido: ${fecha_pago}` })
+      .update({
+        estado: 'COBRADA',
+        retencion_total: total_retenciones,
+        notas: total_retenciones > 0
+          ? `Pago: ${fecha_pago} | Retenciones: Rtefte $${retefuente}, RteIVA $${rete_iva}, RteICA $${rete_ica} | Total retenido: $${total_retenciones}`
+          : `Pago recibido: ${fecha_pago}`,
+      })
       .eq('id', factura_venta_id)
 
     if (error) return { ok: false, mensaje: error.message }
@@ -357,10 +368,12 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
         tipo: 'COBRO_CLIENTE',
         cliente_id: fvData.cliente_id,
         factura_venta_id,
-        monto: fvData.total,
+        monto: Number(fvData.total) - total_retenciones,
         fecha: fecha_pago,
         medio_pago: 'Transferencia',
-        notas: soporte_url ? 'Con soporte adjunto' : null,
+        notas: total_retenciones > 0
+          ? `Retefuente: $${retefuente} | ReteIVA: $${rete_iva} | ReteICA: $${rete_ica}`
+          : null,
       })
     }
 
@@ -378,6 +391,10 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
     revalidatePath('/ventas')
     revalidatePath('/facturacion')
     revalidatePath('/financiero')
-    return { ok: true, mensaje: `Cobro registrado. Fecha de pago: ${fecha_pago}` }
+    const montoRecibido = fvData ? Number(fvData.total) - total_retenciones : 0
+    return { ok: true, mensaje: total_retenciones > 0
+      ? `Cobro registrado. Recibido: $${montoRecibido.toLocaleString('es-CO')} (retenciones: $${total_retenciones.toLocaleString('es-CO')})`
+      : `Cobro registrado. Fecha: ${fecha_pago}`
+    }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
