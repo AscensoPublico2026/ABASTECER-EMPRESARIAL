@@ -4,7 +4,7 @@ import { formatCOP, formatFecha } from '@/lib/format'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-import BotonImprimir from './BotonImprimir'
+import BotonDescargarPDF from './BotonDescargarPDF'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +35,7 @@ export default async function CotizacionDetallePage({ params }: { params: { id: 
               Editar cotizacion
             </Link>
           )}
-          <BotonImprimir />
+          <BotonDescargarPDF cotizacionId={params.id} />
         </div>
       </div>
 
