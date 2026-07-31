@@ -62,6 +62,14 @@ export default function TablaVentas({ facturas, clientes }: Props) {
 
   async function handleCobrar() {
     if (!modalCobrar) return
+    if (!fechaPago) {
+      setResultado({ ok: false, mensaje: 'Selecciona la fecha de pago.' })
+      return
+    }
+    if (!soportePdf) {
+      setResultado({ ok: false, mensaje: 'Debes cargar el soporte de pago (comprobante de transferencia, captura de Bold, etc.)' })
+      return
+    }
     setSubiendo(true)
     setResultado(null)
 
@@ -304,7 +312,7 @@ export default function TablaVentas({ facturas, clientes }: Props) {
 
               {/* Soporte de pago */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Soporte de pago (comprobante del cliente)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Soporte de pago (comprobante) *</label>
                 <div
                   onClick={() => fileRef.current?.click()}
                   className={`flex items-center gap-3 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition ${
@@ -326,8 +334,8 @@ export default function TablaVentas({ facturas, clientes }: Props) {
                     <>
                       <Upload className="w-5 h-5 text-gray-400" />
                       <div>
-                        <p className="text-sm text-gray-600">Cargar soporte de pago</p>
-                        <p className="text-xs text-gray-400">PDF, PNG o JPG (opcional)</p>
+                        <p className="text-sm text-gray-600">Cargar soporte de pago (obligatorio)</p>
+                        <p className="text-xs text-gray-400">Captura de Bold, comprobante de transferencia, recibo</p>
                       </div>
                     </>
                   )}
