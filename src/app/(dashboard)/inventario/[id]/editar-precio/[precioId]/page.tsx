@@ -1,6 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { formatCOP } from '@/lib/format'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Header from '@/components/layout/Header'
 import { ArrowLeft } from 'lucide-react'
