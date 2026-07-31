@@ -443,6 +443,9 @@ export async function registrarPagoContado(formData: FormData): Promise<Resultad
 
     if (error) return { ok: false, mensaje: error.message }
 
+    // Generar solicitudes de compra para items sin stock
+    await generarSolicitudesCompra(supabase, cotizacion_id)
+
     // Registrar documento soporte
     await supabase.from('documentos').insert({
       entidad_tipo: 'COTIZACION',
@@ -454,6 +457,7 @@ export async function registrarPagoContado(formData: FormData): Promise<Resultad
 
     revalidatePath('/ventas')
     revalidatePath('/financiero')
+    revalidatePath('/compras')
 
     const fmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 })
     return { ok: true, mensaje: `Pago registrado: ${fmt.format(monto_recibido)} recibido.${total_retenciones > 0 ? ` Retenciones: ${fmt.format(total_retenciones)}` : ''} → En alistamiento.` }
