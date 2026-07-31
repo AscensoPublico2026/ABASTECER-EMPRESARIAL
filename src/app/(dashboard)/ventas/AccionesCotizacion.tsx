@@ -40,6 +40,7 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
   const totalRetencionesManuales = (Number(retefuente.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIva.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIca.replace(/\./g, '').replace(',', '.')) || 0)
   const retencionCuadra = diferenciaRetenida === 0 || Math.abs(totalRetencionesManuales - diferenciaRetenida) < 2
   const hayRetencion = diferenciaRetenida > 0
+  const mostrarValidacion = totalRetencionesManuales > 0 && totalRetencionesManuales >= diferenciaRetenida * 0.5
 
   function handleAprobar() {
     const fd = new FormData()
@@ -266,8 +267,8 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
                   <div className="pt-2 border-t border-amber-200">
                     <div className="flex justify-between text-xs">
                       <span className="text-amber-700">Suma retenciones:</span>
-                      <span className={`font-bold ${totalRetencionesManuales === 0 ? 'text-gray-400' : retencionCuadra ? 'text-green-600' : 'text-red-600'}`}>
-                        ${totalRetencionesManuales.toLocaleString('es-CO')} {totalRetencionesManuales > 0 && (retencionCuadra ? '✓ Cuadra' : '✗ No cuadra')}
+                      <span className={`font-bold ${!mostrarValidacion ? 'text-gray-400' : retencionCuadra ? 'text-green-600' : 'text-red-600'}`}>
+                        ${totalRetencionesManuales.toLocaleString('es-CO')} {mostrarValidacion && (retencionCuadra ? '✓ Cuadra' : '✗ No cuadra')}
                       </span>
                     </div>
                     <div className="flex justify-between text-xs mt-1">
