@@ -503,9 +503,12 @@ async function generarSolicitudesCompra(supabase: ReturnType<typeof createServer
     // Verificar stock actual
     const { data: producto } = await supabase
       .from('productos')
-      .select('stock_actual')
+      .select('stock_actual, unidad_medida')
       .eq('id', item.producto_id)
       .single()
+
+    // Ignorar servicios (flete, transporte, etc.) - no requieren stock
+    if (producto?.unidad_medida === 'Servicio') continue
 
     const stockActual = Number(producto?.stock_actual ?? 0)
     const cantidadRequerida = Number(item.cantidad)

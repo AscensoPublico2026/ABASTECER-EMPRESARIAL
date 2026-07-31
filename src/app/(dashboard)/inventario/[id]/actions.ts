@@ -45,3 +45,29 @@ export async function agregarPrecioProveedor(formData: FormData): Promise<Result
     return { ok: true, mensaje: 'Precio registrado correctamente.' }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
+
+
+/** Crear proveedor rapido (solo nombre + contacto + telefono) */
+export async function crearProveedorRapido(formData: FormData): Promise<{ ok: boolean; mensaje: string; id?: string }> {
+  const nombre = String(formData.get('nombre') ?? '').trim()
+  const contacto = String(formData.get('contacto') ?? '').trim()
+  const telefono = String(formData.get('telefono') ?? '').trim()
+
+  if (!nombre) return { ok: false, mensaje: 'El nombre es obligatorio.' }
+
+  try {
+    const supabase = createServerSupabaseClient()
+    const { data, error } = await supabase.from('proveedores').insert({
+      razon_social: nombre,
+      contacto_nombre: contacto || null,
+      contacto_telefono: telefono || null,
+      activo: true,
+    }).select('id').single()
+
+    if (error) return { ok: false, mensaje: error.message }
+
+    revalidatePath('/inventario')
+    revalidatePath('/proveedores')
+    return { ok: true, mensaje: `Proveedor "${nombre}" creado.`, id: data.id }
+  } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
+}

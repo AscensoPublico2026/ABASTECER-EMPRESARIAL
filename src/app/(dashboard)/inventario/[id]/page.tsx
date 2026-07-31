@@ -42,8 +42,8 @@ export default async function ProductoDetallePage({ params }: { params: { id: st
     <>
       <Header title={producto.nombre} subtitle={`${producto.codigo} · Detalle del producto`} />
       <div className="p-8 space-y-6">
-        <Link href="/inventario" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm w-fit">
-          <ArrowLeft className="w-4 h-4" /> Volver al catalogo
+        <Link href="/compras" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm w-fit">
+          <ArrowLeft className="w-4 h-4" /> Volver a compras
         </Link>
 
         {/* Info del producto */}

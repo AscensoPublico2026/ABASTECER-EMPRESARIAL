@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { agregarPrecioProveedor } from './actions'
-import { PlusCircle, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { agregarPrecioProveedor, crearProveedorRapido } from './actions'
+import { PlusCircle, X, Loader2, CheckCircle2, AlertCircle, Plus } from 'lucide-react'
 
 interface Props {
   productoId: string
@@ -13,14 +13,42 @@ export default function FormPrecioProveedor({ productoId, proveedores }: Props) 
   const [abierto, setAbierto] = useState(false)
   const [pendiente, startTransition] = useTransition()
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
+  const [listaProveedores, setListaProveedores] = useState(proveedores)
+  const [nuevoProveedor, setNuevoProveedor] = useState(false)
+  const [nuevoNombre, setNuevoNombre] = useState('')
+  const [nuevoContacto, setNuevoContacto] = useState('')
+  const [nuevoTelefono, setNuevoTelefono] = useState('')
+  const [proveedorSeleccionado, setProveedorSeleccionado] = useState('')
+
+  async function handleCrearProveedor() {
+    if (!nuevoNombre.trim()) return
+    const fd = new FormData()
+    fd.set('nombre', nuevoNombre.trim())
+    fd.set('contacto', nuevoContacto.trim())
+    fd.set('telefono', nuevoTelefono.trim())
+    startTransition(async () => {
+      const res = await crearProveedorRapido(fd)
+      if (res.ok && res.id) {
+        setListaProveedores([...listaProveedores, { id: res.id, razon_social: nuevoNombre.trim() }])
+        setProveedorSeleccionado(res.id)
+        setNuevoProveedor(false)
+        setNuevoNombre('')
+        setNuevoContacto('')
+        setNuevoTelefono('')
+      } else {
+        setResultado({ ok: false, mensaje: res.mensaje })
+      }
+    })
+  }
 
   function handleSubmit(formData: FormData) {
     formData.set('producto_id', productoId)
+    formData.set('proveedor_id', proveedorSeleccionado)
     setResultado(null)
     startTransition(async () => {
       const res = await agregarPrecioProveedor(formData)
       setResultado(res)
-      if (res.ok) setTimeout(() => { setAbierto(false); setResultado(null) }, 1200)
+      if (res.ok) setTimeout(() => { setAbierto(false); setResultado(null); setProveedorSeleccionado('') }, 1200)
     })
   }
 
@@ -34,19 +62,39 @@ export default function FormPrecioProveedor({ productoId, proveedores }: Props) 
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h3 className="font-semibold text-gray-800">Agregar precio de proveedor</h3>
           <button onClick={() => { setAbierto(false); setResultado(null) }} className="p-1.5 rounded-lg hover:bg-gray-100"><X className="w-5 h-5 text-gray-400" /></button>
         </div>
         <form action={handleSubmit} className="p-6 space-y-4">
+          {/* Proveedor */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Proveedor *</label>
-            <select name="proveedor_id" required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
-              <option value="">Seleccionar proveedor</option>
-              {proveedores.map((p) => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
-            </select>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">Proveedor *</label>
+              <button type="button" onClick={() => setNuevoProveedor(!nuevoProveedor)} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                <Plus className="w-3 h-3" /> {nuevoProveedor ? 'Seleccionar existente' : 'Crear nuevo'}
+              </button>
+            </div>
+            {nuevoProveedor ? (
+              <div className="space-y-2 p-3 bg-blue-50 rounded-xl">
+                <input value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} placeholder="Nombre del proveedor/negocio *" className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm" />
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={nuevoContacto} onChange={(e) => setNuevoContacto(e.target.value)} placeholder="Nombre vendedor" className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm" />
+                  <input value={nuevoTelefono} onChange={(e) => setNuevoTelefono(e.target.value)} placeholder="Telefono" className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm" />
+                </div>
+                <button type="button" onClick={handleCrearProveedor} disabled={!nuevoNombre.trim() || pendiente} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
+                  {pendiente ? 'Creando...' : 'Crear y seleccionar'}
+                </button>
+              </div>
+            ) : (
+              <select value={proveedorSeleccionado} onChange={(e) => setProveedorSeleccionado(e.target.value)} required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
+                <option value="">Seleccionar proveedor</option>
+                {listaProveedores.map((p) => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
+              </select>
+            )}
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Precio *</label>
@@ -74,15 +122,9 @@ export default function FormPrecioProveedor({ productoId, proveedores }: Props) 
             <label className="block text-sm font-medium text-gray-700 mb-1">Referencia del proveedor</label>
             <input name="referencia_proveedor" placeholder="Ej: EXT-ABC-10LB (como lo llama el proveedor)" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
           </div>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="disponible" defaultChecked className="rounded border-gray-300 text-blue-600" />
-              Disponible actualmente
-            </label>
-          </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
-            <textarea name="notas" rows={2} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none" placeholder="Ej: Precio por unidad, minimo 5 unidades..." />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+            <textarea name="notas" rows={2} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none" placeholder="Ej: Precio por unidad, minimo 5 unidades, pago anticipado..." />
           </div>
 
           {resultado && (
@@ -94,7 +136,7 @@ export default function FormPrecioProveedor({ productoId, proveedores }: Props) 
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={() => { setAbierto(false); setResultado(null) }} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50">Cancelar</button>
-            <button type="submit" disabled={pendiente} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+            <button type="submit" disabled={pendiente || !proveedorSeleccionado} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
               {pendiente && <Loader2 className="w-4 h-4 animate-spin" />} Agregar
             </button>
           </div>
