@@ -8,7 +8,7 @@ export const EMPRESA = {
   direccion: 'Carrera 13 #15-36 Chapinero',
   ciudad: 'Cali',
   departamento: 'Valle del Cauca',
-  telefono: '3151972091',
+  telefono: '3508624021',
   email: 'abastecerempresarial@gmail.com',
   representante_legal: 'TERESA DEL SOCORRO MARTINEZ',
   representante_cc: '66864933',
