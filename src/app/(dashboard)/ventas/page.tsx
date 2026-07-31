@@ -1,13 +1,12 @@
 import Header from '@/components/layout/Header'
 import { obtenerCotizaciones } from '@/lib/queries/cotizaciones'
 import { formatCOP } from '@/lib/format'
-import { Receipt, Package, ArrowRight } from 'lucide-react'
+import { Receipt, Package } from 'lucide-react'
 import FormCotizacion from './FormCotizacion'
 import FormVentaDirecta from './FormVentaDirecta'
 import TablaCotizaciones from './TablaCotizaciones'
 import { obtenerClientesParaSelect } from '@/lib/queries/clientes'
 import { obtenerProductoParaSelect } from '@/lib/queries/productos'
-import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
@@ -138,22 +137,6 @@ export default async function VentasPage() {
             <TablaCotizaciones cotizaciones={nivel2} clientes={nombresClientesN2} />
           )}
         </section>
-
-        {/* ============================================================ */}
-        {/* LINK A FACTURACIÓN */}
-        {/* ============================================================ */}
-        <Link href="/facturacion" className="flex items-center justify-between p-5 bg-white rounded-2xl shadow-sm border border-gray-100 hover:border-purple-200 hover:bg-purple-50/30 transition group">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
-              <Receipt className="w-4 h-4 text-purple-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-800">Facturacion</h3>
-              <p className="text-sm text-gray-500">Ver facturas emitidas, cobros, mora y retenciones</p>
-            </div>
-          </div>
-          <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-purple-600 transition" />
-        </Link>
 
       </div>
     </>

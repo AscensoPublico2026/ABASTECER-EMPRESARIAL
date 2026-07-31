@@ -47,7 +47,20 @@ export default function FormCotizacion({ clientes, productos }: Props) {
   }
 
   function actualizarItem(idx: number, campo: keyof ItemLocal, valor: string) {
-    setItems(items.map((item, i) => i === idx ? { ...item, [campo]: valor } : item))
+    setItems(items.map((item, i) => {
+      if (i !== idx) return item
+      const updated = { ...item, [campo]: valor }
+      // Si cambia la descripcion, buscar si coincide con un producto
+      if (campo === 'descripcion') {
+        const match = productos.find((p) => `${p.codigo} - ${p.nombre}` === valor)
+        if (match) {
+          updated.producto_id = match.id
+          updated.costo_unitario = String(match.costo_promedio)
+          updated.iva_porcentaje = String(match.iva_porcentaje)
+        }
+      }
+      return updated
+    }))
   }
 
   function seleccionarProducto(idx: number, productoId: string) {
@@ -171,29 +184,31 @@ export default function FormCotizacion({ clientes, productos }: Props) {
               {items.map((item, idx) => (
                 <div key={idx} className="bg-gray-50 p-3 rounded-xl space-y-2">
                   <div className="flex gap-2 items-start">
-                    <div className="flex-1">
-                      <select
-                        value={item.producto_id}
-                        onChange={(e) => seleccionarProducto(idx, e.target.value)}
-                        className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm"
-                      >
-                        <option value="">-- Seleccionar producto del catalogo --</option>
+                    <div className="flex-1 relative">
+                      <input
+                        value={item.descripcion}
+                        onChange={(e) => {
+                          actualizarItem(idx, 'descripcion', e.target.value)
+                          // Buscar producto que coincida
+                          const match = productos.find((p) => `${p.codigo} - ${p.nombre}`.toLowerCase().includes(e.target.value.toLowerCase()))
+                          if (match && `${match.codigo} - ${match.nombre}` === e.target.value) {
+                            seleccionarProducto(idx, match.id)
+                          }
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        placeholder="Buscar producto o escribir descripcion..."
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
+                        list={`productos-list-${idx}`}
+                      />
+                      <datalist id={`productos-list-${idx}`}>
                         {productos.map((p) => (
-                          <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>
+                          <option key={p.id} value={`${p.codigo} - ${p.nombre}`} />
                         ))}
-                      </select>
+                      </datalist>
                     </div>
                     <button type="button" onClick={() => eliminarItem(idx)} disabled={items.length === 1} className="p-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30">
                       <Trash2 className="w-4 h-4" />
                     </button>
-                  </div>
-                  <div className="flex gap-2 items-start">
-                    <input
-                      value={item.descripcion}
-                      onChange={(e) => actualizarItem(idx, 'descripcion', e.target.value)}
-                      placeholder="Descripcion (manual si no esta en catalogo)"
-                      className="flex-1 px-2 py-2 border border-gray-200 rounded-lg text-sm"
-                    />
                   </div>
                   <div className="grid grid-cols-4 gap-2">
                     <div>
