@@ -44,15 +44,46 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
   const hayRetencion = montoEsCompleto && diferenciaRetenida > 0 && montoRecibidoNum < total
   const mostrarValidacion = totalRetencionesManuales > 0 && totalRetencionesManuales >= diferenciaRetenida * 0.5
 
+  const [modalAprobar, setModalAprobar] = useState(false)
+  const [ocFile, setOcFile] = useState<File | null>(null)
+  const [tieneOc, setTieneOc] = useState(false)
+  const [numOc, setNumOc] = useState('')
+  const ocAprobRef = useRef<HTMLInputElement>(null)
+
   function handleAprobar() {
+    setModalAprobar(true)
+  }
+
+  async function confirmarAprobacion() {
     const fd = new FormData()
     fd.set('id', cotizacionId)
+    fd.set('oc_cliente', numOc)
     setResultado(null)
-    startTransition(async () => {
-      const res = await aprobarCotizacion(fd)
-      setResultado(res)
-      if (res.ok) setTimeout(() => setResultado(null), 2000)
-    })
+    setSubiendo(true)
+
+    try {
+      // Subir OC si hay
+      if (tieneOc && ocFile) {
+        const supabase = createClient()
+        const ext = ocFile.name.split('.').pop()
+        const path = `cotizacion/${cotizacionId}/${Date.now()}_oc.${ext}`
+        const { error: errOc } = await supabase.storage.from('documentos').upload(path, ocFile, { contentType: ocFile.type })
+        if (errOc) { setResultado({ ok: false, mensaje: errOc.message }); setSubiendo(false); return }
+        const { data: urlOc } = supabase.storage.from('documentos').getPublicUrl(path)
+        fd.set('oc_url', urlOc.publicUrl)
+        fd.set('oc_nombre', ocFile.name)
+      }
+
+      startTransition(async () => {
+        const res = await aprobarCotizacion(fd)
+        setResultado(res)
+        setSubiendo(false)
+        if (res.ok) { setModalAprobar(false); setOcFile(null); setTieneOc(false); setNumOc(''); setTimeout(() => setResultado(null), 2000) }
+      })
+    } catch (err) {
+      setResultado({ ok: false, mensaje: err instanceof Error ? err.message : 'Error.' })
+      setSubiendo(false)
+    }
   }
 
   function handleAlistamiento() {
@@ -212,6 +243,82 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
         <span className={`text-xs ${resultado.ok ? 'text-green-600' : 'text-red-600'}`}>
           {resultado.ok ? '✓' : '✗'} {resultado.mensaje.slice(0, 35)}
         </span>
+      )}
+
+      {/* ===== MODAL APROBAR CON OC ===== */}
+      {modalAprobar && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="font-semibold text-gray-800">Aprobar cotizacion</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{numero}</p>
+              </div>
+              <button onClick={() => { setModalAprobar(false); setResultado(null) }} className="p-1.5 rounded-lg hover:bg-gray-100">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-700">¿El cliente envio Orden de Compra (OC)?</p>
+
+              <div className="space-y-2">
+                <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${!tieneOc ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input type="radio" checked={!tieneOc} onChange={() => setTieneOc(false)} className="text-blue-600" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">No, aprobo sin OC</p>
+                    <p className="text-xs text-gray-500">El cliente confirmo verbalmente o por otro medio</p>
+                  </div>
+                </label>
+                <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${tieneOc ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input type="radio" checked={tieneOc} onChange={() => setTieneOc(true)} className="text-blue-600" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Si, tengo la OC</p>
+                    <p className="text-xs text-gray-500">El cliente envio documento de Orden de Compra</p>
+                  </div>
+                </label>
+              </div>
+
+              {tieneOc && (
+                <div className="space-y-3 p-3 bg-gray-50 rounded-xl">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Numero de OC</label>
+                    <input value={numOc} onChange={(e) => setNumOc(e.target.value)} placeholder="Ej: OC-12345" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">PDF de la OC</label>
+                    <div onClick={() => ocAprobRef.current?.click()} className={`flex items-center gap-3 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition ${ocFile ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-blue-300'}`}>
+                      {ocFile ? (
+                        <><FileCheck className="w-5 h-5 text-green-600" /><div className="flex-1 min-w-0"><p className="text-sm text-green-700 font-medium truncate">{ocFile.name}</p></div><button type="button" onClick={(e) => { e.stopPropagation(); setOcFile(null) }} className="text-gray-400 hover:text-red-500 p-1"><X className="w-4 h-4" /></button></>
+                      ) : (
+                        <><Upload className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-600">Cargar OC</p></div></>
+                      )}
+                    </div>
+                    <input ref={ocAprobRef} type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setOcFile(e.target.files?.[0] ?? null)} className="hidden" />
+                  </div>
+                  <div className="bg-amber-50 rounded-lg p-2.5">
+                    <p className="text-xs text-amber-700">Si la OC tiene cantidades o items diferentes a la cotizacion, <strong>editala primero</strong> para que coincidan.</p>
+                  </div>
+                </div>
+              )}
+
+              {resultado && !resultado.ok && (
+                <div className="flex items-start gap-2 p-3 rounded-xl text-sm bg-red-50 text-red-700">
+                  <AlertCircle className="w-4 h-4 mt-0.5" /><span>{resultado.mensaje}</span>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => { setModalAprobar(false); setResultado(null) }} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50">Cancelar</button>
+                {tieneOc && (
+                  <a href={`/ventas/${cotizacionId}/editar`} className="px-4 py-2.5 border border-amber-200 text-amber-700 rounded-xl text-sm font-medium hover:bg-amber-50 text-center">Editar primero</a>
+                )}
+                <button onClick={confirmarAprobacion} disabled={pendiente || subiendo} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 disabled:opacity-50">
+                  {(pendiente || subiendo) && <Loader2 className="w-4 h-4 animate-spin" />} Aprobar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ===== MODAL REGISTRAR PAGO (contado) ===== */}
