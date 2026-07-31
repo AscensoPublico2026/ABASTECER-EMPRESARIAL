@@ -156,7 +156,6 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
 
   async function handleCerrarVenta(formData: FormData) {
     if (!facturaPdf) { setResultado({ ok: false, mensaje: 'Debes cargar el PDF de la factura DIAN.' }); return }
-    if (esCredito && !ocPdf) { setResultado({ ok: false, mensaje: 'Para credito, debes cargar el PDF de la OC.' }); return }
 
     formData.set('cotizacion_id', cotizacionId)
     setSubiendo(true)
@@ -173,17 +172,6 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
       const { data: urlF } = supabase.storage.from('documentos').getPublicUrl(fPath)
       formData.set('factura_pdf_url', urlF.publicUrl)
       formData.set('factura_pdf_nombre', facturaPdf.name)
-
-      // Subir OC si hay
-      if (ocPdf) {
-        const oExt = ocPdf.name.split('.').pop()
-        const oPath = `factura_venta/${cotizacionId}/${Date.now()}_oc.${oExt}`
-        const { error: errO } = await supabase.storage.from('documentos').upload(oPath, ocPdf, { contentType: ocPdf.type })
-        if (errO) { setResultado({ ok: false, mensaje: errO.message }); setSubiendo(false); return }
-        const { data: urlO } = supabase.storage.from('documentos').getPublicUrl(oPath)
-        formData.set('oc_pdf_url', urlO.publicUrl)
-        formData.set('oc_pdf_nombre', ocPdf.name)
-      }
 
       startTransition(async () => {
         const res = await cerrarVenta(formData)
@@ -476,23 +464,6 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
                   )}
                 </div>
                 <input ref={facturaRef} type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setFacturaPdf(e.target.files?.[0] ?? null)} className="hidden" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">OC del cliente {esCredito && <span className="text-red-500">*</span>}</label>
-                <input name="oc_cliente" required={esCredito} placeholder="Numero de OC" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">PDF de la OC {esCredito && <span className="text-red-500">*</span>}</label>
-                <div onClick={() => ocRef.current?.click()} className={`flex items-center gap-3 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition ${ocPdf ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-blue-300'}`}>
-                  {ocPdf ? (
-                    <><FileCheck className="w-5 h-5 text-green-600" /><div className="flex-1 min-w-0"><p className="text-sm text-green-700 font-medium truncate">{ocPdf.name}</p></div><button type="button" onClick={(e) => { e.stopPropagation(); setOcPdf(null) }} className="text-gray-400 hover:text-red-500 p-1"><X className="w-4 h-4" /></button></>
-                  ) : (
-                    <><Upload className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-600">{esCredito ? 'Cargar OC (obligatorio)' : 'Cargar OC (opcional)'}</p></div></>
-                  )}
-                </div>
-                <input ref={ocRef} type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setOcPdf(e.target.files?.[0] ?? null)} className="hidden" />
               </div>
 
               <div>
