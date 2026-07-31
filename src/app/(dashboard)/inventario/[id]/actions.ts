@@ -61,7 +61,6 @@ export async function crearProveedorRapido(formData: FormData): Promise<{ ok: bo
       razon_social: nombre,
       contacto_nombre: contacto || null,
       contacto_telefono: telefono || null,
-      activo: true,
     }).select('id').single()
 
     if (error) return { ok: false, mensaje: error.message }
