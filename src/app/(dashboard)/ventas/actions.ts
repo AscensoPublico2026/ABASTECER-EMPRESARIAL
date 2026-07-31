@@ -571,7 +571,7 @@ export async function generarRemision(formData: FormData): Promise<ResultadoAcci
 
     // Crear registro de remision
     const usuario = await obtenerNombreUsuarioActual()
-    const { data: rem, error: errRem } = await supabase.from('remisiones').insert({
+    const { error: errRem } = await supabase.from('remisiones').insert({
       cotizacion_id,
       cliente_id: cot.cliente_id,
       numero: numero_remision,
