@@ -1,30 +1,41 @@
 'use client'
 
 import { useState, useTransition, useRef } from 'react'
-import { aprobarCotizacion, cerrarVenta } from './actions'
+import { aprobarCotizacion, registrarPagoContado, pasarAlistamiento, cerrarVenta } from './actions'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle2, FileText, Loader2, AlertCircle, X, Upload, FileCheck, Pencil } from 'lucide-react'
+import { CheckCircle2, FileText, Loader2, AlertCircle, X, Upload, FileCheck, Pencil, Package, Truck, DollarSign } from 'lucide-react'
 
 interface Props {
   cotizacionId: string
   estado: string
   numero: string
   diasCredito?: number
+  total?: number
 }
 
-export default function AccionesCotizacion({ cotizacionId, estado, numero, diasCredito = 0 }: Props) {
+export default function AccionesCotizacion({ cotizacionId, estado, numero, diasCredito = 0, total = 0 }: Props) {
   const [pendiente, startTransition] = useTransition()
+  const [modalPago, setModalPago] = useState(false)
   const [modalCerrar, setModalCerrar] = useState(false)
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
 
-  // File states
+  // Pago contado states
+  const [soportePdf, setSoportePdf] = useState<File | null>(null)
+  const [aplicaRetenciones, setAplicaRetenciones] = useState(false)
+  const [retefuente, setRetefuente] = useState('')
+  const [reteIva, setReteIva] = useState('')
+  const [reteIca, setReteIca] = useState('')
+  const [subiendo, setSubiendo] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  // Cerrar venta states
   const [facturaPdf, setFacturaPdf] = useState<File | null>(null)
   const [ocPdf, setOcPdf] = useState<File | null>(null)
-  const [subiendo, setSubiendo] = useState(false)
   const facturaRef = useRef<HTMLInputElement>(null)
   const ocRef = useRef<HTMLInputElement>(null)
 
   const esCredito = diasCredito > 0
+  const totalRetenciones = (Number(retefuente.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIva.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIca.replace(/\./g, '').replace(',', '.')) || 0)
 
   function handleAprobar() {
     const fd = new FormData()
@@ -37,284 +48,315 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
     })
   }
 
-  async function handleCerrarVenta(formData: FormData) {
-    // Validar PDF factura obligatorio
-    if (!facturaPdf) {
-      setResultado({ ok: false, mensaje: 'Debes cargar el PDF de la factura DIAN.' })
-      return
-    }
-
-    // Validar PDF OC obligatorio para credito
-    if (esCredito && !ocPdf) {
-      setResultado({ ok: false, mensaje: 'Para ventas a credito, debes cargar el PDF de la Orden de Compra del cliente.' })
-      return
-    }
-
-    formData.set('cotizacion_id', cotizacionId)
+  function handleAlistamiento() {
+    const fd = new FormData()
+    fd.set('id', cotizacionId)
     setResultado(null)
+    startTransition(async () => {
+      const res = await pasarAlistamiento(fd)
+      setResultado(res)
+      if (res.ok) setTimeout(() => setResultado(null), 2000)
+    })
+  }
+
+  async function handleRegistrarPago(formData: FormData) {
+    if (!soportePdf) {
+      setResultado({ ok: false, mensaje: 'Debes cargar el soporte de pago.' })
+      return
+    }
+    formData.set('cotizacion_id', cotizacionId)
     setSubiendo(true)
+    setResultado(null)
 
     try {
       const supabase = createClient()
+      const ext = soportePdf.name.split('.').pop()
+      const path = `cotizacion/${cotizacionId}/${Date.now()}_soporte.${ext}`
+      const { error: errUpload } = await supabase.storage.from('documentos').upload(path, soportePdf, { contentType: soportePdf.type })
+      if (errUpload) { setResultado({ ok: false, mensaje: errUpload.message }); setSubiendo(false); return }
+      const { data: urlData } = supabase.storage.from('documentos').getPublicUrl(path)
+      formData.set('soporte_url', urlData.publicUrl)
 
-      // 1. Subir PDF de factura
-      const facturaExt = facturaPdf.name.split('.').pop()
-      const facturaPath = `factura_venta/${cotizacionId}/${Date.now()}_factura.${facturaExt}`
-      const { error: errFactura } = await supabase.storage
-        .from('documentos')
-        .upload(facturaPath, facturaPdf, { contentType: facturaPdf.type })
-
-      if (errFactura) {
-        setResultado({ ok: false, mensaje: `Error subiendo factura: ${errFactura.message}` })
-        setSubiendo(false)
-        return
+      if (aplicaRetenciones) {
+        formData.set('retefuente', String(Number(retefuente.replace(/\./g, '').replace(',', '.')) || 0))
+        formData.set('rete_iva', String(Number(reteIva.replace(/\./g, '').replace(',', '.')) || 0))
+        formData.set('rete_ica', String(Number(reteIca.replace(/\./g, '').replace(',', '.')) || 0))
       }
 
-      const { data: urlFactura } = supabase.storage.from('documentos').getPublicUrl(facturaPath)
-      formData.set('factura_pdf_url', urlFactura.publicUrl)
-      formData.set('factura_pdf_nombre', facturaPdf.name)
-
-      // 2. Subir PDF de OC (si hay)
-      if (ocPdf) {
-        const ocExt = ocPdf.name.split('.').pop()
-        const ocPath = `factura_venta/${cotizacionId}/${Date.now()}_oc.${ocExt}`
-        const { error: errOc } = await supabase.storage
-          .from('documentos')
-          .upload(ocPath, ocPdf, { contentType: ocPdf.type })
-
-        if (errOc) {
-          setResultado({ ok: false, mensaje: `Error subiendo OC: ${errOc.message}` })
-          setSubiendo(false)
-          return
-        }
-
-        const { data: urlOc } = supabase.storage.from('documentos').getPublicUrl(ocPath)
-        formData.set('oc_pdf_url', urlOc.publicUrl)
-        formData.set('oc_pdf_nombre', ocPdf.name)
-      }
-
-      // 3. Llamar server action
       startTransition(async () => {
-        const res = await cerrarVenta(formData)
+        const res = await registrarPagoContado(formData)
         setResultado(res)
         setSubiendo(false)
-        if (res.ok) {
-          setModalCerrar(false)
-          setFacturaPdf(null)
-          setOcPdf(null)
-          setTimeout(() => setResultado(null), 3000)
-        }
+        if (res.ok) { setModalPago(false); setSoportePdf(null); setTimeout(() => setResultado(null), 2000) }
       })
     } catch (err) {
-      setResultado({ ok: false, mensaje: err instanceof Error ? err.message : 'Error al subir archivos.' })
+      setResultado({ ok: false, mensaje: err instanceof Error ? err.message : 'Error.' })
       setSubiendo(false)
     }
   }
 
-  function resetModal() {
-    setModalCerrar(false)
-    setFacturaPdf(null)
-    setOcPdf(null)
+  async function handleCerrarVenta(formData: FormData) {
+    if (!facturaPdf) { setResultado({ ok: false, mensaje: 'Debes cargar el PDF de la factura DIAN.' }); return }
+    if (esCredito && !ocPdf) { setResultado({ ok: false, mensaje: 'Para credito, debes cargar el PDF de la OC.' }); return }
+
+    formData.set('cotizacion_id', cotizacionId)
+    setSubiendo(true)
     setResultado(null)
+
+    try {
+      const supabase = createClient()
+
+      // Subir factura
+      const fExt = facturaPdf.name.split('.').pop()
+      const fPath = `factura_venta/${cotizacionId}/${Date.now()}_factura.${fExt}`
+      const { error: errF } = await supabase.storage.from('documentos').upload(fPath, facturaPdf, { contentType: facturaPdf.type })
+      if (errF) { setResultado({ ok: false, mensaje: errF.message }); setSubiendo(false); return }
+      const { data: urlF } = supabase.storage.from('documentos').getPublicUrl(fPath)
+      formData.set('factura_pdf_url', urlF.publicUrl)
+      formData.set('factura_pdf_nombre', facturaPdf.name)
+
+      // Subir OC si hay
+      if (ocPdf) {
+        const oExt = ocPdf.name.split('.').pop()
+        const oPath = `factura_venta/${cotizacionId}/${Date.now()}_oc.${oExt}`
+        const { error: errO } = await supabase.storage.from('documentos').upload(oPath, ocPdf, { contentType: ocPdf.type })
+        if (errO) { setResultado({ ok: false, mensaje: errO.message }); setSubiendo(false); return }
+        const { data: urlO } = supabase.storage.from('documentos').getPublicUrl(oPath)
+        formData.set('oc_pdf_url', urlO.publicUrl)
+        formData.set('oc_pdf_nombre', ocPdf.name)
+      }
+
+      startTransition(async () => {
+        const res = await cerrarVenta(formData)
+        setResultado(res)
+        setSubiendo(false)
+        if (res.ok) { setModalCerrar(false); setFacturaPdf(null); setOcPdf(null); setTimeout(() => setResultado(null), 3000) }
+      })
+    } catch (err) {
+      setResultado({ ok: false, mensaje: err instanceof Error ? err.message : 'Error.' })
+      setSubiendo(false)
+    }
   }
 
   return (
-    <div className="flex items-center gap-2">
-      {/* Boton Editar (solo PENDIENTE o APROBADA) */}
+    <div className="flex items-center gap-1.5">
+      {/* Editar (PENDIENTE o APROBADA) */}
       {(estado === 'PENDIENTE' || estado === 'APROBADA') && (
-        <a
-          href={`/ventas/${cotizacionId}/editar`}
-          className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-100 transition"
-        >
-          <Pencil className="w-3 h-3" />
-          Editar
+        <a href={`/ventas/${cotizacionId}/editar`} className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition" title="Editar">
+          <Pencil className="w-3.5 h-3.5" />
         </a>
       )}
 
+      {/* Aprobar (PENDIENTE) */}
       {estado === 'PENDIENTE' && (
-        <button
-          onClick={handleAprobar}
-          disabled={pendiente}
-          className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-medium hover:bg-green-100 transition disabled:opacity-50"
-        >
+        <button onClick={handleAprobar} disabled={pendiente} className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-medium hover:bg-green-100 transition disabled:opacity-50">
           {pendiente ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
           Aprobar
         </button>
       )}
 
-      {estado === 'APROBADA' && (
-        <button
-          onClick={() => setModalCerrar(true)}
-          disabled={pendiente}
-          className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-medium hover:bg-blue-100 transition disabled:opacity-50"
-        >
-          <FileText className="w-3 h-3" />
-          Cerrar venta
+      {/* Registrar pago — solo contado (APROBADA y dias_credito = 0) */}
+      {estado === 'APROBADA' && !esCredito && (
+        <button onClick={() => setModalPago(true)} disabled={pendiente} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-medium hover:bg-emerald-100 transition disabled:opacity-50">
+          <DollarSign className="w-3 h-3" />
+          Registrar pago
         </button>
       )}
 
-      {resultado && !modalCerrar && (
+      {/* Pasar a alistamiento — credito (APROBADA y dias_credito > 0) */}
+      {estado === 'APROBADA' && esCredito && (
+        <button onClick={handleAlistamiento} disabled={pendiente} className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg text-xs font-medium hover:bg-orange-100 transition disabled:opacity-50">
+          <Package className="w-3 h-3" />
+          Alistar
+        </button>
+      )}
+
+      {/* Pasar a alistamiento — contado ya pagado */}
+      {estado === 'PAGADA' && (
+        <button onClick={handleAlistamiento} disabled={pendiente} className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg text-xs font-medium hover:bg-orange-100 transition disabled:opacity-50">
+          <Package className="w-3 h-3" />
+          Alistar
+        </button>
+      )}
+
+      {/* Cerrar venta / Facturar (EN_ALISTAMIENTO) */}
+      {estado === 'EN_ALISTAMIENTO' && (
+        <button onClick={() => setModalCerrar(true)} disabled={pendiente} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-medium hover:bg-blue-100 transition disabled:opacity-50">
+          <FileText className="w-3 h-3" />
+          Facturar
+        </button>
+      )}
+
+      {/* Estado visual */}
+      {estado === 'FACTURADA' && (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs text-purple-600"><Truck className="w-3 h-3" /> Despachar</span>
+      )}
+
+      {resultado && !modalPago && !modalCerrar && (
         <span className={`text-xs ${resultado.ok ? 'text-green-600' : 'text-red-600'}`}>
-          {resultado.ok ? '✓' : '✗'} {resultado.mensaje.slice(0, 40)}
+          {resultado.ok ? '✓' : '✗'} {resultado.mensaje.slice(0, 35)}
         </span>
       )}
 
-      {/* Modal cerrar venta */}
+      {/* ===== MODAL REGISTRAR PAGO (contado) ===== */}
+      {modalPago && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl z-10">
+              <div>
+                <h3 className="font-semibold text-gray-800">Registrar pago del cliente</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{numero} · Contado · Total: ${total.toLocaleString('es-CO')}</p>
+              </div>
+              <button onClick={() => { setModalPago(false); setResultado(null); setSoportePdf(null) }} className="p-1.5 rounded-lg hover:bg-gray-100">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <form action={handleRegistrarPago} className="p-6 space-y-4">
+              <div className="bg-emerald-50 rounded-xl p-4">
+                <p className="text-sm text-emerald-800 font-medium">El cliente pago esta cotizacion de contado.</p>
+                <p className="text-xs text-emerald-600 mt-1">Al registrar el pago, la cotizacion pasa a &quot;Pagada&quot; y luego a &quot;En alistamiento&quot;.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de pago *</label>
+                <input name="fecha_pago" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
+              </div>
+
+              {/* Retenciones */}
+              <div className="bg-amber-50 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-amber-800">¿El cliente aplico retenciones?</p>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={aplicaRetenciones} onChange={(e) => setAplicaRetenciones(e.target.checked)} className="rounded border-gray-300 text-amber-600" />
+                    Si, retuvo
+                  </label>
+                </div>
+                {aplicaRetenciones && (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-xs text-amber-700 mb-1">Retefuente</label>
+                        <input value={retefuente} onChange={(e) => setRetefuente(e.target.value)} inputMode="numeric" placeholder="0" className="w-full px-2 py-2 border border-amber-200 rounded-lg text-sm text-right bg-white" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-amber-700 mb-1">ReteIVA</label>
+                        <input value={reteIva} onChange={(e) => setReteIva(e.target.value)} inputMode="numeric" placeholder="0" className="w-full px-2 py-2 border border-amber-200 rounded-lg text-sm text-right bg-white" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-amber-700 mb-1">ReteICA</label>
+                        <input value={reteIca} onChange={(e) => setReteIca(e.target.value)} inputMode="numeric" placeholder="0" className="w-full px-2 py-2 border border-amber-200 rounded-lg text-sm text-right bg-white" />
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-amber-200">
+                      <div className="flex justify-between text-xs text-amber-700"><span>Total retenciones:</span><span className="font-bold">${totalRetenciones.toLocaleString('es-CO')}</span></div>
+                      <div className="flex justify-between text-sm font-medium text-amber-900 mt-1"><span>Monto recibido:</span><span>${(total - totalRetenciones).toLocaleString('es-CO')}</span></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Soporte de pago OBLIGATORIO */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Soporte de pago (comprobante) *</label>
+                <div onClick={() => fileRef.current?.click()} className={`flex items-center gap-3 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition ${soportePdf ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-blue-300'}`}>
+                  {soportePdf ? (
+                    <>
+                      <FileCheck className="w-5 h-5 text-green-600" />
+                      <div className="flex-1 min-w-0"><p className="text-sm text-green-700 font-medium truncate">{soportePdf.name}</p></div>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSoportePdf(null) }} className="text-gray-400 hover:text-red-500 p-1"><X className="w-4 h-4" /></button>
+                    </>
+                  ) : (
+                    <><Upload className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-600">Cargar soporte (obligatorio)</p><p className="text-xs text-gray-400">Captura de Bold, comprobante, etc.</p></div></>
+                  )}
+                </div>
+                <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setSoportePdf(e.target.files?.[0] ?? null)} className="hidden" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">OC del cliente (opcional para contado)</label>
+                <input name="oc_cliente" placeholder="Ej: OC-12345" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
+              </div>
+
+              {resultado && !resultado.ok && (
+                <div className="flex items-start gap-2 p-3 rounded-xl text-sm bg-red-50 text-red-700">
+                  <AlertCircle className="w-4 h-4 mt-0.5" /><span>{resultado.mensaje}</span>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => { setModalPago(false); setResultado(null) }} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50">Cancelar</button>
+                <button type="submit" disabled={pendiente || subiendo} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
+                  {(pendiente || subiendo) && <Loader2 className="w-4 h-4 animate-spin" />} Registrar pago
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL CERRAR VENTA / FACTURAR ===== */}
       {modalCerrar && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl z-10">
               <div>
-                <h3 className="font-semibold text-gray-800">Cerrar venta</h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Cotizacion {numero} · {esCredito ? `Credito a ${diasCredito} dias` : 'Contado'}
-                </p>
+                <h3 className="font-semibold text-gray-800">Facturar venta</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{numero} · {esCredito ? `Credito ${diasCredito}d` : 'Contado'}</p>
               </div>
-              <button onClick={resetModal} className="p-1.5 rounded-lg hover:bg-gray-100">
+              <button onClick={() => { setModalCerrar(false); setResultado(null) }} className="p-1.5 rounded-lg hover:bg-gray-100">
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
-            <form action={handleCerrarVenta} className="p-6 space-y-5">
-
-              {/* Numero factura DIAN */}
+            <form action={handleCerrarVenta} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Numero de factura DIAN *</label>
-                <input name="numero_factura_dian" required placeholder="Ej: SETP-1" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
-                <p className="text-xs text-gray-400 mt-1">El numero que te da el sistema de la DIAN al facturar</p>
+                <input name="numero_factura_dian" required placeholder="Ej: AE1" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
               </div>
 
-              {/* PDF Factura DIAN (OBLIGATORIO) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">PDF de la factura DIAN *</label>
-                <div
-                  onClick={() => facturaRef.current?.click()}
-                  className={`flex items-center gap-3 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition ${
-                    facturaPdf
-                      ? 'border-green-300 bg-green-50'
-                      : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'
-                  }`}
-                >
+                <div onClick={() => facturaRef.current?.click()} className={`flex items-center gap-3 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition ${facturaPdf ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-blue-300'}`}>
                   {facturaPdf ? (
-                    <>
-                      <FileCheck className="w-5 h-5 text-green-600 flex-shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm text-green-700 font-medium truncate">{facturaPdf.name}</p>
-                        <p className="text-xs text-green-600">{(facturaPdf.size / 1024).toFixed(0)} KB</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setFacturaPdf(null); if (facturaRef.current) facturaRef.current.value = '' }}
-                        className="text-gray-400 hover:text-red-500 p-1"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </>
+                    <><FileCheck className="w-5 h-5 text-green-600" /><div className="flex-1 min-w-0"><p className="text-sm text-green-700 font-medium truncate">{facturaPdf.name}</p></div><button type="button" onClick={(e) => { e.stopPropagation(); setFacturaPdf(null) }} className="text-gray-400 hover:text-red-500 p-1"><X className="w-4 h-4" /></button></>
                   ) : (
-                    <>
-                      <Upload className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm text-gray-600">Haz clic para cargar la factura</p>
-                        <p className="text-xs text-gray-400">PDF, PNG o JPG (max 10MB)</p>
-                      </div>
-                    </>
+                    <><Upload className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-600">Cargar factura DIAN</p></div></>
                   )}
                 </div>
-                <input
-                  ref={facturaRef}
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg"
-                  onChange={(e) => setFacturaPdf(e.target.files?.[0] ?? null)}
-                  className="hidden"
-                />
+                <input ref={facturaRef} type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setFacturaPdf(e.target.files?.[0] ?? null)} className="hidden" />
               </div>
 
-              {/* Numero OC */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  OC del cliente (numero) {esCredito && <span className="text-red-500">*</span>}
-                </label>
-                <input
-                  name="oc_cliente"
-                  required={esCredito}
-                  placeholder={esCredito ? 'Ej: OC-12345 (obligatorio)' : 'Ej: OC-12345 (opcional para contado)'}
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                />
-                {esCredito && (
-                  <p className="text-xs text-amber-600 mt-1 font-medium">⚠️ Venta a credito: OC obligatoria (Decision #019)</p>
-                )}
+                <label className="block text-sm font-medium text-gray-700 mb-1">OC del cliente {esCredito && <span className="text-red-500">*</span>}</label>
+                <input name="oc_cliente" required={esCredito} placeholder="Numero de OC" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
               </div>
 
-              {/* PDF OC (obligatorio para credito) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  PDF de la Orden de Compra {esCredito && <span className="text-red-500">*</span>}
-                </label>
-                <div
-                  onClick={() => ocRef.current?.click()}
-                  className={`flex items-center gap-3 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition ${
-                    ocPdf
-                      ? 'border-green-300 bg-green-50'
-                      : esCredito
-                        ? 'border-amber-200 hover:border-amber-300 bg-amber-50/30'
-                        : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'
-                  }`}
-                >
+                <label className="block text-sm font-medium text-gray-700 mb-1">PDF de la OC {esCredito && <span className="text-red-500">*</span>}</label>
+                <div onClick={() => ocRef.current?.click()} className={`flex items-center gap-3 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition ${ocPdf ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-blue-300'}`}>
                   {ocPdf ? (
-                    <>
-                      <FileCheck className="w-5 h-5 text-green-600 flex-shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm text-green-700 font-medium truncate">{ocPdf.name}</p>
-                        <p className="text-xs text-green-600">{(ocPdf.size / 1024).toFixed(0)} KB</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setOcPdf(null); if (ocRef.current) ocRef.current.value = '' }}
-                        className="text-gray-400 hover:text-red-500 p-1"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </>
+                    <><FileCheck className="w-5 h-5 text-green-600" /><div className="flex-1 min-w-0"><p className="text-sm text-green-700 font-medium truncate">{ocPdf.name}</p></div><button type="button" onClick={(e) => { e.stopPropagation(); setOcPdf(null) }} className="text-gray-400 hover:text-red-500 p-1"><X className="w-4 h-4" /></button></>
                   ) : (
-                    <>
-                      <Upload className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm text-gray-600">
-                          {esCredito ? 'Carga la OC del cliente (obligatorio)' : 'Carga la OC del cliente (opcional)'}
-                        </p>
-                        <p className="text-xs text-gray-400">PDF, PNG o JPG (max 10MB)</p>
-                      </div>
-                    </>
+                    <><Upload className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-600">{esCredito ? 'Cargar OC (obligatorio)' : 'Cargar OC (opcional)'}</p></div></>
                   )}
                 </div>
-                <input
-                  ref={ocRef}
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg"
-                  onChange={(e) => setOcPdf(e.target.files?.[0] ?? null)}
-                  className="hidden"
-                />
+                <input ref={ocRef} type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setOcPdf(e.target.files?.[0] ?? null)} className="hidden" />
               </div>
 
-              {/* Mensaje de error */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+                <textarea name="observaciones" rows={2} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none" placeholder="Notas adicionales..." />
+              </div>
+
               {resultado && !resultado.ok && (
                 <div className="flex items-start gap-2 p-3 rounded-xl text-sm bg-red-50 text-red-700">
-                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>{resultado.mensaje}</span>
+                  <AlertCircle className="w-4 h-4 mt-0.5" /><span>{resultado.mensaje}</span>
                 </div>
               )}
 
-              {/* Botones */}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={resetModal} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50">
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={pendiente || subiendo}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {(pendiente || subiendo) && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {subiendo ? 'Subiendo archivos...' : 'Cerrar venta'}
+                <button type="button" onClick={() => { setModalCerrar(false); setResultado(null) }} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50">Cancelar</button>
+                <button type="submit" disabled={pendiente || subiendo} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                  {(pendiente || subiendo) && <Loader2 className="w-4 h-4 animate-spin" />} Facturar
                 </button>
               </div>
             </form>

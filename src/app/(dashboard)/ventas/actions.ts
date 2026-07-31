@@ -398,3 +398,78 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
     }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
+
+
+/** Registrar pago de contado (APROBADA → PAGADA → EN_ALISTAMIENTO) */
+export async function registrarPagoContado(formData: FormData): Promise<ResultadoAccion> {
+  const cotizacion_id = String(formData.get('cotizacion_id') ?? '').trim()
+  const fecha_pago = String(formData.get('fecha_pago') ?? '').trim()
+  const soporte_url = String(formData.get('soporte_url') ?? '').trim()
+  const oc_cliente = String(formData.get('oc_cliente') ?? '').trim()
+  const retefuente = Number(formData.get('retefuente') ?? 0)
+  const rete_iva = Number(formData.get('rete_iva') ?? 0)
+  const rete_ica = Number(formData.get('rete_ica') ?? 0)
+
+  if (!cotizacion_id) return { ok: false, mensaje: 'Cotizacion no valida.' }
+  if (!fecha_pago) return { ok: false, mensaje: 'Fecha de pago obligatoria.' }
+  if (!soporte_url) return { ok: false, mensaje: 'Soporte de pago obligatorio.' }
+
+  const total_retenciones = retefuente + rete_iva + rete_ica
+
+  try {
+    const supabase = createServerSupabaseClient()
+
+    const { data: cot, error: errCot } = await supabase.from('cotizaciones').select('total, subtotal, iva_total').eq('id', cotizacion_id).single()
+    if (errCot || !cot) return { ok: false, mensaje: 'Cotizacion no encontrada.' }
+
+    const monto_recibido = Number(cot.total) - total_retenciones
+    const provision_iva = Number(cot.iva_total) // IVA cobrado (se ajusta cuando compre)
+    const provision_simple = Math.round(Number(cot.subtotal) * 0.05) // 5% del subtotal
+
+    // Actualizar cotizacion a EN_ALISTAMIENTO (salta PAGADA porque ya registramos todo)
+    const { error } = await supabase.from('cotizaciones').update({
+      estado: 'EN_ALISTAMIENTO',
+      fecha_pago,
+      monto_recibido,
+      retencion_retefuente: retefuente,
+      retencion_reteiva: rete_iva,
+      retencion_reteica: rete_ica,
+      retencion_total: total_retenciones,
+      soporte_pago_url: soporte_url,
+      oc_cliente: oc_cliente || null,
+      provision_iva,
+      provision_simple,
+    }).eq('id', cotizacion_id)
+
+    if (error) return { ok: false, mensaje: error.message }
+
+    // Registrar documento soporte
+    await supabase.from('documentos').insert({
+      entidad_tipo: 'COTIZACION',
+      entidad_id: cotizacion_id,
+      tipo_documento: 'SOPORTE_PAGO',
+      nombre_archivo: 'soporte_pago',
+      url_archivo: soporte_url,
+    })
+
+    revalidatePath('/ventas')
+    revalidatePath('/financiero')
+
+    const fmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 })
+    return { ok: true, mensaje: `Pago registrado: ${fmt.format(monto_recibido)} recibido.${total_retenciones > 0 ? ` Retenciones: ${fmt.format(total_retenciones)}` : ''} → En alistamiento.` }
+  } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
+}
+
+/** Pasar a alistamiento (APROBADA/PAGADA → EN_ALISTAMIENTO) */
+export async function pasarAlistamiento(formData: FormData): Promise<ResultadoAccion> {
+  const id = String(formData.get('id') ?? '').trim()
+  if (!id) return { ok: false, mensaje: 'ID invalido.' }
+
+  try {
+    const supabase = createServerSupabaseClient()
+    const { error } = await supabase.from('cotizaciones').update({ estado: 'EN_ALISTAMIENTO' }).eq('id', id)
+    if (error) return { ok: false, mensaje: error.message }
+    revalidatePath('/ventas')
+    return { ok: true, mensaje: 'En alistamiento. Procede a comprar/preparar productos.' }
+  } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
+}

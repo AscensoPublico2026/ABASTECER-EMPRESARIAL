@@ -20,8 +20,8 @@ export default async function VentasPage() {
   const clientes = await obtenerClientesParaSelect()
   const productos = await obtenerProductoParaSelect()
 
-  // Separar cotizaciones: solo las que NO están facturadas
-  const cotizacionesActivas = cotizaciones.filter((c) => c.estado !== 'FACTURADA')
+  // Separar cotizaciones: las que estan en proceso (no cerradas completamente)
+  const cotizacionesActivas = cotizaciones.filter((c) => !['COBRADA', 'ENTREGADO', 'RECHAZADA'].includes(c.estado))
   const cotizacionesPendientes = cotizacionesActivas.filter((c) => c.estado === 'PENDIENTE' || c.estado === 'APROBADA')
 
   // KPIs Cotizaciones

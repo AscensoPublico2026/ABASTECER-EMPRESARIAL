@@ -119,7 +119,7 @@ export default function TablaCotizaciones({ cotizaciones, clientes }: Props) {
                     </td>
                     <td className="px-6 py-4 text-xs text-gray-500">{c.creado_por_nombre ?? '—'}</td>
                     <td className="px-6 py-4">
-                      <AccionesCotizacion cotizacionId={c.id} estado={c.estado} numero={c.numero} diasCredito={c.dias_credito} />
+                      <AccionesCotizacion cotizacionId={c.id} estado={c.estado} numero={c.numero} diasCredito={c.dias_credito} total={c.total} />
                     </td>
                   </tr>
                 )
