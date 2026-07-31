@@ -4,6 +4,8 @@ import { obtenerProductoParaSelect } from '@/lib/queries/productos'
 import { formatCOP, formatFecha } from '@/lib/format'
 import { ShoppingCart } from 'lucide-react'
 import FormFacturaCompra from './FormFacturaCompra'
+import SolicitudesCompra from './SolicitudesCompra'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,10 +14,64 @@ export default async function ComprasPage() {
   const proveedores = await obtenerProveedoresParaSelect()
   const productos = await obtenerProductoParaSelect()
 
+  // Obtener solicitudes de compra pendientes
+  const supabase = createServerSupabaseClient()
+  const { data: solicitudesRaw } = await supabase
+    .from('solicitudes_compra')
+    .select('*, productos(nombre, codigo), cotizaciones(numero, cliente_id, clientes(razon_social))')
+    .eq('estado', 'PENDIENTE')
+    .order('created_at', { ascending: false })
+
+  const solicitudes = (solicitudesRaw ?? []).map((s) => {
+    const prod = s.productos as { nombre?: string; codigo?: string } | null
+    const cot = s.cotizaciones as { numero?: string; cliente_id?: string; clientes?: { razon_social?: string } } | null
+    return {
+      id: s.id,
+      producto_id: s.producto_id,
+      producto_nombre: prod?.nombre ?? '',
+      producto_codigo: prod?.codigo ?? '',
+      cotizacion_id: s.cotizacion_id,
+      cotizacion_numero: cot?.numero ?? '',
+      cliente_nombre: cot?.clientes?.razon_social ?? 'Sin cliente',
+      cantidad_requerida: s.cantidad_requerida,
+      cantidad_en_stock: s.cantidad_en_stock,
+      cantidad_a_comprar: s.cantidad_a_comprar,
+      fecha_necesidad: s.fecha_necesidad,
+      prioridad: s.prioridad ?? 'MEDIA',
+    }
+  })
+
+  // Obtener precios de proveedores para los productos solicitados
+  const productoIds = Array.from(new Set(solicitudes.map((s) => s.producto_id)))
+  const preciosPorProducto: Record<string, { proveedor: string; precio: number; tiempo_entrega: string | null }[]> = {}
+
+  if (productoIds.length > 0) {
+    const { data: preciosRaw } = await supabase
+      .from('precios_proveedor')
+      .select('producto_id, precio, tiempo_entrega, proveedores(razon_social)')
+      .in('producto_id', productoIds)
+      .eq('disponible', true)
+      .order('precio', { ascending: true })
+
+    for (const p of preciosRaw ?? []) {
+      const prov = p.proveedores as { razon_social?: string } | null
+      if (!preciosPorProducto[p.producto_id]) preciosPorProducto[p.producto_id] = []
+      preciosPorProducto[p.producto_id].push({
+        proveedor: prov?.razon_social ?? '',
+        precio: Number(p.precio),
+        tiempo_entrega: p.tiempo_entrega,
+      })
+    }
+  }
+
   return (
     <>
-      <Header title="Compras" subtitle="Facturas de compra y ordenes a proveedores" />
+      <Header title="Compras" subtitle="Solicitudes de compra y facturas de proveedores" />
       <div className="p-8 space-y-8">
+
+        {/* Solicitudes de compra (alertas) */}
+        <SolicitudesCompra solicitudes={solicitudes} preciosPorProducto={preciosPorProducto} />
+
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">

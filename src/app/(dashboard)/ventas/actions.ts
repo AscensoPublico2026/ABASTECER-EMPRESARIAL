@@ -469,9 +469,68 @@ export async function pasarAlistamiento(formData: FormData): Promise<ResultadoAc
     const supabase = createServerSupabaseClient()
     const { error } = await supabase.from('cotizaciones').update({ estado: 'EN_ALISTAMIENTO' }).eq('id', id)
     if (error) return { ok: false, mensaje: error.message }
+
+    // Generar solicitudes de compra para items sin stock
+    await generarSolicitudesCompra(supabase, id)
+
     revalidatePath('/ventas')
-    return { ok: true, mensaje: 'En alistamiento. Procede a comprar/preparar productos.' }
+    revalidatePath('/compras')
+    return { ok: true, mensaje: 'En alistamiento. Revisa el modulo de Compras para items por comprar.' }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
+}
+
+/** Genera solicitudes de compra para los items sin stock suficiente */
+async function generarSolicitudesCompra(supabase: ReturnType<typeof createServerSupabaseClient>, cotizacionId: string) {
+  // Obtener items de la cotizacion
+  const { data: items } = await supabase
+    .from('cotizacion_items')
+    .select('producto_id, cantidad')
+    .eq('cotizacion_id', cotizacionId)
+    .not('producto_id', 'is', null)
+
+  if (!items || items.length === 0) return
+
+  // Obtener cotizacion para fecha
+  const { data: cot } = await supabase.from('cotizaciones').select('fecha_validez').eq('id', cotizacionId).single()
+
+  for (const item of items) {
+    if (!item.producto_id) continue
+
+    // Verificar stock actual
+    const { data: producto } = await supabase
+      .from('productos')
+      .select('stock_actual')
+      .eq('id', item.producto_id)
+      .single()
+
+    const stockActual = Number(producto?.stock_actual ?? 0)
+    const cantidadRequerida = Number(item.cantidad)
+    const cantidadAComprar = Math.max(0, cantidadRequerida - stockActual)
+
+    if (cantidadAComprar > 0) {
+      // Verificar si ya existe una solicitud pendiente para este producto+cotizacion
+      const { data: existente } = await supabase
+        .from('solicitudes_compra')
+        .select('id')
+        .eq('producto_id', item.producto_id)
+        .eq('cotizacion_id', cotizacionId)
+        .eq('estado', 'PENDIENTE')
+        .single()
+
+      if (!existente) {
+        await supabase.from('solicitudes_compra').insert({
+          producto_id: item.producto_id,
+          cotizacion_id: cotizacionId,
+          cantidad_requerida: cantidadRequerida,
+          cantidad_en_stock: stockActual,
+          cantidad_a_comprar: cantidadAComprar,
+          estado: 'PENDIENTE',
+          prioridad: 'ALTA',
+          fecha_necesidad: cot?.fecha_validez || null,
+        })
+      }
+    }
+  }
 }
 
 
