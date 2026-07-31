@@ -566,7 +566,7 @@ export async function generarRemision(formData: FormData): Promise<ResultadoAcci
       .select('*', { count: 'exact', head: true })
       .gte('created_at', `${year}-01-01`)
 
-    const consecutivo = (count ?? 0) + 1
+    const consecutivo = (count ?? 0) + 51
     const numero_remision = `REM-${year}-${String(consecutivo).padStart(3, '0')}`
 
     // Crear registro de remision
