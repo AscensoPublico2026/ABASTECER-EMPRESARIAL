@@ -30,19 +30,12 @@ export function formatPorcentaje(valor: number | null | undefined): string {
   }).format(n) + ' %'
 }
 
-/** Formatea una fecha ISO (YYYY-MM-DD) a formato legible: 25 jul 2026 */
+/** Formatea una fecha ISO (YYYY-MM-DD) a formato corto: 30/07/2026 */
 export function formatFecha(fecha: string | null | undefined): string {
   if (!fecha) return '-'
-  // Se construye en UTC para evitar corrimiento de un dia por zona horaria
   const [y, m, d] = fecha.slice(0, 10).split('-').map(Number)
   if (!y || !m || !d) return '-'
-  const date = new Date(Date.UTC(y, m - 1, d))
-  return new Intl.DateTimeFormat('es-CO', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(date)
+  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`
 }
 
 /** Convierte texto de input a numero, tolerando puntos y comas */
