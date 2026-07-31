@@ -18,8 +18,8 @@ export default async function VentasPage() {
   // NIVEL 1: Cotizaciones (PENDIENTE, APROBADA)
   const nivel1 = cotizaciones.filter((c) => c.estado === 'PENDIENTE' || c.estado === 'APROBADA')
 
-  // NIVEL 2: En proceso (PAGADA, EN_ALISTAMIENTO)
-  const nivel2 = cotizaciones.filter((c) => c.estado === 'PAGADA' || c.estado === 'EN_ALISTAMIENTO')
+  // NIVEL 2: En proceso (PAGADA, EN_ALISTAMIENTO, DESPACHADA)
+  const nivel2 = cotizaciones.filter((c) => c.estado === 'PAGADA' || c.estado === 'EN_ALISTAMIENTO' || c.estado === 'DESPACHADA')
 
   // KPIs Nivel 1
   const totalCotizado = nivel1.reduce((sum, c) => sum + c.total, 0)
@@ -31,6 +31,7 @@ export default async function VentasPage() {
   const totalEnProceso = nivel2.reduce((sum, c) => sum + c.total, 0)
   const enAlistamiento = nivel2.filter((c) => c.estado === 'EN_ALISTAMIENTO').length
   const pagadas = nivel2.filter((c) => c.estado === 'PAGADA').length
+  const despachadas = nivel2.filter((c) => c.estado === 'DESPACHADA').length
 
   // Nombres clientes para filtros
   const nombresClientesN1 = Array.from(new Set(nivel1.map((c) => c.cliente_nombre).filter(Boolean))) as string[]
@@ -111,7 +112,7 @@ export default async function VentasPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-800">En proceso</h2>
-              <p className="text-sm text-gray-500">Pagadas o en alistamiento — comprando/preparando productos</p>
+              <p className="text-sm text-gray-500">Pagadas, en alistamiento o despachadas (remisionadas)</p>
             </div>
           </div>
 
@@ -123,7 +124,7 @@ export default async function VentasPage() {
             </div>
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
               <p className="text-xs text-gray-500 uppercase tracking-wide">En alistamiento</p>
-              <p className="text-xl font-bold text-orange-600 mt-1 tabular-nums">{enAlistamiento + pagadas}</p>
+              <p className="text-xl font-bold text-orange-600 mt-1 tabular-nums">{enAlistamiento + pagadas + despachadas}</p>
             </div>
           </div>
 
