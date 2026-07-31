@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { EMPRESA } from '@/lib/empresa'
-import { formatCOP, formatFecha } from '@/lib/format'
+import { formatFecha } from '@/lib/format'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
@@ -87,8 +87,6 @@ export default async function RemisionPage({ params }: { params: { id: string } 
               <th className="px-3 py-2 text-left text-xs">#</th>
               <th className="px-3 py-2 text-left text-xs">Descripcion</th>
               <th className="px-3 py-2 text-center text-xs">Cant.</th>
-              <th className="px-3 py-2 text-right text-xs">P. Unitario</th>
-              <th className="px-3 py-2 text-right text-xs">Subtotal</th>
             </tr>
           </thead>
           <tbody>
@@ -97,30 +95,10 @@ export default async function RemisionPage({ params }: { params: { id: string } 
                 <td className="px-3 py-2 text-gray-500">{idx + 1}</td>
                 <td className="px-3 py-2 text-gray-800">{String(item.descripcion)}</td>
                 <td className="px-3 py-2 text-center text-gray-600">{String(item.cantidad)}</td>
-                <td className="px-3 py-2 text-right tabular-nums text-gray-600">{formatCOP(Number(item.precio_unitario))}</td>
-                <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-800">{formatCOP(Number(item.subtotal))}</td>
               </tr>
             ))}
           </tbody>
         </table>
-
-        {/* Totales (sin flete) */}
-        <div className="flex justify-end mb-8">
-          <div className="w-72 space-y-1.5 text-sm">
-            {(() => {
-              const subtotalRem = items.reduce((s, i) => s + Number(i.subtotal ?? 0), 0)
-              const ivaRem = items.reduce((s, i) => s + Number(i.iva_valor ?? 0), 0)
-              const totalRem = subtotalRem + ivaRem
-              return (
-                <>
-                  <div className="flex justify-between text-gray-600"><span>Subtotal:</span><span className="tabular-nums">{formatCOP(subtotalRem)}</span></div>
-                  <div className="flex justify-between text-gray-600"><span>IVA:</span><span className="tabular-nums">{formatCOP(ivaRem)}</span></div>
-                  <div className="flex justify-between font-bold text-lg text-gray-800 pt-2 border-t border-gray-300"><span>TOTAL:</span><span className="tabular-nums">{formatCOP(totalRem)}</span></div>
-                </>
-              )
-            })()}
-          </div>
-        </div>
 
         {/* Observaciones */}
         {cot.remision_observaciones && (
