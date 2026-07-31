@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useTransition, useRef } from 'react'
-import { aprobarCotizacion, registrarPagoContado, pasarAlistamiento, cerrarVenta, revertirEstadoCotizacion } from './actions'
+import { aprobarCotizacion, registrarPagoContado, pasarAlistamiento, cerrarVenta, generarRemision, revertirEstadoCotizacion } from './actions'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle2, FileText, Loader2, AlertCircle, X, Upload, FileCheck, Pencil, Package, Truck, DollarSign, Undo2 } from 'lucide-react'
+import { CheckCircle2, FileText, Loader2, AlertCircle, X, Upload, FileCheck, Pencil, Package, Truck, DollarSign, Undo2, ClipboardList } from 'lucide-react'
 
 interface Props {
   cotizacionId: string
@@ -17,6 +17,7 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
   const [pendiente, startTransition] = useTransition()
   const [modalPago, setModalPago] = useState(false)
   const [modalCerrar, setModalCerrar] = useState(false)
+  const [modalRemision, setModalRemision] = useState(false)
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
 
   // Pago contado states
@@ -239,12 +240,36 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
         </button>
       )}
 
+      {/* Generar Remision (EN_ALISTAMIENTO — despachar sin factura) */}
+      {estado === 'EN_ALISTAMIENTO' && (
+        <button onClick={() => setModalRemision(true)} disabled={pendiente} className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-medium hover:bg-indigo-100 transition disabled:opacity-50">
+          <ClipboardList className="w-3 h-3" />
+          Remision
+        </button>
+      )}
+
       {/* Estado visual */}
       {estado === 'FACTURADA' && (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs text-purple-600"><Truck className="w-3 h-3" /> Despachar</span>
       )}
 
-      {resultado && !modalPago && !modalCerrar && (
+      {/* Ver Remision (DESPACHADA) */}
+      {estado === 'DESPACHADA' && (
+        <a href={`/ventas/${cotizacionId}/remision`} className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-medium hover:bg-indigo-100 transition">
+          <ClipboardList className="w-3 h-3" />
+          Ver Remision
+        </a>
+      )}
+
+      {/* Facturar desde DESPACHADA (ya entrego remisionado, ahora factura) */}
+      {estado === 'DESPACHADA' && (
+        <button onClick={() => setModalCerrar(true)} disabled={pendiente} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-medium hover:bg-blue-100 transition disabled:opacity-50">
+          <FileText className="w-3 h-3" />
+          Facturar
+        </button>
+      )}
+
+      {resultado && !modalPago && !modalCerrar && !modalRemision && (
         <span className={`text-xs ${resultado.ok ? 'text-green-600' : 'text-red-600'}`}>
           {resultado.ok ? '✓' : '✗'} {resultado.mensaje.slice(0, 35)}
         </span>
@@ -479,6 +504,54 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
                 <button type="button" onClick={() => { setModalCerrar(false); setResultado(null) }} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50">Cancelar</button>
                 <button type="submit" disabled={pendiente || subiendo} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
                   {(pendiente || subiendo) && <Loader2 className="w-4 h-4 animate-spin" />} Facturar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL GENERAR REMISION ===== */}
+      {modalRemision && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="font-semibold text-gray-800">Generar remision</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{numero} · Despachar sin factura</p>
+              </div>
+              <button onClick={() => { setModalRemision(false); setResultado(null) }} className="p-1.5 rounded-lg hover:bg-gray-100">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <form action={(formData) => {
+              formData.set('cotizacion_id', cotizacionId)
+              startTransition(async () => {
+                const res = await generarRemision(formData)
+                setResultado(res)
+                if (res.ok) { setModalRemision(false); setTimeout(() => setResultado(null), 3000) }
+              })
+            }} className="p-6 space-y-4">
+              <div className="bg-indigo-50 rounded-xl p-4">
+                <p className="text-sm text-indigo-800 font-medium">Entregar pedido con remision (sin factura).</p>
+                <p className="text-xs text-indigo-600 mt-1">Se genera un documento de remision para que el cliente firme la recepcion. Podras facturar despues.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones de entrega</label>
+                <textarea name="observaciones_remision" rows={3} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none" placeholder="Ej: Entregado en bodega del cliente, recibe Juan Perez..." />
+              </div>
+
+              {resultado && !resultado.ok && (
+                <div className="flex items-start gap-2 p-3 rounded-xl text-sm bg-red-50 text-red-700">
+                  <AlertCircle className="w-4 h-4 mt-0.5" /><span>{resultado.mensaje}</span>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => { setModalRemision(false); setResultado(null) }} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50">Cancelar</button>
+                <button type="submit" disabled={pendiente} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                  {pendiente && <Loader2 className="w-4 h-4 animate-spin" />} Generar remision
                 </button>
               </div>
             </form>
