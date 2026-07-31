@@ -175,7 +175,7 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
         const res = await cerrarVenta(formData)
         setResultado(res)
         setSubiendo(false)
-        if (res.ok) { setModalCerrar(false); setFacturaPdf(null); setOcPdf(null); setTimeout(() => setResultado(null), 3000) }
+        if (res.ok) { setModalCerrar(false); setFacturaPdf(null); setTimeout(() => setResultado(null), 3000) }
       })
     } catch (err) {
       setResultado({ ok: false, mensaje: err instanceof Error ? err.message : 'Error.' })
