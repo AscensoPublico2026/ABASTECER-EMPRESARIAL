@@ -23,7 +23,12 @@ export default async function RemisionPage({ params }: { params: { id: string } 
   if (!cot.remision_numero && cot.estado !== 'DESPACHADA') notFound()
 
   const cliente = cot.clientes as Record<string, string> | null
-  const items = (cot.cotizacion_items ?? []) as Record<string, unknown>[]
+  const allItems = (cot.cotizacion_items ?? []) as Record<string, unknown>[]
+  // Excluir fletes/transporte de la remision (no se entregan como producto)
+  const items = allItems.filter((item) => {
+    const desc = String(item.descripcion ?? '').toLowerCase()
+    return !desc.includes('flete') && !desc.includes('transporte')
+  })
   const fechaRemision = cot.remision_fecha || new Date().toISOString().slice(0, 10)
 
   return (
@@ -99,12 +104,21 @@ export default async function RemisionPage({ params }: { params: { id: string } 
           </tbody>
         </table>
 
-        {/* Totales */}
+        {/* Totales (sin flete) */}
         <div className="flex justify-end mb-8">
           <div className="w-72 space-y-1.5 text-sm">
-            <div className="flex justify-between text-gray-600"><span>Subtotal:</span><span className="tabular-nums">{formatCOP(Number(cot.subtotal))}</span></div>
-            <div className="flex justify-between text-gray-600"><span>IVA:</span><span className="tabular-nums">{formatCOP(Number(cot.iva_total))}</span></div>
-            <div className="flex justify-between font-bold text-lg text-gray-800 pt-2 border-t border-gray-300"><span>TOTAL:</span><span className="tabular-nums">{formatCOP(Number(cot.total))}</span></div>
+            {(() => {
+              const subtotalRem = items.reduce((s, i) => s + Number(i.subtotal ?? 0), 0)
+              const ivaRem = items.reduce((s, i) => s + Number(i.iva_valor ?? 0), 0)
+              const totalRem = subtotalRem + ivaRem
+              return (
+                <>
+                  <div className="flex justify-between text-gray-600"><span>Subtotal:</span><span className="tabular-nums">{formatCOP(subtotalRem)}</span></div>
+                  <div className="flex justify-between text-gray-600"><span>IVA:</span><span className="tabular-nums">{formatCOP(ivaRem)}</span></div>
+                  <div className="flex justify-between font-bold text-lg text-gray-800 pt-2 border-t border-gray-300"><span>TOTAL:</span><span className="tabular-nums">{formatCOP(totalRem)}</span></div>
+                </>
+              )
+            })()}
           </div>
         </div>
 
