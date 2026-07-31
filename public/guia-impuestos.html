@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Guia de Impuestos - Abastecer Empresarial S.A.S.</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #1f2937; line-height: 1.6; padding: 30px; max-width: 210mm; margin: 0 auto; }
+h1 { font-size: 20px; color: #1e40af; margin-bottom: 4px; }
+h2 { font-size: 14px; color: #1e3a5f; margin-top: 24px; margin-bottom: 8px; border-bottom: 2px solid #e5e7eb; padding-bottom: 4px; }
+h3 { font-size: 12px; color: #374151; margin-top: 14px; margin-bottom: 6px; }
+p { margin-bottom: 6px; }
+.subtitle { font-size: 11px; color: #6b7280; margin-bottom: 20px; }
+table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 10px; }
+th { background: #1e40af; color: white; padding: 6px 8px; text-align: left; }
+td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; }
+tr:nth-child(even) { background: #f9fafb; }
+.alerta { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 10px; margin: 10px 0; }
+.alerta strong { color: #92400e; }
+.alerta p { color: #92400e; margin: 0; }
+.verde { background: #ecfdf5; border: 1px solid #10b981; border-radius: 6px; padding: 10px; margin: 10px 0; }
+.verde p { color: #065f46; margin: 0; }
+.rojo { background: #fef2f2; border: 1px solid #ef4444; border-radius: 6px; padding: 10px; margin: 10px 0; }
+.rojo p { color: #991b1b; margin: 0; }
+.ejemplo { background: #eff6ff; border: 1px solid #3b82f6; border-radius: 6px; padding: 10px; margin: 10px 0; }
+.ejemplo p { color: #1e40af; margin: 2px 0; }
+.formula { background: #f3f4f6; border-radius: 4px; padding: 8px 12px; margin: 8px 0; font-family: monospace; font-size: 10px; }
+ul { padding-left: 16px; margin: 6px 0; }
+li { margin-bottom: 4px; }
+.page-break { page-break-before: always; }
+.footer { text-align: center; font-size: 8px; color: #9ca3af; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 8px; }
+@media print { body { padding: 15px; } .no-print { display: none; } }
+.btn-print { position: fixed; top: 20px; right: 20px; background: #1e40af; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.btn-print:hover { background: #1e3a8a; }
+</style>
+</head>
+<body>
+<button class="btn-print no-print" onclick="window.print()">Imprimir / Guardar PDF</button>
+
+<h1>GUIA COMPLETA DE IMPUESTOS</h1>
+<p class="subtitle">ABASTECER EMPRESARIAL S.A.S. | NIT 902088758-4 | Regimen Simple de Tributacion (RST) + IVA<br>Documento interno para socios — Julio 2026</p>
+
+<!-- SECCION 1 -->
+<h2>1. ¿QUE IMPUESTOS PAGAMOS?</h2>
+<p>Al estar en <strong>Regimen Simple de Tributacion (RST)</strong>, Abastecer solo paga <strong>DOS impuestos</strong>. El RST unifica varios impuestos en uno solo, lo que simplifica todo:</p>
+
+<table>
+<tr><th>Impuesto</th><th>Que es</th><th>Tasa</th><th>Cuando se paga</th></tr>
+<tr><td><strong>IVA</strong></td><td>La diferencia entre el IVA que cobramos a clientes y el IVA que pagamos a proveedores</td><td>19% (solo la diferencia)</td><td>Cada 2 meses (bimestral)</td></tr>
+<tr><td><strong>Regimen Simple</strong></td><td>Reemplaza: Impuesto de Renta + ICA + Industria y Comercio. Todo en uno.</td><td>1.8% a 5.4% de los ingresos brutos</td><td>Anticipos cada 2 meses + declaracion anual</td></tr>
+</table>
+
+<div class="verde">
+<p><strong>NO HAY MAS IMPUESTOS.</strong> Esos dos son todo. El Regimen Simple nos ahorra tener que declarar renta, ICA, e industria y comercio por separado.</p>
+</div>
+
+<!-- SECCION 2 -->
+<h2>2. ¿COMO FUNCIONA EL IVA?</h2>
+<p>El IVA funciona asi: nosotros <strong>cobramos</strong> IVA cuando vendemos y <strong>pagamos</strong> IVA cuando compramos. La diferencia es lo que le debemos a la DIAN.</p>
+
+<div class="formula">
+IVA a pagar a la DIAN = IVA que cobramos (ventas) − IVA que pagamos (compras)
+</div>
+
+<div class="ejemplo">
+<p><strong>EJEMPLO:</strong></p>
+<p>Vendimos a Evolti: subtotal $1.280.000 + IVA $243.200 = Total $1.523.200</p>
+<p>Compramos canastillas: subtotal $800.000 + IVA $152.000 = Total $952.000</p>
+<p>IVA a pagar = $243.200 − $152.000 = <strong>$91.200</strong> ← Esto es de la DIAN</p>
+</div>
+
+<div class="rojo">
+<p><strong>IMPORTANTE:</strong> El IVA que cobramos NO ES NUESTRO. Es plata de la DIAN que nosotros solo "guardamos" temporalmente. Siempre debe estar separado y disponible.</p>
+</div>
+
+<h3>¿Puede pasar que nos paguen IVA primero o que paguemos primero?</h3>
+<p>Si. Hay dos situaciones:</p>
+<ul>
+<li><strong>Primero vendemos, despues compramos:</strong> Primero nos entra IVA del cliente, despues pagamos IVA al proveedor. Igual la diferencia es para la DIAN.</li>
+<li><strong>Primero compramos, despues vendemos:</strong> Primero pagamos IVA al proveedor, despues cobramos IVA al cliente. Igual la diferencia es para la DIAN.</li>
+</ul>
+<p>No importa el orden — al final del bimestre se cruza todo: total IVA cobrado − total IVA pagado = lo que debemos.</p>
+
+<!-- SECCION 3 -->
+<h2>3. ¿COMO FUNCIONAN LAS RETENCIONES?</h2>
+
+<h3>¿Que son?</h3>
+<p>Las retenciones son <strong>adelantos de impuesto</strong> que el cliente grande nos descuenta al momento de pagarnos. Es como si el cliente le pagara una parte de nuestro impuesto directamente a la DIAN por nosotros.</p>
+
+<h3>Los 2 casos:</h3>
+
+<table>
+<tr><th>Caso</th><th>Que pasa</th><th>Que hacemos</th></tr>
+<tr><td><strong>CASO A: Cliente SI retiene</strong><br>(Evolti, empresas grandes, entidades publicas)</td><td>Nos pagan MENOS de lo facturado.<br>La diferencia = retenciones</td><td>Registramos cuanto nos retuvieron.<br>A fin de año pedimos el certificado.<br>Lo cruzamos con nuestra declaracion = pagamos MENOS impuesto.</td></tr>
+<tr><td><strong>CASO B: Cliente NO retiene</strong><br>(Clientes pequenos, personas naturales)</td><td>Nos pagan el 100% de la factura.</td><td>Nosotros separamos el 5% del subtotal.<br>Lo usamos para pagar el anticipo bimestral.</td></tr>
+</table>
+
+<h3>¿Como se que un cliente me retuvo?</h3>
+<p>Porque <strong>recibes menos dinero</strong> del que facturaste. Ejemplo:</p>
+<div class="ejemplo">
+<p>Facturaste: $1.523.200</p>
+<p>Recibiste en Bold: $1.486.720</p>
+<p>Diferencia: $36.480 ← <strong>Eso son retenciones</strong></p>
+</div>
+
+<h3>¿Como se que tipo de retencion es?</h3>
+<ul>
+<li><strong>Si el cliente te manda el cuadrito:</strong> Ahi dice el desglose (Retefuente, ReteIVA, ReteICA)</li>
+<li><strong>Si no te manda nada:</strong> Preguntale: "¿Que retenciones nos aplicaron?"</li>
+<li><strong>Si no puedes preguntar:</strong> Registra como "Retencion general" y cuando te den el certificado a fin de año, ahi lo discriminas</li>
+<li><strong>Regla general:</strong> Si la diferencia cuadra con 2.5% del subtotal + algo de ICA, probablemente es Retefuente + ReteICA</li>
+</ul>
+
+<h3>Tipos de retenciones comunes:</h3>
+<table>
+<tr><th>Tipo</th><th>Base</th><th>Tasa comun</th><th>Ejemplo (subtotal $1.280.000)</th></tr>
+<tr><td><strong>Retefuente</strong></td><td>Subtotal (sin IVA)</td><td>2.5%</td><td>$1.280.000 × 2.5% = $32.000</td></tr>
+<tr><td><strong>ReteICA</strong></td><td>Subtotal (sin IVA)</td><td>3.5 por mil (0.35%)</td><td>$1.280.000 × 0.0035 = $4.480</td></tr>
+<tr><td><strong>ReteIVA</strong></td><td>Valor del IVA</td><td>15%</td><td>$243.200 × 15% = $36.480 (no siempre aplica)</td></tr>
+</table>
+
+<h3>¿Puedo pedirle al cliente que NO me retenga?</h3>
+<div class="rojo">
+<p><strong>NO.</strong> Si el cliente es agente de retencion (empresa grande), esta OBLIGADO por ley a retenerte. No es decision de ellos ni tuya. No se puede evitar.</p>
+</div>
+
+<h3>¿Las retenciones son perdida?</h3>
+<div class="verde">
+<p><strong>NO.</strong> Las retenciones son ADELANTOS de impuesto. Al final del año, cuando declares, todo lo que te retuvieron se descuenta de lo que debes. Si te retuvieron mucho, puede que no debas nada o que la DIAN te deba a ti (saldo a favor).</p>
+</div>
+
+<!-- SECCION 4 -->
+<div class="page-break"></div>
+<h2>4. ¿CUANTO SEPARAR DE CADA VENTA?</h2>
+
+<h3>Regla: SIEMPRE separar el 5% del subtotal, te retengan o no.</h3>
+
+<table>
+<tr><th>Situacion</th><th>Separas 5%</th><th>Al momento de pagar impuesto...</th></tr>
+<tr><td>Cliente NO retiene</td><td>SI — $64.000</td><td>Pagas los $64.000 del anticipo con lo que ahorraste</td></tr>
+<tr><td>Cliente SI retiene ($36.480)</td><td>SI — $64.000</td><td>Solo pagas $64.000 − $36.480 = $27.520 (te sobra)</td></tr>
+</table>
+
+<p><strong>¿Por que siempre?</strong> Porque el 5% es tu <strong>alcancia para impuestos</strong>. Las retenciones son como adelantos que el cliente mete en tu alcancia por ti. Siempre separas, pero si te retuvieron, al pagar te sobra.</p>
+
+<h3>¿Y el IVA?</h3>
+<p>El IVA es APARTE. Tambien debes separarlo:</p>
+
+<div class="formula">
+Total a separar por venta = IVA neto + 5% del subtotal
+
+Donde:
+• IVA neto = IVA que cobraste − IVA que pagaste al comprar ese producto
+• 5% del subtotal = provision para Regimen Simple
+</div>
+
+<div class="ejemplo">
+<p><strong>EJEMPLO COMPLETO — Venta a Evolti:</strong></p>
+<p>Subtotal venta: $1.280.000 | IVA cobrado: $243.200 | Total: $1.523.200</p>
+<p>Costo de compra: $800.000 | IVA pagado: $152.000</p>
+<p>---</p>
+<p>IVA neto (para DIAN): $243.200 − $152.000 = <strong>$91.200</strong></p>
+<p>Regimen Simple (5% de $1.280.000): <strong>$64.000</strong></p>
+<p>Total a separar: $91.200 + $64.000 = <strong>$155.200</strong></p>
+<p>---</p>
+<p>Evolti nos retuvo: $36.480</p>
+<p>Entonces realmente necesitamos de bolsillo: $155.200 − $36.480 = <strong>$118.720</strong></p>
+</div>
+
+<div class="alerta">
+<p><strong>SEPARAR LO JUSTO, NO MAS:</strong> Separa solo el IVA neto + 5% del subtotal − retenciones. El 10% es excesivo y te quita liquidez para operar (comprar, vender, crecer). El ERP te calculara exactamente cuanto separar por venta.</p>
+</div>
+
+<!-- SECCION 5 -->
+<h2>5. ¿COMO FUNCIONAN LOS ANTICIPOS BIMESTRALES?</h2>
+
+<p>En vez de pagar TODO el impuesto de golpe al final del año, la DIAN dice: "Pagame un poquito cada 2 meses, y al final del año ajustamos cuentas."</p>
+
+<h3>¿Quien calcula cuanto debo pagar?</h3>
+<p><strong>El sistema de la DIAN (MUISCA) lo calcula automaticamente.</strong> Tu solo le dices cuanto vendiste en el bimestre y el calcula cuanto debes. Tu NO inventas el numero.</p>
+
+<h3>¿Y entonces el 5% para que?</h3>
+<p>El 5% que separas es tu <strong>ahorro interno</strong>. Cuando la DIAN te diga "debes $350.000 este bimestre", tu ya tienes esa plata guardada porque la fuiste separando de cada venta.</p>
+
+<div class="ejemplo">
+<p><strong>EJEMPLO — Primer bimestre (Jul-Ago 2026):</strong></p>
+<p>Vendiste $10.000.000 en julio-agosto</p>
+<p>MUISCA calcula: anticipo Simple = $10M × 3.5% = $350.000</p>
+<p>Tu ya habias separado: 5% de $10M = $500.000 ← Te sobra $150.000 de colchon</p>
+</div>
+
+<!-- SECCION 6 -->
+<h2>6. ¿COMO ES AL FINAL DEL AÑO? (Declaracion anual)</h2>
+
+<p>En <strong>abril 2027</strong> haces la declaracion anual del Regimen Simple. Ahi se cruza TODO:</p>
+
+<div class="formula">
+Impuesto REAL del año = Ingresos totales del año × tasa (1.8% - 5.4%)
+
+Lo que ya pagaste:
+(−) Anticipos bimestrales que pagaste durante el año
+(−) Retenciones que los clientes te hicieron durante el año
+────────────────────────────────────────────────
+= SALDO: lo que falta por pagar (o saldo a favor)
+</div>
+
+<h3>Ejemplo completo del año:</h3>
+<div class="ejemplo">
+<p><strong>Supongamos que Abastecer vendio $50.000.000 en todo 2026:</strong></p>
+<p>Impuesto Simple del año: $50M × 3.5% = <strong>$1.750.000</strong></p>
+<p>---</p>
+<p>Lo que ya pagamos en anticipos bimestrales: −$1.050.000</p>
+<p>Lo que nos retuvieron los clientes (Evolti, etc): −$400.000</p>
+<p>---</p>
+<p>Total ya pagado: $1.050.000 + $400.000 = $1.450.000</p>
+<p>Lo que falta: $1.750.000 − $1.450.000 = <strong>$300.000</strong> ← pagas esto en abril</p>
+</div>
+
+<h3>¿Puede sobrar? (Saldo a favor)</h3>
+<div class="ejemplo">
+<p><strong>Si los clientes te retuvieron MUCHO:</strong></p>
+<p>Impuesto del año: $1.750.000</p>
+<p>Anticipos pagados: −$1.050.000</p>
+<p>Retenciones: −$900.000</p>
+<p>Total pagado: $1.950.000</p>
+<p>Diferencia: $1.750.000 − $1.950.000 = <strong>−$200.000 (saldo a favor)</strong></p>
+<p>La DIAN te DEBE $200.000. Se cruza el proximo año.</p>
+</div>
+
+<h3>¿Como se presenta la declaracion anual?</h3>
+<ol>
+<li>Entras al MUISCA como la empresa (a nombre de un tercero)</li>
+<li>Menu → "Diligenciar y presentar" → Declaracion Regimen Simple (formulario 260)</li>
+<li>Llenas: ingresos totales del año, anticipos pagados, retenciones recibidas</li>
+<li>El sistema calcula el saldo</li>
+<li>Si debes → generas recibo y pagas por PSE</li>
+<li>Si tienes saldo a favor → queda para cruzar el año siguiente</li>
+</ol>
+
+<!-- SECCION 7 -->
+<div class="page-break"></div>
+<h2>7. CALENDARIO DE PAGOS 2026-2027</h2>
+
+<table>
+<tr><th>Periodo</th><th>Que cubres</th><th>Fecha limite</th><th>Que pagas</th></tr>
+<tr><td><strong>Bimestre 4</strong></td><td>Jul - Ago 2026</td><td><strong>Septiembre 2026</strong></td><td>IVA bimestral + Anticipo Simple</td></tr>
+<tr><td><strong>Bimestre 5</strong></td><td>Sep - Oct 2026</td><td><strong>Noviembre 2026</strong></td><td>IVA bimestral + Anticipo Simple</td></tr>
+<tr><td><strong>Bimestre 6</strong></td><td>Nov - Dic 2026</td><td><strong>Enero 2027</strong></td><td>IVA bimestral + Anticipo Simple</td></tr>
+<tr><td><strong>Certificados</strong></td><td>Todo 2026</td><td><strong>Ene - Mar 2027</strong></td><td>Pedir certificados de retencion a clientes</td></tr>
+<tr><td><strong>Declaracion anual</strong></td><td>Todo 2026</td><td><strong>Abril 2027</strong></td><td>Declaracion Simple + cruce retenciones</td></tr>
+</table>
+
+<div class="alerta">
+<p><strong>PRIMER PAGO:</strong> Septiembre 2026. Debes tener la plata separada de las ventas de julio y agosto. Por eso es crucial separar desde YA.</p>
+</div>
+
+<!-- SECCION 8 -->
+<h2>8. PASO A PASO: COMO PAGAR EL IVA + SIMPLE BIMESTRAL</h2>
+
+<ol>
+<li>Entrar al MUISCA: <strong>muisca.dian.gov.co</strong></li>
+<li>Iniciar sesion "A nombre de un tercero" → Teresa → NIT 902088758</li>
+<li>Menu → <strong>"Diligenciar y presentar"</strong></li>
+<li>Seleccionar: <strong>"Recibo Electronico SIMPLE"</strong> (formulario 2593)</li>
+<li>Llenar los datos:
+  <ul>
+    <li>Ingresos brutos del bimestre (total de ventas sin IVA)</li>
+    <li>IVA generado (total IVA cobrado en ventas)</li>
+    <li>IVA descontable (total IVA pagado en compras)</li>
+  </ul>
+</li>
+<li>El sistema calcula automaticamente cuanto debes</li>
+<li>Revisar → Presentar → Generar recibo de pago</li>
+<li>Pagar por <strong>PSE</strong> (pago electronico desde Bold o banco)</li>
+</ol>
+
+<p><strong>¿De donde saco los numeros?</strong> Del ERP. El Centro Financiero te muestra: IVA cobrado, IVA pagado, ventas totales del periodo. Solo copias esos numeros al formulario.</p>
+
+<!-- SECCION 9 -->
+<h2>9. PREGUNTAS FRECUENTES</h2>
+
+<h3>¿Siempre separo el 5% aunque me retengan?</h3>
+<p><strong>SI.</strong> Siempre. Lo que te retuvieron se descuenta despues, pero tu siempre tienes tu reserva lista.</p>
+
+<h3>¿Puedo pedirle a un cliente que no me retenga?</h3>
+<p><strong>NO.</strong> Es obligacion legal del cliente. Si es agente de retencion, DEBE retener.</p>
+
+<h3>¿Las retenciones son perdida de dinero?</h3>
+<p><strong>NO.</strong> Son adelantos de impuesto. Al final del año se cruzan. Es como si te estuvieran ahorrando el impuesto por adelantado.</p>
+
+<h3>¿Que pasa si no separo nada?</h3>
+<p>Llegas a septiembre (primer pago) sin plata → no puedes pagar → la DIAN te cobra intereses de mora + sancion. Puede ser costoso.</p>
+
+<h3>¿Que pasa si me retraso en un pago?</h3>
+<p>Intereses de mora (tasa DIAN ~1% mensual) + sancion por extemporaneidad. Siempre es mejor pagar a tiempo.</p>
+
+<h3>¿Un cliente que me compra de contado $500.000 me retiene?</h3>
+<p>Depende. Si la compra es menor a ~$1.062.000 (base minima 2026), normalmente NO retienen Retefuente. Pero si es grande, si retiene.</p>
+
+<h3>¿Si un cliente me paga varias facturas juntas?</h3>
+<p>Le preguntas: "¿A que facturas corresponde este pago?" y registras cada factura por separado en el ERP con su retencion individual.</p>
+
+<h3>¿Necesito contador?</h3>
+<p>Para empezar NO es obligatorio (el RST es simple). Pero cuando las ventas crezcan (>$100M año), si conviene tener uno para la declaracion anual.</p>
+
+<!-- SECCION 10 -->
+<h2>10. REGLA DE ORO (RESUMEN FINAL)</h2>
+
+<div class="alerta">
+<p><strong style="font-size: 13px;">DE CADA VENTA:</strong></p>
+<p>1. Separar el IVA neto (IVA cobrado − IVA pagado en compras) → es de la DIAN</p>
+<p>2. Separar el 5% del subtotal → para anticipo del Regimen Simple</p>
+<p>3. Si el cliente retuvo → esa plata ya "esta pagada", te sobra al final</p>
+<p><br><strong style="font-size: 12px;">EN LA PRACTICA: Separa solo lo que REALMENTE debes (IVA neto + 5% subtotal − retenciones). No mas. Necesitas liquidez para operar.</strong></p>
+</div>
+
+<div class="verde">
+<p><strong>RECUERDA:</strong></p>
+<p>• Retenciones NO son perdida → se cruzan al declarar</p>
+<p>• Siempre separa el 5% → te retengan o no</p>
+<p>• No puedes pedir que no te retengan → es ley</p>
+<p>• Primer pago: Septiembre 2026</p>
+<p>• El MUISCA calcula cuanto debes → tu solo declaras cuanto vendiste</p>
+<p>• El ERP te da los numeros → solo los copias al formulario</p>
+</div>
+
+<div class="footer">
+<p>ABASTECER EMPRESARIAL S.A.S. | NIT 902088758-4 | Carrera 13 #15-36 Chapinero, Cali</p>
+<p>Documento interno para socios | Generado: Julio 2026</p>
+</div>
+
+</body>
+</html>
