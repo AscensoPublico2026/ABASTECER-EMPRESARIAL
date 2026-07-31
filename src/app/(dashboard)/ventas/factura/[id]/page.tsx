@@ -3,8 +3,9 @@ import { EMPRESA } from '@/lib/empresa'
 import { formatCOP, formatFecha } from '@/lib/format'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, FileText, Receipt, CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, FileText, CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
 import BotonImprimir from '../../[id]/BotonImprimir'
+import SubirDocumento from '@/components/documentos/SubirDocumento'
 
 export const dynamic = 'force-dynamic'
 
@@ -173,34 +174,17 @@ export default async function FacturaVentaDetallePage({ params }: { params: { id
         </div>
 
         {/* Documentos adjuntos */}
-        {docs.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              <Receipt className="w-5 h-5 text-gray-500" /> Documentos adjuntos
-            </h3>
-            <div className="space-y-2">
-              {docs.map((doc) => (
-                <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-4 h-4 text-gray-400" />
-                    <div>
-                      <p className="text-sm text-gray-700">{doc.nombre_archivo}</p>
-                      <p className="text-xs text-gray-400">
-                        {doc.tipo_documento === 'FACTURA' && 'Factura DIAN'}
-                        {doc.tipo_documento === 'ORDEN_COMPRA' && 'Orden de Compra'}
-                        {doc.tipo_documento === 'SOPORTE_PAGO' && 'Soporte de Pago'}
-                        {!['FACTURA', 'ORDEN_COMPRA', 'SOPORTE_PAGO'].includes(doc.tipo_documento) && doc.tipo_documento}
-                      </p>
-                    </div>
-                  </div>
-                  <a href={doc.url_archivo} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline font-medium">
-                    Ver documento
-                  </a>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <SubirDocumento
+          entidadTipo="FACTURA_VENTA"
+          entidadId={params.id}
+          tiposPermitidos={[
+            { value: 'FACTURA', label: 'Factura DIAN (PDF)' },
+            { value: 'ORDEN_COMPRA', label: 'Orden de Compra (OC)' },
+            { value: 'SOPORTE_PAGO', label: 'Soporte de Pago' },
+            { value: 'OTRO', label: 'Otro documento' },
+          ]}
+          documentosExistentes={docs}
+        />
 
         {/* Info empresa (para impresion) */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 print:shadow-none">
