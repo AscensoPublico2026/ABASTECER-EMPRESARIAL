@@ -117,18 +117,14 @@ export default async function VentasPage() {
           </div>
 
           {/* KPIs */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-orange-100">
               <p className="text-xs text-orange-600 uppercase tracking-wide">Total en proceso</p>
               <p className="text-xl font-bold text-gray-800 mt-1 tabular-nums">{formatCOP(totalEnProceso)}</p>
             </div>
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
               <p className="text-xs text-gray-500 uppercase tracking-wide">En alistamiento</p>
-              <p className="text-xl font-bold text-orange-600 mt-1 tabular-nums">{enAlistamiento}</p>
-            </div>
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Pagadas (por alistar)</p>
-              <p className="text-xl font-bold text-emerald-600 mt-1 tabular-nums">{pagadas}</p>
+              <p className="text-xl font-bold text-orange-600 mt-1 tabular-nums">{enAlistamiento + pagadas}</p>
             </div>
           </div>
 
