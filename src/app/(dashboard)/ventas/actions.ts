@@ -541,6 +541,73 @@ async function generarSolicitudesCompra(supabase: ReturnType<typeof createServer
 }
 
 
+/** Generar remision (EN_ALISTAMIENTO → DESPACHADA sin factura) */
+export async function generarRemision(formData: FormData): Promise<ResultadoAccion> {
+  const cotizacion_id = String(formData.get('cotizacion_id') ?? '').trim()
+  const observaciones_remision = String(formData.get('observaciones_remision') ?? '').trim()
+  if (!cotizacion_id) return { ok: false, mensaje: 'Cotizacion no valida.' }
+
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Verificar que esta en EN_ALISTAMIENTO
+    const { data: cot, error: errCot } = await supabase
+      .from('cotizaciones')
+      .select('id, numero, estado, cliente_id')
+      .eq('id', cotizacion_id)
+      .single()
+    if (errCot || !cot) return { ok: false, mensaje: 'Cotizacion no encontrada.' }
+    if (cot.estado !== 'EN_ALISTAMIENTO') return { ok: false, mensaje: `Solo se puede remisionar desde "En alistamiento". Estado actual: ${cot.estado}` }
+
+    // Generar numero de remision: REM-2026-001
+    const year = new Date().getFullYear()
+    const { count } = await supabase
+      .from('remisiones')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', `${year}-01-01`)
+
+    const consecutivo = (count ?? 0) + 1
+    const numero_remision = `REM-${year}-${String(consecutivo).padStart(3, '0')}`
+
+    // Crear registro de remision
+    const usuario = await obtenerNombreUsuarioActual()
+    const { data: rem, error: errRem } = await supabase.from('remisiones').insert({
+      cotizacion_id,
+      cliente_id: cot.cliente_id,
+      numero: numero_remision,
+      fecha: new Date().toISOString().slice(0, 10),
+      observaciones: observaciones_remision || null,
+      creado_por_id: usuario.id,
+      creado_por_nombre: usuario.nombre,
+    }).select('id, numero').single()
+
+    if (errRem) {
+      // Si la tabla no existe aun, igual cambiar el estado y guardar en la cotizacion
+      await supabase.from('cotizaciones').update({
+        estado: 'DESPACHADA',
+        remision_numero: numero_remision,
+        remision_fecha: new Date().toISOString().slice(0, 10),
+        remision_observaciones: observaciones_remision || null,
+      }).eq('id', cotizacion_id)
+
+      revalidatePath('/ventas')
+      return { ok: true, mensaje: `Remision ${numero_remision} generada. Pedido despachado sin factura.` }
+    }
+
+    // Actualizar cotizacion a DESPACHADA
+    await supabase.from('cotizaciones').update({
+      estado: 'DESPACHADA',
+      remision_numero: numero_remision,
+      remision_fecha: new Date().toISOString().slice(0, 10),
+      remision_observaciones: observaciones_remision || null,
+    }).eq('id', cotizacion_id)
+
+    revalidatePath('/ventas')
+    return { ok: true, mensaje: `Remision ${numero_remision} generada. Pedido despachado sin factura.` }
+  } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al generar remision.' } }
+}
+
+
 /** Revertir estado de cotizacion (un paso atras) */
 export async function revertirEstadoCotizacion(formData: FormData): Promise<ResultadoAccion> {
   const id = String(formData.get('id') ?? '').trim()
@@ -552,7 +619,7 @@ export async function revertirEstadoCotizacion(formData: FormData): Promise<Resu
     'PAGADA': 'APROBADA',
     'EN_ALISTAMIENTO': 'APROBADA', // Si era contado vuelve a aprobada para re-registrar pago
     'FACTURADA': 'EN_ALISTAMIENTO',
-    'DESPACHADA': 'FACTURADA',
+    'DESPACHADA': 'EN_ALISTAMIENTO',
   }
 
   try {
