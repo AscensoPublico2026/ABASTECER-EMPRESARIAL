@@ -17,6 +17,8 @@ interface Solicitud {
   cantidad_a_comprar: number
   fecha_necesidad: string | null
   prioridad: string
+  precio_venta_unitario: number
+  margen_minimo_pct: number
 }
 
 interface ProductoAgrupado {
@@ -26,6 +28,8 @@ interface ProductoAgrupado {
   total_a_comprar: number
   num_pedidos: number
   prioridad_max: string
+  precio_venta_promedio: number
+  precio_maximo_compra: number
   solicitudes: Solicitud[]
   precios: { proveedor: string; precio: number; tiempo_entrega: string | null }[]
 }
@@ -65,6 +69,8 @@ export default function SolicitudesCompra({ solicitudes, preciosPorProducto }: P
         total_a_comprar: 0,
         num_pedidos: 0,
         prioridad_max: 'BAJA',
+        precio_venta_promedio: 0,
+        precio_maximo_compra: 0,
         solicitudes: [],
         precios: preciosPorProducto[s.producto_id] ?? [],
       })
@@ -78,7 +84,14 @@ export default function SolicitudesCompra({ solicitudes, preciosPorProducto }: P
     }
   }
 
-  mapaProductos.forEach((v) => agrupados.push(v))
+  // Calcular precios promedio y maximo de compra
+  mapaProductos.forEach((grupo) => {
+    const preciosVenta = grupo.solicitudes.filter((s) => s.precio_venta_unitario > 0).map((s) => s.precio_venta_unitario)
+    grupo.precio_venta_promedio = preciosVenta.length > 0 ? preciosVenta.reduce((a, b) => a + b, 0) / preciosVenta.length : 0
+    const margen = grupo.solicitudes[0]?.margen_minimo_pct || 30
+    grupo.precio_maximo_compra = grupo.precio_venta_promedio > 0 ? Math.round(grupo.precio_venta_promedio * (1 - margen / 100)) : 0
+    agrupados.push(grupo)
+  })
   agrupados.sort((a, b) => {
     const p = { ALTA: 0, MEDIA: 1, BAJA: 2 }
     return (p[a.prioridad_max as keyof typeof p] ?? 2) - (p[b.prioridad_max as keyof typeof p] ?? 2)
@@ -116,6 +129,18 @@ export default function SolicitudesCompra({ solicitudes, preciosPorProducto }: P
                 <p className="text-sm font-medium text-gray-600">{grupo.num_pedidos}</p>
                 <p className="text-xs text-gray-500">pedido{grupo.num_pedidos !== 1 ? 's' : ''}</p>
               </div>
+              {grupo.precio_venta_promedio > 0 && (
+                <div className="text-center px-3">
+                  <p className="text-xs text-gray-500">Vendido a</p>
+                  <p className="text-sm font-medium text-blue-700">{formatCOP(grupo.precio_venta_promedio)}</p>
+                </div>
+              )}
+              {grupo.precio_maximo_compra > 0 && (
+                <div className="text-center px-3">
+                  <p className="text-xs text-gray-500">Max compra</p>
+                  <p className="text-sm font-bold text-red-600">{formatCOP(grupo.precio_maximo_compra)}</p>
+                </div>
+              )}
               <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${prioridadColor(grupo.prioridad_max)}`}>
                 {grupo.prioridad_max}
               </span>

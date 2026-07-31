@@ -18,12 +18,12 @@ export default async function ComprasPage() {
   const supabase = createServerSupabaseClient()
   const { data: solicitudesRaw } = await supabase
     .from('solicitudes_compra')
-    .select('*, productos(nombre, codigo), cotizaciones(numero, cliente_id, clientes(razon_social))')
+    .select('*, productos(nombre, codigo, margen_minimo_pct), cotizaciones(numero, cliente_id, clientes(razon_social))')
     .eq('estado', 'PENDIENTE')
     .order('created_at', { ascending: false })
 
   const solicitudes = (solicitudesRaw ?? []).map((s) => {
-    const prod = s.productos as { nombre?: string; codigo?: string } | null
+    const prod = s.productos as { nombre?: string; codigo?: string; margen_minimo_pct?: number } | null
     const cot = s.cotizaciones as { numero?: string; cliente_id?: string; clientes?: { razon_social?: string } } | null
     return {
       id: s.id,
@@ -38,8 +38,21 @@ export default async function ComprasPage() {
       cantidad_a_comprar: s.cantidad_a_comprar,
       fecha_necesidad: s.fecha_necesidad,
       prioridad: s.prioridad ?? 'MEDIA',
+      precio_venta_unitario: 0, // Se llena abajo
+      margen_minimo_pct: Number(prod?.margen_minimo_pct ?? 30),
     }
   })
+
+  // Obtener precios de venta de cada item en su cotizacion
+  for (const sol of solicitudes) {
+    const { data: item } = await supabase
+      .from('cotizacion_items')
+      .select('precio_unitario')
+      .eq('cotizacion_id', sol.cotizacion_id)
+      .eq('producto_id', sol.producto_id)
+      .single()
+    if (item) sol.precio_venta_unitario = Number(item.precio_unitario)
+  }
 
   // Obtener precios de proveedores para los productos solicitados
   const productoIds = Array.from(new Set(solicitudes.map((s) => s.producto_id)))
