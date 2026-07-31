@@ -124,7 +124,7 @@ export default async function CotizacionDetallePage({ params }: { params: { id: 
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item, idx) => {
+                  {items.map((item) => {
                     const pv = Number(item.precio_unitario)
                     const costo = Number(item.costo_unitario)
                     const cant = Number(item.cantidad)
