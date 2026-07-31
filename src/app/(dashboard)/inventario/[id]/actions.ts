@@ -70,3 +70,49 @@ export async function crearProveedorRapido(formData: FormData): Promise<{ ok: bo
     return { ok: true, mensaje: `Proveedor "${nombre}" creado.`, id: data.id }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
+
+
+/** Editar precio de proveedor */
+export async function editarPrecioProveedor(formData: FormData): Promise<ResultadoAccion> {
+  const id = String(formData.get('id') ?? '').trim()
+  const precio = Number(String(formData.get('precio') ?? '0').replace(/\./g, '').replace(',', '.')) || 0
+  const iva_incluido = formData.get('iva_incluido') === 'true'
+  const tiempo_entrega = String(formData.get('tiempo_entrega') ?? '').trim()
+  const referencia_proveedor = String(formData.get('referencia_proveedor') ?? '').trim()
+  const fecha_cotizacion = String(formData.get('fecha_cotizacion') ?? '').trim()
+  const notas = String(formData.get('notas') ?? '').trim()
+
+  if (!id) return { ok: false, mensaje: 'ID invalido.' }
+  if (precio <= 0) return { ok: false, mensaje: 'El precio debe ser mayor a 0.' }
+
+  try {
+    const supabase = createServerSupabaseClient()
+    const { error } = await supabase.from('precios_proveedor').update({
+      precio,
+      iva_incluido,
+      tiempo_entrega: tiempo_entrega || null,
+      referencia_proveedor: referencia_proveedor || null,
+      fecha_cotizacion: fecha_cotizacion || null,
+      notas: notas || null,
+    }).eq('id', id)
+
+    if (error) return { ok: false, mensaje: error.message }
+    revalidatePath('/inventario')
+    return { ok: true, mensaje: 'Precio actualizado.' }
+  } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
+}
+
+/** Eliminar precio de proveedor */
+export async function eliminarPrecioProveedor(formData: FormData): Promise<ResultadoAccion> {
+  const id = String(formData.get('id') ?? '').trim()
+  const producto_id = String(formData.get('producto_id') ?? '').trim()
+  if (!id) return { ok: false, mensaje: 'ID invalido.' }
+
+  try {
+    const supabase = createServerSupabaseClient()
+    const { error } = await supabase.from('precios_proveedor').delete().eq('id', id)
+    if (error) return { ok: false, mensaje: error.message }
+    revalidatePath(`/inventario/${producto_id}`)
+    return { ok: true, mensaje: 'Precio eliminado.' }
+  } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
+}

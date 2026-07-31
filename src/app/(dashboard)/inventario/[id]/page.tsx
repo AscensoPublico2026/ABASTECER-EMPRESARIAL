@@ -3,7 +3,7 @@ import { formatCOP, formatFecha } from '@/lib/format'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Header from '@/components/layout/Header'
-import { ArrowLeft, Package, TrendingDown, Clock, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Package, TrendingDown, Clock } from 'lucide-react'
 import FormPrecioProveedor from './FormPrecioProveedor'
 
 export const dynamic = 'force-dynamic'
@@ -127,8 +127,8 @@ export default async function ProductoDetallePage({ params }: { params: { id: st
                     <th className="px-6 py-3 font-medium text-gray-500">Entrega</th>
                     <th className="px-6 py-3 font-medium text-gray-500">Referencia</th>
                     <th className="px-6 py-3 font-medium text-gray-500">Fecha cotiz.</th>
-                    <th className="px-6 py-3 font-medium text-gray-500">Disponible</th>
                     <th className="px-6 py-3 font-medium text-gray-500">Notas</th>
+                    <th className="px-6 py-3 font-medium text-gray-500">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -153,14 +153,10 @@ export default async function ProductoDetallePage({ params }: { params: { id: st
                         </td>
                         <td className="px-6 py-4 text-xs text-gray-500">{p.referencia_proveedor ?? '—'}</td>
                         <td className="px-6 py-4 text-xs text-gray-500">{p.fecha_cotizacion ? formatFecha(p.fecha_cotizacion) : '—'}</td>
-                        <td className="px-6 py-4">
-                          {p.disponible ? (
-                            <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          ) : (
-                            <span className="text-xs text-red-500">No</span>
-                          )}
-                        </td>
                         <td className="px-6 py-4 text-xs text-gray-500 max-w-[150px] truncate">{p.notas ?? ''}</td>
+                        <td className="px-6 py-4">
+                          <a href={`/inventario/${params.id}/editar-precio/${p.id}`} className="text-xs text-blue-600 hover:underline">Editar</a>
+                        </td>
                       </tr>
                     )
                   })}
