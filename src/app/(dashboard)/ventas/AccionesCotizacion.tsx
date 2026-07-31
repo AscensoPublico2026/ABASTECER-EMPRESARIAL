@@ -30,9 +30,7 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
 
   // Cerrar venta states
   const [facturaPdf, setFacturaPdf] = useState<File | null>(null)
-  const [ocPdf, setOcPdf] = useState<File | null>(null)
   const facturaRef = useRef<HTMLInputElement>(null)
-  const ocRef = useRef<HTMLInputElement>(null)
 
   const esCredito = diasCredito > 0
   const montoRecibidoNum = Number(montoRecibido.replace(/\./g, '').replace(',', '.')) || 0
