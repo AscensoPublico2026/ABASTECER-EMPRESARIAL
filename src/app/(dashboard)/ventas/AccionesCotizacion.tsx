@@ -430,11 +430,6 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
                 <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setSoportePdf(e.target.files?.[0] ?? null)} className="hidden" />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">OC del cliente (opcional para contado)</label>
-                <input name="oc_cliente" placeholder="Ej: OC-12345" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
-              </div>
-
               {resultado && !resultado.ok && (
                 <div className="flex items-start gap-2 p-3 rounded-xl text-sm bg-red-50 text-red-700">
                   <AlertCircle className="w-4 h-4 mt-0.5" /><span>{resultado.mensaje}</span>
