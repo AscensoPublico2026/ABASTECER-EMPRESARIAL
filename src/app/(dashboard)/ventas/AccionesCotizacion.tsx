@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useTransition, useRef } from 'react'
-import { aprobarCotizacion, registrarPagoContado, pasarAlistamiento, cerrarVenta } from './actions'
+import { aprobarCotizacion, registrarPagoContado, pasarAlistamiento, cerrarVenta, revertirEstadoCotizacion } from './actions'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle2, FileText, Loader2, AlertCircle, X, Upload, FileCheck, Pencil, Package, Truck, DollarSign } from 'lucide-react'
+import { CheckCircle2, FileText, Loader2, AlertCircle, X, Upload, FileCheck, Pencil, Package, Truck, DollarSign, Undo2 } from 'lucide-react'
 
 interface Props {
   cotizacionId: string
@@ -97,6 +97,18 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
     })
   }
 
+  function handleRevertir() {
+    if (!confirm('¿Deshacer el último paso? Esto devuelve la cotización al estado anterior.')) return
+    const fd = new FormData()
+    fd.set('id', cotizacionId)
+    setResultado(null)
+    startTransition(async () => {
+      const res = await revertirEstadoCotizacion(fd)
+      setResultado(res)
+      if (res.ok) setTimeout(() => setResultado(null), 3000)
+    })
+  }
+
   async function handleRegistrarPago(formData: FormData) {
     if (!soportePdf) {
       setResultado({ ok: false, mensaje: 'Debes cargar el soporte de pago.' })
@@ -187,6 +199,13 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
 
   return (
     <div className="flex items-center gap-1.5">
+      {/* Deshacer (estados reversibles) */}
+      {['APROBADA', 'PAGADA', 'EN_ALISTAMIENTO', 'FACTURADA', 'DESPACHADA'].includes(estado) && (
+        <button onClick={handleRevertir} disabled={pendiente} className="p-1.5 text-gray-400 hover:text-orange-600 rounded-lg hover:bg-orange-50 transition" title="Deshacer (volver al paso anterior)">
+          <Undo2 className="w-3.5 h-3.5" />
+        </button>
+      )}
+
       {/* Editar (PENDIENTE o APROBADA) */}
       {(estado === 'PENDIENTE' || estado === 'APROBADA') && (
         <a href={`/ventas/${cotizacionId}/editar`} className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition" title="Editar">

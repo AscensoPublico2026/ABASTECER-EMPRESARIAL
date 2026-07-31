@@ -473,3 +473,48 @@ export async function pasarAlistamiento(formData: FormData): Promise<ResultadoAc
     return { ok: true, mensaje: 'En alistamiento. Procede a comprar/preparar productos.' }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
+
+
+/** Revertir estado de cotizacion (un paso atras) */
+export async function revertirEstadoCotizacion(formData: FormData): Promise<ResultadoAccion> {
+  const id = String(formData.get('id') ?? '').trim()
+  if (!id) return { ok: false, mensaje: 'ID invalido.' }
+
+  // Mapa de reversion: estado actual → estado anterior
+  const reversion: Record<string, string> = {
+    'APROBADA': 'PENDIENTE',
+    'PAGADA': 'APROBADA',
+    'EN_ALISTAMIENTO': 'APROBADA', // Si era contado vuelve a aprobada para re-registrar pago
+    'FACTURADA': 'EN_ALISTAMIENTO',
+    'DESPACHADA': 'FACTURADA',
+  }
+
+  try {
+    const supabase = createServerSupabaseClient()
+    const { data: cot, error: errGet } = await supabase.from('cotizaciones').select('estado').eq('id', id).single()
+    if (errGet || !cot) return { ok: false, mensaje: 'Cotizacion no encontrada.' }
+
+    const estadoAnterior = reversion[cot.estado]
+    if (!estadoAnterior) return { ok: false, mensaje: `No se puede revertir desde estado "${cot.estado}". Solo se revierte: Aprobada, Pagada, En alistamiento, Facturada, Despachada.` }
+
+    // Si revierte desde EN_ALISTAMIENTO o PAGADA, limpiar datos de pago
+    const limpiarPago = cot.estado === 'EN_ALISTAMIENTO' || cot.estado === 'PAGADA'
+
+    const updateData: Record<string, unknown> = { estado: estadoAnterior }
+    if (limpiarPago) {
+      updateData.fecha_pago = null
+      updateData.monto_recibido = 0
+      updateData.retencion_retefuente = 0
+      updateData.retencion_reteiva = 0
+      updateData.retencion_reteica = 0
+      updateData.retencion_total = 0
+      updateData.soporte_pago_url = null
+    }
+
+    const { error } = await supabase.from('cotizaciones').update(updateData).eq('id', id)
+    if (error) return { ok: false, mensaje: error.message }
+
+    revalidatePath('/ventas')
+    return { ok: true, mensaje: `Revertido: "${cot.estado}" → "${estadoAnterior}"` }
+  } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
+}
