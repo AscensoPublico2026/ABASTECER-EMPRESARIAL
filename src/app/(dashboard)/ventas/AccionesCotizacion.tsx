@@ -39,7 +39,9 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
   const diferenciaRetenida = montoRecibidoNum > 0 ? total - montoRecibidoNum : 0
   const totalRetencionesManuales = (Number(retefuente.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIva.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIca.replace(/\./g, '').replace(',', '.')) || 0)
   const retencionCuadra = diferenciaRetenida === 0 || Math.abs(totalRetencionesManuales - diferenciaRetenida) < 2
-  const hayRetencion = diferenciaRetenida > 0
+  // Solo mostrar retenciones cuando el monto ingresado es razonable (>80% del total)
+  const montoEsCompleto = montoRecibidoNum >= total * 0.8
+  const hayRetencion = montoEsCompleto && diferenciaRetenida > 0 && montoRecibidoNum < total
   const mostrarValidacion = totalRetencionesManuales > 0 && totalRetencionesManuales >= diferenciaRetenida * 0.5
 
   function handleAprobar() {
