@@ -21,7 +21,7 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
 
   // Pago contado states
   const [soportePdf, setSoportePdf] = useState<File | null>(null)
-  const [aplicaRetenciones, setAplicaRetenciones] = useState(false)
+  const [montoRecibido, setMontoRecibido] = useState('')
   const [retefuente, setRetefuente] = useState('')
   const [reteIva, setReteIva] = useState('')
   const [reteIca, setReteIca] = useState('')
@@ -35,7 +35,11 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
   const ocRef = useRef<HTMLInputElement>(null)
 
   const esCredito = diasCredito > 0
-  const totalRetenciones = (Number(retefuente.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIva.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIca.replace(/\./g, '').replace(',', '.')) || 0)
+  const montoRecibidoNum = Number(montoRecibido.replace(/\./g, '').replace(',', '.')) || 0
+  const diferenciaRetenida = montoRecibidoNum > 0 ? total - montoRecibidoNum : 0
+  const totalRetencionesManuales = (Number(retefuente.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIva.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIca.replace(/\./g, '').replace(',', '.')) || 0)
+  const retencionCuadra = diferenciaRetenida === 0 || Math.abs(totalRetencionesManuales - diferenciaRetenida) < 2
+  const hayRetencion = diferenciaRetenida > 0
 
   function handleAprobar() {
     const fd = new FormData()
@@ -64,7 +68,16 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
       setResultado({ ok: false, mensaje: 'Debes cargar el soporte de pago.' })
       return
     }
+    if (!montoRecibido) {
+      setResultado({ ok: false, mensaje: 'Ingresa el monto que recibiste.' })
+      return
+    }
+    if (hayRetencion && !retencionCuadra) {
+      setResultado({ ok: false, mensaje: `Las retenciones ingresadas ($${totalRetencionesManuales.toLocaleString('es-CO')}) no coinciden con la diferencia ($${diferenciaRetenida.toLocaleString('es-CO')}). Verifica los valores.` })
+      return
+    }
     formData.set('cotizacion_id', cotizacionId)
+    formData.set('monto_recibido', String(montoRecibidoNum))
     setSubiendo(true)
     setResultado(null)
 
@@ -77,7 +90,7 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
       const { data: urlData } = supabase.storage.from('documentos').getPublicUrl(path)
       formData.set('soporte_url', urlData.publicUrl)
 
-      if (aplicaRetenciones) {
+      if (hayRetencion) {
         formData.set('retefuente', String(Number(retefuente.replace(/\./g, '').replace(',', '.')) || 0))
         formData.set('rete_iva', String(Number(reteIva.replace(/\./g, '').replace(',', '.')) || 0))
         formData.set('rete_ica', String(Number(reteIca.replace(/\./g, '').replace(',', '.')) || 0))
@@ -87,7 +100,7 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
         const res = await registrarPagoContado(formData)
         setResultado(res)
         setSubiendo(false)
-        if (res.ok) { setModalPago(false); setSoportePdf(null); setTimeout(() => setResultado(null), 2000) }
+        if (res.ok) { setModalPago(false); setSoportePdf(null); setMontoRecibido(''); setRetefuente(''); setReteIva(''); setReteIca(''); setTimeout(() => setResultado(null), 2000) }
       })
     } catch (err) {
       setResultado({ ok: false, mensaje: err instanceof Error ? err.message : 'Error.' })
@@ -214,7 +227,7 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
             <form action={handleRegistrarPago} className="p-6 space-y-4">
               <div className="bg-emerald-50 rounded-xl p-4">
                 <p className="text-sm text-emerald-800 font-medium">El cliente pago esta cotizacion de contado.</p>
-                <p className="text-xs text-emerald-600 mt-1">Al registrar el pago, la cotizacion pasa a &quot;Pagada&quot; y luego a &quot;En alistamiento&quot;.</p>
+                <p className="text-xs text-emerald-600 mt-1">Al registrar el pago, pasa a &quot;En alistamiento&quot; (comprar/preparar productos).</p>
               </div>
 
               <div>
@@ -222,38 +235,52 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
                 <input name="fecha_pago" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
               </div>
 
-              {/* Retenciones */}
-              <div className="bg-amber-50 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-amber-800">¿El cliente aplico retenciones?</p>
-                  <label className="flex items-center gap-2 text-xs">
-                    <input type="checkbox" checked={aplicaRetenciones} onChange={(e) => setAplicaRetenciones(e.target.checked)} className="rounded border-gray-300 text-amber-600" />
-                    Si, retuvo
-                  </label>
-                </div>
-                {aplicaRetenciones && (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="block text-xs text-amber-700 mb-1">Retefuente</label>
-                        <input value={retefuente} onChange={(e) => setRetefuente(e.target.value)} inputMode="numeric" placeholder="0" className="w-full px-2 py-2 border border-amber-200 rounded-lg text-sm text-right bg-white" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-amber-700 mb-1">ReteIVA</label>
-                        <input value={reteIva} onChange={(e) => setReteIva(e.target.value)} inputMode="numeric" placeholder="0" className="w-full px-2 py-2 border border-amber-200 rounded-lg text-sm text-right bg-white" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-amber-700 mb-1">ReteICA</label>
-                        <input value={reteIca} onChange={(e) => setReteIca(e.target.value)} inputMode="numeric" placeholder="0" className="w-full px-2 py-2 border border-amber-200 rounded-lg text-sm text-right bg-white" />
-                      </div>
+              {/* Monto recibido → calcula retenciones automaticamente */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Monto recibido (lo que entro a Bold) *</label>
+                <input value={montoRecibido} onChange={(e) => setMontoRecibido(e.target.value)} inputMode="numeric" placeholder={String(total)} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
+                <p className="text-xs text-gray-400 mt-1">Total de la factura: ${total.toLocaleString('es-CO')}</p>
+              </div>
+
+              {/* Si hay diferencia = retenciones */}
+              {hayRetencion && (
+                <div className="bg-amber-50 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-amber-800">Te retuvieron: ${diferenciaRetenida.toLocaleString('es-CO')}</p>
+                  </div>
+                  <p className="text-xs text-amber-600">Selecciona que retenciones te aplicaron. La suma debe coincidir con ${diferenciaRetenida.toLocaleString('es-CO')}.</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-xs text-amber-700 mb-1">Retefuente</label>
+                      <input value={retefuente} onChange={(e) => setRetefuente(e.target.value)} inputMode="numeric" placeholder="0" className="w-full px-2 py-2 border border-amber-200 rounded-lg text-sm text-right bg-white" />
                     </div>
-                    <div className="pt-2 border-t border-amber-200">
-                      <div className="flex justify-between text-xs text-amber-700"><span>Total retenciones:</span><span className="font-bold">${totalRetenciones.toLocaleString('es-CO')}</span></div>
-                      <div className="flex justify-between text-sm font-medium text-amber-900 mt-1"><span>Monto recibido:</span><span>${(total - totalRetenciones).toLocaleString('es-CO')}</span></div>
+                    <div>
+                      <label className="block text-xs text-amber-700 mb-1">ReteIVA</label>
+                      <input value={reteIva} onChange={(e) => setReteIva(e.target.value)} inputMode="numeric" placeholder="0" className="w-full px-2 py-2 border border-amber-200 rounded-lg text-sm text-right bg-white" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-amber-700 mb-1">ReteICA</label>
+                      <input value={reteIca} onChange={(e) => setReteIca(e.target.value)} inputMode="numeric" placeholder="0" className="w-full px-2 py-2 border border-amber-200 rounded-lg text-sm text-right bg-white" />
                     </div>
                   </div>
-                )}
-              </div>
+                  <div className="pt-2 border-t border-amber-200">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-amber-700">Suma retenciones:</span>
+                      <span className={`font-bold ${retencionCuadra ? 'text-green-600' : 'text-red-600'}`}>${totalRetencionesManuales.toLocaleString('es-CO')} {retencionCuadra ? '✓ Cuadra' : '✗ No cuadra'}</span>
+                    </div>
+                    <div className="flex justify-between text-xs mt-1">
+                      <span className="text-amber-700">Diferencia esperada:</span>
+                      <span className="text-amber-800 font-medium">${diferenciaRetenida.toLocaleString('es-CO')}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {montoRecibidoNum > 0 && !hayRetencion && montoRecibidoNum === total && (
+                <div className="bg-green-50 rounded-xl p-3">
+                  <p className="text-xs text-green-700">✓ Pago completo. Sin retenciones.</p>
+                </div>
+              )}
 
               {/* Soporte de pago OBLIGATORIO */}
               <div>

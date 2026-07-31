@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { ArrowLeft, Receipt, ShoppingBag } from 'lucide-react'
 import FormEditarCliente from './FormEditarCliente'
 import DescargarEstadoCuenta from './DescargarEstadoCuenta'
+import ReporteRetenciones from './ReporteRetenciones'
 import SubirDocumento from '@/components/documentos/SubirDocumento'
 
 export const dynamic = 'force-dynamic'
@@ -32,6 +33,14 @@ export default async function ClienteDetallePage({ params }: { params: { id: str
     .order('fecha', { ascending: false })
     .limit(20)
 
+  // Retenciones de cotizaciones pagadas de este cliente
+  const { data: cotRetenidas } = await supabase
+    .from('cotizaciones')
+    .select('numero, fecha_pago, total, monto_recibido, retencion_retefuente, retencion_reteiva, retencion_reteica, retencion_total')
+    .eq('cliente_id', params.id)
+    .gt('retencion_total', 0)
+    .order('fecha_pago', { ascending: false })
+
   // Documentos adjuntos
   const { data: docsData } = await supabase
     .from('documentos')
@@ -45,6 +54,16 @@ export default async function ClienteDetallePage({ params }: { params: { id: str
   const estado = ESTADOS_CLIENTE[cliente.estado as EstadoCliente]
   const historialCot = cotizaciones ?? []
   const historialFact = facturas ?? []
+  const retenciones = (cotRetenidas ?? []).map((c) => ({
+    numero_factura: c.numero,
+    fecha_pago: c.fecha_pago,
+    total_factura: Number(c.total),
+    monto_recibido: Number(c.monto_recibido),
+    retefuente: Number(c.retencion_retefuente),
+    reteiva: Number(c.retencion_reteiva),
+    reteica: Number(c.retencion_reteica),
+    total_retenido: Number(c.retencion_total),
+  }))
 
   return (
     <>
@@ -165,6 +184,9 @@ export default async function ClienteDetallePage({ params }: { params: { id: str
             </div>
           )}
         </div>
+
+        {/* Reporte de retenciones */}
+        <ReporteRetenciones retenciones={retenciones} clienteNombre={cliente.razon_social} />
       </div>
     </>
   )
