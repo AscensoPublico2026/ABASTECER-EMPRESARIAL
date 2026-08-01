@@ -623,7 +623,7 @@ export async function revertirEstadoCotizacion(formData: FormData): Promise<Resu
   const reversion: Record<string, string> = {
     'APROBADA': 'PENDIENTE',
     'PAGADA': 'APROBADA',
-    'EN_ALISTAMIENTO': 'APROBADA', // Si era contado vuelve a aprobada para re-registrar pago
+    'EN_ALISTAMIENTO': 'APROBADA',
     'FACTURADA': 'EN_ALISTAMIENTO',
     'DESPACHADA': 'EN_ALISTAMIENTO',
   }
@@ -636,11 +636,33 @@ export async function revertirEstadoCotizacion(formData: FormData): Promise<Resu
     const estadoAnterior = reversion[cot.estado]
     if (!estadoAnterior) return { ok: false, mensaje: `No se puede revertir desde estado "${cot.estado}". Solo se revierte: Aprobada, Pagada, En alistamiento, Facturada, Despachada.` }
 
-    // Si revierte desde EN_ALISTAMIENTO o PAGADA, limpiar datos de pago
-    const limpiarPago = cot.estado === 'EN_ALISTAMIENTO' || cot.estado === 'PAGADA'
+    // --- LIMPIAR TODO LO ASOCIADO SEGUN EL ESTADO QUE SE REVIERTE ---
 
+    // Si revierte desde EN_ALISTAMIENTO → limpiar solicitudes de compra + datos de pago
+    if (cot.estado === 'EN_ALISTAMIENTO') {
+      await supabase.from('solicitudes_compra').delete().eq('cotizacion_id', id)
+    }
+
+    // Si revierte desde PAGADA → limpiar datos de pago
+    if (cot.estado === 'EN_ALISTAMIENTO' || cot.estado === 'PAGADA') {
+      // Nada extra, se limpia abajo
+    }
+
+    // Si revierte desde DESPACHADA → limpiar remision
+    if (cot.estado === 'DESPACHADA') {
+      await supabase.from('remisiones').delete().eq('cotizacion_id', id)
+    }
+
+    // Si revierte desde FACTURADA → anular factura de venta asociada
+    if (cot.estado === 'FACTURADA') {
+      await supabase.from('facturas_venta').update({ estado: 'ANULADA' }).eq('cotizacion_id', id)
+    }
+
+    // Construir datos de actualizacion
     const updateData: Record<string, unknown> = { estado: estadoAnterior }
-    if (limpiarPago) {
+
+    // Limpiar datos de pago si corresponde
+    if (cot.estado === 'EN_ALISTAMIENTO' || cot.estado === 'PAGADA') {
       updateData.fecha_pago = null
       updateData.monto_recibido = 0
       updateData.retencion_retefuente = 0
@@ -650,10 +672,24 @@ export async function revertirEstadoCotizacion(formData: FormData): Promise<Resu
       updateData.soporte_pago_url = null
     }
 
+    // Limpiar datos de remision si corresponde
+    if (cot.estado === 'DESPACHADA') {
+      updateData.remision_numero = null
+      updateData.remision_fecha = null
+      updateData.remision_observaciones = null
+    }
+
+    // Limpiar provisiones
+    updateData.provision_iva = 0
+    updateData.provision_simple = 0
+
     const { error } = await supabase.from('cotizaciones').update(updateData).eq('id', id)
     if (error) return { ok: false, mensaje: error.message }
 
     revalidatePath('/ventas')
-    return { ok: true, mensaje: `Revertido: "${cot.estado}" → "${estadoAnterior}"` }
+    revalidatePath('/compras')
+    revalidatePath('/financiero')
+    revalidatePath('/')
+    return { ok: true, mensaje: `Revertido: "${cot.estado}" → "${estadoAnterior}". Se limpiaron datos asociados.` }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
