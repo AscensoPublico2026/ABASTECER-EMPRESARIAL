@@ -76,8 +76,6 @@ export default async function InventarioPage() {
                     <th className="px-6 py-3 font-medium text-gray-500">Producto</th>
                     <th className="px-6 py-3 font-medium text-gray-500">Categoria</th>
                     <th className="px-6 py-3 font-medium text-gray-500 text-right">Costo prom.</th>
-                    <th className="px-6 py-3 font-medium text-gray-500 text-right">P. sugerido</th>
-                    <th className="px-6 py-3 font-medium text-gray-500 text-right">P. lista</th>
                     <th className="px-6 py-3 font-medium text-gray-500 text-center">Stock</th>
                     <th className="px-6 py-3 font-medium text-gray-500 text-center">IVA</th>
                     <th className="px-6 py-3 font-medium text-gray-500">Acciones</th>
@@ -108,12 +106,6 @@ export default async function InventarioPage() {
                           ) : (
                             <span className="text-gray-300 text-xs">Sin compras</span>
                           )}
-                        </td>
-                        <td className="px-6 py-4 text-right tabular-nums text-gray-600">
-                          {p.precio_sugerido > 0 ? formatCOP(p.precio_sugerido) : <span className="text-gray-300">-</span>}
-                        </td>
-                        <td className="px-6 py-4 text-right tabular-nums text-gray-600">
-                          {p.precio_lista > 0 ? formatCOP(p.precio_lista) : <span className="text-gray-300">-</span>}
                         </td>
                         <td className="px-6 py-4 text-center">
                           <span className={`inline-flex items-center gap-1 ${stockCritico ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
