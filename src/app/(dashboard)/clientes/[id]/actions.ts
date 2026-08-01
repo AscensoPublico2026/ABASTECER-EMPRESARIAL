@@ -2,8 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { uppercaseFormData } from '@/lib/uppercase'
 
 export async function actualizarCliente(formData: FormData) {
+  uppercaseFormData(formData)
   const id = String(formData.get('id') ?? '').trim()
   if (!id) return { ok: false, mensaje: 'ID invalido.' }
 

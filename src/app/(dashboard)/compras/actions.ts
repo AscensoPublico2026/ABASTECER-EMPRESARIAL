@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { uppercaseFormData } from '@/lib/uppercase'
 
 export interface ResultadoAccion {
   ok: boolean
@@ -17,6 +18,7 @@ interface ItemInput {
 }
 
 export async function registrarFacturaCompra(formData: FormData): Promise<ResultadoAccion> {
+  uppercaseFormData(formData)
   const proveedor_id = String(formData.get('proveedor_id') ?? '').trim()
   const orden_compra_id = String(formData.get('orden_compra_id') ?? '').trim() || null
   const numero_factura = String(formData.get('numero_factura') ?? '').trim()

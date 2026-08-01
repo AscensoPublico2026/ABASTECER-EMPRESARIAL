@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { obtenerNombreUsuarioActual } from '@/lib/queries/perfil'
+import { uppercaseFormData } from '@/lib/uppercase'
 
 export interface ResultadoAccion {
   ok: boolean
@@ -20,6 +21,7 @@ interface ItemInput {
 
 /** Crear cotizacion (COT-2026-XXX) */
 export async function crearCotizacion(formData: FormData): Promise<ResultadoAccion> {
+  uppercaseFormData(formData)
   const cliente_id = String(formData.get('cliente_id') ?? '').trim()
   const fecha = String(formData.get('fecha') ?? '').trim()
   const fecha_validez = String(formData.get('fecha_validez') ?? '').trim()
@@ -87,6 +89,7 @@ export async function aprobarCotizacion(formData: FormData): Promise<ResultadoAc
 
 /** Cerrar venta = marcar como facturada + registrar numero DIAN */
 export async function cerrarVenta(formData: FormData): Promise<ResultadoAccion> {
+  uppercaseFormData(formData)
   const cotizacion_id = String(formData.get('cotizacion_id') ?? '').trim()
   const numero_factura_dian = String(formData.get('numero_factura_dian') ?? '').trim()
   const oc_cliente = String(formData.get('oc_cliente') ?? '').trim()
@@ -186,6 +189,7 @@ export async function cerrarVenta(formData: FormData): Promise<ResultadoAccion> 
 
 /** Venta directa (sin cotizacion previa) */
 export async function ventaDirecta(formData: FormData): Promise<ResultadoAccion> {
+  uppercaseFormData(formData)
   const cliente_id = String(formData.get('cliente_id') ?? '').trim()
   const numero_factura_dian = String(formData.get('numero_factura_dian') ?? '').trim()
   const fecha = String(formData.get('fecha') ?? new Date().toISOString().slice(0, 10)).trim()
@@ -249,6 +253,7 @@ export async function ventaDirecta(formData: FormData): Promise<ResultadoAccion>
 
 /** Editar cotizacion (solo si NO esta FACTURADA) */
 export async function editarCotizacion(formData: FormData): Promise<ResultadoAccion> {
+  uppercaseFormData(formData)
   const cotizacion_id = String(formData.get('cotizacion_id') ?? '').trim()
   const cliente_id = String(formData.get('cliente_id') ?? '').trim()
   const fecha = String(formData.get('fecha') ?? '').trim()

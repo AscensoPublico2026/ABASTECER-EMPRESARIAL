@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { uppercaseFormData } from '@/lib/uppercase'
 
 export interface ResultadoAccion {
   ok: boolean
@@ -9,6 +10,7 @@ export interface ResultadoAccion {
 }
 
 export async function crearCliente(formData: FormData): Promise<ResultadoAccion> {
+  uppercaseFormData(formData)
   const razon_social = String(formData.get('razon_social') ?? '').trim()
   if (!razon_social) return { ok: false, mensaje: 'La razon social es obligatoria.' }
 

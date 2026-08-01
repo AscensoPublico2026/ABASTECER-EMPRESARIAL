@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Todos los inputs y textareas se muestran en MAYUSCULA */
+input[type="text"], input[type="email"], input:not([type]), textarea {
+  text-transform: uppercase;
+}
+input[type="text"]::placeholder, input[type="email"]::placeholder, input:not([type])::placeholder, textarea::placeholder {
+  text-transform: none;
+}
+
 @media print {
   body { background: white !important; margin: 0 !important; padding: 0 !important; }
   aside { display: none !important; }

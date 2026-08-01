@@ -2,8 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { uppercaseFormData } from '@/lib/uppercase'
 
 export async function registrarGasto(formData: FormData) {
+  uppercaseFormData(formData)
   const concepto = String(formData.get('concepto') ?? '').trim()
   const monto = Number(String(formData.get('monto') ?? '0').replace(/\./g, '').replace(',', '.'))
 

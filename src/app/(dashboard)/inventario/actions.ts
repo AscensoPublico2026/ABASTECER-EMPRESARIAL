@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { uppercaseFormData } from '@/lib/uppercase'
 
 export interface ResultadoAccion {
   ok: boolean
@@ -9,6 +10,7 @@ export interface ResultadoAccion {
 }
 
 export async function crearProducto(formData: FormData): Promise<ResultadoAccion> {
+  uppercaseFormData(formData)
   const nombre = String(formData.get('nombre') ?? '').trim()
   if (!nombre) return { ok: false, mensaje: 'El nombre es obligatorio.' }
 
@@ -43,6 +45,7 @@ export async function crearProducto(formData: FormData): Promise<ResultadoAccion
 
 /** Editar producto */
 export async function editarProducto(formData: FormData): Promise<ResultadoAccion> {
+  uppercaseFormData(formData)
   const id = String(formData.get('id') ?? '').trim()
   const nombre = String(formData.get('nombre') ?? '').trim()
   if (!id) return { ok: false, mensaje: 'Producto no valido.' }
