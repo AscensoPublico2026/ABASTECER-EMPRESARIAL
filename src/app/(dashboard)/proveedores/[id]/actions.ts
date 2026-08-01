@@ -34,6 +34,7 @@ export async function actualizarProveedor(formData: FormData) {
       banco: formData.get('banco') || null,
       tipo_cuenta: formData.get('tipo_cuenta') || null,
       numero_cuenta: formData.get('numero_cuenta') || null,
+      categorias: JSON.parse(String(formData.get('categorias') ?? '[]')),
       notas: formData.get('notas') || null,
       estado: formData.get('estado') || 'ACTIVO',
     }).eq('id', id)

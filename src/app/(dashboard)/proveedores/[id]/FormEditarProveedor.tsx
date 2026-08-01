@@ -2,7 +2,13 @@
 
 import { useState, useTransition } from 'react'
 import { actualizarProveedor } from './actions'
-import { Loader2, CheckCircle2, AlertCircle, Save } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertCircle, Save, X, Plus } from 'lucide-react'
+
+const CATEGORIAS_SUGERIDAS = [
+  'EPP', 'Dotacion', 'Aseo', 'Cafeteria', 'Papeleria', 'Identificacion',
+  'Extintores', 'Senalizacion', 'Ferreteria', 'Tecnologia', 'Material electrico',
+  'Plasticos', 'Empaques', 'Herramientas', 'Seguridad industrial', 'Otro',
+]
 
 interface Props {
   proveedor: Record<string, unknown>
@@ -11,15 +17,30 @@ interface Props {
 export default function FormEditarProveedor({ proveedor }: Props) {
   const [pendiente, startTransition] = useTransition()
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
+  const [categorias, setCategorias] = useState<string[]>((proveedor.categorias as string[]) ?? [])
+  const [nuevaEtiqueta, setNuevaEtiqueta] = useState('')
 
   function handleSubmit(formData: FormData) {
     formData.set('id', String(proveedor.id))
+    formData.set('categorias', JSON.stringify(categorias))
     setResultado(null)
     startTransition(async () => {
       const res = await actualizarProveedor(formData)
       setResultado(res)
       if (res.ok) setTimeout(() => setResultado(null), 3000)
     })
+  }
+
+  function agregarEtiqueta(etiqueta: string) {
+    const limpia = etiqueta.trim()
+    if (limpia && !categorias.includes(limpia)) {
+      setCategorias([...categorias, limpia])
+    }
+    setNuevaEtiqueta('')
+  }
+
+  function quitarEtiqueta(etiqueta: string) {
+    setCategorias(categorias.filter((c) => c !== etiqueta))
   }
 
   return (
@@ -82,6 +103,45 @@ export default function FormEditarProveedor({ proveedor }: Props) {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Tiempo de entrega</label>
           <input name="tiempo_entrega" defaultValue={String(proveedor.tiempo_entrega ?? '')} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" placeholder="3 dias habiles" />
+        </div>
+      </div>
+
+      <h4 className="font-medium text-gray-800 pt-2">Etiquetas / Categorias</h4>
+      <div className="space-y-3">
+        {/* Etiquetas actuales */}
+        <div className="flex flex-wrap gap-2">
+          {categorias.map((cat) => (
+            <span key={cat} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-medium">
+              {cat}
+              <button type="button" onClick={() => quitarEtiqueta(cat)} className="text-blue-400 hover:text-red-500 ml-1">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          {categorias.length === 0 && <span className="text-xs text-gray-400">Sin etiquetas. Agrega para clasificar este proveedor.</span>}
+        </div>
+
+        {/* Agregar nueva */}
+        <div className="flex items-center gap-2">
+          <input
+            value={nuevaEtiqueta}
+            onChange={(e) => setNuevaEtiqueta(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); agregarEtiqueta(nuevaEtiqueta) } }}
+            placeholder="Escribir etiqueta..."
+            className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm"
+          />
+          <button type="button" onClick={() => agregarEtiqueta(nuevaEtiqueta)} className="px-3 py-2 bg-blue-600 text-white rounded-xl text-sm hover:bg-blue-700">
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Sugerencias rapidas */}
+        <div className="flex flex-wrap gap-1.5">
+          {CATEGORIAS_SUGERIDAS.filter((s) => !categorias.includes(s)).slice(0, 8).map((sug) => (
+            <button key={sug} type="button" onClick={() => agregarEtiqueta(sug)} className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs hover:bg-blue-50 hover:text-blue-700 transition">
+              + {sug}
+            </button>
+          ))}
         </div>
       </div>
 
