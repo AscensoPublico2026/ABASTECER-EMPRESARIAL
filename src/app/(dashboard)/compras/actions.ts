@@ -136,18 +136,51 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
       const cotizacionIds = Array.from(new Set((solicitudesCompradas ?? []).map((s) => s.cotizacion_id)))
 
       for (const cotId of cotizacionIds) {
-        // Obtener IVA cobrado de la cotizacion
-        const { data: cot } = await supabase.from('cotizaciones').select('iva_total, subtotal').eq('id', cotId).single()
-        if (cot) {
-          // IVA neto = IVA cobrado al cliente - IVA pagado en esta compra (aproximado)
-          const ivaCobrado = Number(cot.iva_total)
-          const ivaNetoProv = Math.max(0, ivaCobrado - Math.round(iva_total))
-          const provisionSimple = Math.round(Number(cot.subtotal) * 0.05)
-          await supabase.from('cotizaciones').update({
-            provision_iva: ivaNetoProv,
-            provision_simple: provisionSimple,
-          }).eq('id', cotId)
+        // Obtener datos completos de la cotizacion para recalcular utilidad
+        const { data: cot } = await supabase.from('cotizaciones').select('iva_total, subtotal, total').eq('id', cotId).single()
+        if (!cot) continue
+
+        // Recalcular costo_total con los costos reales (costo_promedio actualizado del producto)
+        const { data: cotItems } = await supabase
+          .from('cotizacion_items')
+          .select('producto_id, cantidad, precio_unitario, subtotal')
+          .eq('cotizacion_id', cotId)
+
+        let costoTotalReal = 0
+        if (cotItems) {
+          for (const ci of cotItems) {
+            if (ci.producto_id) {
+              const { data: prod } = await supabase.from('productos').select('costo_promedio').eq('id', ci.producto_id).single()
+              const costoUnit = Number(prod?.costo_promedio ?? 0)
+              costoTotalReal += costoUnit * Number(ci.cantidad)
+              // Actualizar costo_unitario en el item de la cotizacion
+              if (costoUnit > 0) {
+                const utilItem = (Number(ci.precio_unitario) - costoUnit) * Number(ci.cantidad)
+                await supabase.from('cotizacion_items').update({
+                  costo_unitario: costoUnit,
+                  utilidad: Math.round(utilItem),
+                }).eq('cotizacion_id', cotId).eq('producto_id', ci.producto_id)
+              }
+            }
+          }
         }
+
+        const subtotalCot = Number(cot.subtotal)
+        const utilidadReal = subtotalCot - costoTotalReal
+        const margenReal = subtotalCot > 0 ? Math.round((utilidadReal / subtotalCot) * 10000) / 100 : 0
+
+        // IVA neto = IVA cobrado al cliente - IVA pagado en esta compra
+        const ivaCobrado = Number(cot.iva_total)
+        const ivaNetoProv = Math.max(0, ivaCobrado - Math.round(iva_total))
+        const provisionSimple = Math.round(subtotalCot * 0.05)
+
+        await supabase.from('cotizaciones').update({
+          costo_total: Math.round(costoTotalReal),
+          utilidad_estimada: Math.round(utilidadReal),
+          margen_pct: margenReal,
+          provision_iva: ivaNetoProv,
+          provision_simple: provisionSimple,
+        }).eq('id', cotId)
       }
     }
 
