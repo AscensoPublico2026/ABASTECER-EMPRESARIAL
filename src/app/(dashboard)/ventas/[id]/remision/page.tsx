@@ -69,8 +69,6 @@ export default async function RemisionPage({ params }: { params: { id: string } 
           <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Cliente / Destinatario</h3>
           <p className="font-medium text-gray-800">{cliente?.razon_social ?? 'Sin cliente'}</p>
           {cliente?.nit && <p className="text-xs text-gray-500">NIT: {cliente.nit}</p>}
-          {cliente?.contacto_nombre && <p className="text-xs text-gray-500">Contacto: {cliente.contacto_nombre}</p>}
-          {cliente?.contacto_telefono && <p className="text-xs text-gray-500">Tel: {cliente.contacto_telefono}</p>}
           {cliente?.contacto_email && <p className="text-xs text-gray-500">Email: {cliente.contacto_email}</p>}
           {cliente?.direccion_entrega && <p className="text-xs text-gray-500">Direccion de entrega: {cliente.direccion_entrega}, {cliente?.ciudad}</p>}
         </div>
