@@ -488,7 +488,7 @@ async function generarSolicitudesCompra(supabase: ReturnType<typeof createServer
   // Obtener items de la cotizacion
   const { data: items } = await supabase
     .from('cotizacion_items')
-    .select('producto_id, cantidad')
+    .select('producto_id, cantidad, descripcion')
     .eq('cotizacion_id', cotizacionId)
     .not('producto_id', 'is', null)
 
@@ -500,15 +500,21 @@ async function generarSolicitudesCompra(supabase: ReturnType<typeof createServer
   for (const item of items) {
     if (!item.producto_id) continue
 
+    // Excluir fletes/transporte - no generan solicitud de compra
+    const desc = String(item.descripcion ?? '').toLowerCase()
+    if (desc.includes('flete') || desc.includes('transporte')) continue
+
     // Verificar stock actual
     const { data: producto } = await supabase
       .from('productos')
-      .select('stock_actual, unidad_medida')
+      .select('stock_actual, unidad_medida, nombre')
       .eq('id', item.producto_id)
       .single()
 
     // Ignorar servicios (flete, transporte, etc.) - no requieren stock
     if (producto?.unidad_medida === 'Servicio') continue
+    const nombreProd = String(producto?.nombre ?? '').toLowerCase()
+    if (nombreProd.includes('flete') || nombreProd.includes('transporte')) continue
 
     const stockActual = Number(producto?.stock_actual ?? 0)
     const cantidadRequerida = Number(item.cantidad)
