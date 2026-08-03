@@ -28,6 +28,70 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
     : a.margen_bruto_pct >= 20 ? 'text-amber-600'
     : 'text-red-600'
 
+  // Ordenar trazabilidad por etapas logicas del negocio
+  const ORDEN_ETAPA: Record<string, number> = {
+    COTIZACION: 1,
+    FACTURA_COMPRA: 2,
+    EGRESO_CAJA: 3,
+    GASTO: 4,
+    REMISION: 5,
+    FACTURA_VENTA: 6,
+    INGRESO_CAJA: 7,
+  }
+
+  const ETIQUETA_ETAPA: Record<number, string> = {
+    1: '1. Cotizacion',
+    2: '2. Compras y costos',
+    5: '3. Entrega',
+    6: '4. Facturacion',
+    7: '5. Cobro',
+  }
+
+  function etapaDeEvento(tipo: string): number {
+    if (tipo === 'COTIZACION') return 1
+    if (tipo === 'FACTURA_COMPRA' || tipo === 'EGRESO_CAJA' || tipo === 'GASTO') return 2
+    if (tipo === 'REMISION') return 5
+    if (tipo === 'FACTURA_VENTA') return 6
+    if (tipo === 'INGRESO_CAJA') return 7
+    return 99
+  }
+
+  interface EventoConEtapa extends EventoTrazabilidad {
+    _esEtapa?: boolean
+    _etiquetaEtapa?: string
+  }
+
+  const eventosOrdenados = [...trazabilidad].sort((x, y) => {
+    const etapaA = etapaDeEvento(x.documento_tipo)
+    const etapaB = etapaDeEvento(y.documento_tipo)
+    if (etapaA !== etapaB) return etapaA - etapaB
+    const fa = x.documento_fecha ?? ''
+    const fb = y.documento_fecha ?? ''
+    if (fa !== fb) return fa < fb ? -1 : 1
+    return (ORDEN_ETAPA[x.documento_tipo] ?? 99) - (ORDEN_ETAPA[y.documento_tipo] ?? 99)
+  })
+
+  // Insertar separadores de etapa
+  const trazabilidadOrdenada: EventoConEtapa[] = []
+  let etapaActual = 0
+  for (const ev of eventosOrdenados) {
+    const etapa = etapaDeEvento(ev.documento_tipo)
+    if (etapa !== etapaActual && ETIQUETA_ETAPA[etapa]) {
+      trazabilidadOrdenada.push({
+        _esEtapa: true,
+        _etiquetaEtapa: ETIQUETA_ETAPA[etapa],
+        documento_tipo: '',
+        documento_numero: null,
+        documento_fecha: null,
+        valor: null,
+        estado: null,
+        documento_id: null,
+      })
+      etapaActual = etapa
+    }
+    trazabilidadOrdenada.push(ev)
+  }
+
   return (
     <div className="print:hidden space-y-5">
 
@@ -100,68 +164,97 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-        {/* ============ CRUCE DE IVA ============ */}
+        {/* ============ QUE GUARDAR PARA EL IVA ============ */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Landmark className="w-4 h-4 text-gray-500" />
-            <h3 className="font-semibold text-gray-800 text-sm">Cruce de IVA</h3>
+            <Landmark className="w-4 h-4 text-blue-600" />
+            <h3 className="font-semibold text-gray-800 text-sm">Guardar para el IVA</h3>
           </div>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-600">IVA cobrado al cliente</span>
-              <span className="tabular-nums text-gray-800">{formatCOP(a.iva_cobrado)}</span>
+          <div className="space-y-2.5 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600">IVA que le cobraste al cliente</span>
+              <span className="tabular-nums text-gray-800 font-medium">{formatCOP(a.iva_cobrado)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">IVA pagado a proveedores</span>
-              <span className="tabular-nums text-gray-800">- {formatCOP(a.iva_pagado)}</span>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600">IVA que pagaste en las compras</span>
+              <span className="tabular-nums text-green-600 font-medium">- {formatCOP(a.iva_pagado)}</span>
             </div>
-            <div className="flex justify-between pt-2 border-t border-gray-100">
-              <span className="font-medium text-gray-800">IVA a pagar a la DIAN</span>
-              <span className={`font-bold tabular-nums ${a.iva_neto_dian > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {formatCOP(a.iva_neto_dian)}
+            {a.retencion_reteiva > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">ReteIVA que te desconto el cliente</span>
+                <span className="tabular-nums text-green-600 font-medium">- {formatCOP(a.retencion_reteiva)}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center pt-2.5 border-t border-gray-100">
+              <span className="font-semibold text-gray-800">Debes apartar para IVA</span>
+              <span className={`font-bold tabular-nums text-lg ${a.iva_neto_dian > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {formatCOP(Math.max(a.iva_neto_dian - a.retencion_reteiva, 0))}
               </span>
             </div>
           </div>
-          <div className="mt-3 bg-blue-50 rounded-lg p-3">
-            <p className="text-xs text-blue-800">
-              Este dinero no es de la empresa. Se recoge del cliente y se le entrega a la DIAN.
+          <div className="mt-4 bg-blue-50 rounded-xl p-3.5">
+            <p className="text-xs text-blue-800 leading-relaxed">
+              <strong>El IVA no es tuyo.</strong> El cliente te pago {formatCOP(a.iva_cobrado)} de IVA pero
+              ya descontaste {formatCOP(a.iva_pagado)} que pagaste a tus proveedores.
+              {a.retencion_reteiva > 0 ? ` Ademas el cliente ya le retuvo ${formatCOP(a.retencion_reteiva)} directamente a la DIAN.` : ''}
+              {' '}La diferencia es lo que debes separar y pagarle a la DIAN.
             </p>
           </div>
         </div>
 
-        {/* ============ IMPUESTOS Y DINERO A SEPARAR ============ */}
+        {/* ============ QUE GUARDAR PARA EL SIMPLE ============ */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="w-4 h-4 text-gray-500" />
-            <h3 className="font-semibold text-gray-800 text-sm">Impuestos y dinero a separar</h3>
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
+            <h3 className="font-semibold text-gray-800 text-sm">Guardar para Impuesto Simple</h3>
           </div>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Impuesto Simple (5%)</span>
-              <span className="tabular-nums text-gray-800">{formatCOP(a.impuesto_simple)}</span>
+          <div className="space-y-2.5 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600">Impuesto Simple (5% sobre la venta)</span>
+              <span className="tabular-nums text-gray-800 font-medium">{formatCOP(a.impuesto_simple)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Retenciones del cliente</span>
-              <span className="tabular-nums text-green-600">- {formatCOP(a.retenciones)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Simple pendiente de pagar</span>
-              <span className="tabular-nums text-gray-800">{formatCOP(a.impuesto_simple_pendiente)}</span>
-            </div>
-            <div className="flex justify-between pt-2 border-t border-gray-100">
-              <span className="font-medium text-gray-800">Total a separar</span>
-              <span className="font-bold tabular-nums text-red-600">{formatCOP(a.total_a_separar)}</span>
+            {a.retencion_retefuente > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Retefuente que te desconto el cliente</span>
+                <span className="tabular-nums text-green-600 font-medium">- {formatCOP(a.retencion_retefuente)}</span>
+              </div>
+            )}
+            {a.retencion_reteica > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">ReteICA que te desconto el cliente</span>
+                <span className="tabular-nums text-green-600 font-medium">- {formatCOP(a.retencion_reteica)}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center pt-2.5 border-t border-gray-100">
+              <span className="font-semibold text-gray-800">Debes apartar para Simple</span>
+              <span className="font-bold tabular-nums text-lg text-red-600">{formatCOP(a.impuesto_simple_pendiente)}</span>
             </div>
           </div>
-          {a.retenciones > 0 && (
-            <div className="mt-3 bg-gray-50 rounded-lg p-3">
-              <p className="text-xs text-gray-600">
-                Retenciones: Rtefte {formatCOP(a.retencion_retefuente)} ·
-                RteIVA {formatCOP(a.retencion_reteiva)} ·
-                RteICA {formatCOP(a.retencion_reteica)}
-              </p>
-            </div>
-          )}
+          <div className="mt-4 bg-amber-50 rounded-xl p-3.5">
+            <p className="text-xs text-amber-800 leading-relaxed">
+              <strong>El Simple sale de tu utilidad.</strong> Es el 5% de la venta ({formatCOP(a.venta_subtotal)}).
+              {a.retenciones > 0 ? ` El cliente ya retuvo ${formatCOP(a.retenciones)} que se descuentan.` : ''}
+              {' '}Esto lo pagas cada 2 meses. Separalo para que no te coja de sorpresa.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ============ RESUMEN: TOTAL A SEPARAR ============ */}
+      <div className="bg-gradient-to-r from-red-50 to-amber-50 rounded-2xl border border-red-100 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 className="font-semibold text-gray-800 text-sm">Total que debes apartar de esta venta</h3>
+            <p className="text-xs text-gray-600 mt-1">
+              Separalo en la cuenta de reserva para que no se gaste sin darse cuenta
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-red-600 tabular-nums">{formatCOP(a.total_a_separar)}</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              IVA {formatCOP(Math.max(a.iva_neto_dian - a.retencion_reteiva, 0))} + Simple {formatCOP(a.impuesto_simple_pendiente)}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -261,15 +354,20 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
           <ListTree className="w-4 h-4 text-gray-500" />
           <div>
             <h3 className="font-semibold text-gray-800 text-sm">Trazabilidad completa</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Todos los documentos y movimientos de esta venta</p>
+            <p className="text-xs text-gray-500 mt-0.5">Historia de esta venta, en orden</p>
           </div>
         </div>
         <div className="divide-y divide-gray-50">
-          {trazabilidad.map((ev, i) => {
+          {trazabilidadOrdenada.map((ev, i) => {
             const et = ETIQUETA_DOC[ev.documento_tipo] ?? { texto: ev.documento_tipo, color: 'bg-gray-50 text-gray-600 border-gray-200' }
-            return (
+            const esEtapa = ev._esEtapa
+            return esEtapa ? (
+              <div key={`etapa-${i}`} className="px-5 py-2 bg-gray-50">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{ev._etiquetaEtapa}</span>
+              </div>
+            ) : (
               <div key={`${ev.documento_tipo}-${ev.documento_id ?? i}`} className="px-5 py-3 flex items-center gap-4 hover:bg-gray-50/50">
-                <span className={`px-2 py-0.5 rounded-md text-xs font-medium border whitespace-nowrap ${et.color}`}>
+                <span className={`px-2.5 py-1 rounded-lg text-xs font-medium border whitespace-nowrap ${et.color}`}>
                   {et.texto}
                 </span>
                 <span className="font-mono text-xs text-gray-700 flex-1 truncate">
@@ -281,7 +379,7 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
                 {ev.estado && (
                   <span className="text-xs text-gray-500 whitespace-nowrap hidden sm:inline">{ev.estado}</span>
                 )}
-                <span className="tabular-nums text-sm text-gray-700 w-28 text-right">
+                <span className="tabular-nums text-sm text-gray-700 w-28 text-right font-medium">
                   {ev.valor !== null ? formatCOP(ev.valor) : ''}
                 </span>
               </div>
