@@ -11,9 +11,10 @@ interface Props {
   numero: string
   diasCredito?: number
   total?: number
+  cuentas?: { id: string; nombre: string; es_reserva: boolean }[]
 }
 
-export default function AccionesCotizacion({ cotizacionId, estado, numero, diasCredito = 0, total = 0 }: Props) {
+export default function AccionesCotizacion({ cotizacionId, estado, numero, diasCredito = 0, total = 0, cuentas = [] }: Props) {
   const [pendiente, startTransition] = useTransition()
   const [modalPago, setModalPago] = useState(false)
   const [modalCerrar, setModalCerrar] = useState(false)
@@ -34,6 +35,7 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
   const facturaRef = useRef<HTMLInputElement>(null)
 
   const esCredito = diasCredito > 0
+  const cuentasOperativas = cuentas.filter((c) => !c.es_reserva)
   const montoRecibidoNum = Number(montoRecibido.replace(/\./g, '').replace(',', '.')) || 0
   const diferenciaRetenida = montoRecibidoNum > 0 ? total - montoRecibidoNum : 0
   const totalRetencionesManuales = (Number(retefuente.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIva.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIca.replace(/\./g, '').replace(',', '.')) || 0)
@@ -370,9 +372,20 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
                 <p className="text-xs text-emerald-600 mt-1">Al registrar el pago, pasa a &quot;En alistamiento&quot; (comprar/preparar productos).</p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de pago *</label>
-                <input name="fecha_pago" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de pago *</label>
+                  <input name="fecha_pago" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
+                </div>
+                {cuentasOperativas.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">A que cuenta entro</label>
+                    <select name="cuenta_id" defaultValue={cuentasOperativas[0]?.id ?? ''} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
+                      {cuentasOperativas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                      <option value="">No registrar en caja</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Monto recibido → calcula retenciones automaticamente */}

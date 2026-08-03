@@ -194,6 +194,15 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
   const { calculados, subtotal, iva_total, total } = calcularItems(items)
   const dias_credito = diasDeFormaPago(forma_pago)
 
+  // Si la compra es de contado, la factura queda PAGADA: el dinero YA salio.
+  // Sin cuenta no podriamos descontarlo y el saldo quedaria inflado.
+  if (dias_credito === 0 && !cuenta_id) {
+    return {
+      ok: false,
+      mensaje: 'La compra es de contado, o sea que el dinero ya salio. Selecciona de que cuenta se pago para poder descontarlo del saldo.',
+    }
+  }
+
   let fecha_vencimiento: string | null = null
   if (dias_credito > 0 && fecha_factura) {
     const d = new Date(fecha_factura)
@@ -260,9 +269,10 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
     }
 
     // 7. Movimiento de tesoreria si se pago de contado
+    let avisoCaja = ''
     if (estado === 'PAGADA' && cuenta_id) {
       const usuario = await obtenerNombreUsuarioActual()
-      await supabase.from('movimientos_tesoreria').insert({
+      const { error: errCaja } = await supabase.from('movimientos_tesoreria').insert({
         cuenta_id,
         fecha: fecha_factura || new Date().toISOString().slice(0, 10),
         tipo: 'EGRESO',
@@ -277,6 +287,11 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
         creado_por_id: usuario.id,
         creado_por_nombre: usuario.nombre,
       })
+      avisoCaja = errCaja
+        ? ` Ojo: no se pudo descontar de la cuenta (${errCaja.message}).`
+        : ` Se descontaron ${fmt.format(total)} de la cuenta.`
+    } else if (estado === 'REGISTRADA') {
+      avisoCaja = ' Es a credito: no salio dinero todavia, registra el pago cuando le pagues al proveedor.'
     }
 
     revalidatePath('/compras')
@@ -284,6 +299,7 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
     revalidatePath('/financiero')
     revalidatePath('/ventas')
     revalidatePath('/panel')
+    revalidatePath('/tesoreria')
 
     const detalleVentas = cotizacionesAfectadas.length > 0
       ? ` Costo asignado a ${cotizacionesAfectadas.length} venta(s).`
@@ -291,7 +307,7 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
 
     return {
       ok: true,
-      mensaje: `Factura ${numero_factura} registrada: ${fmt.format(total)}.${detalleVentas}`,
+      mensaje: `Factura ${numero_factura} registrada: ${fmt.format(total)}.${detalleVentas}${avisoCaja}`,
     }
   } catch (e) {
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al registrar.' }

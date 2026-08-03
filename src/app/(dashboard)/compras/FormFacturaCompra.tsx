@@ -316,18 +316,32 @@ export default function FormFacturaCompra({ proveedores, productos, cotizaciones
             </div>
           </div>
 
-          {/* Cuenta de donde sale la plata (solo contado) */}
-          {esContado && cuentasOperativas.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">De que cuenta se pago</label>
-              <select name="cuenta_id" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
-                <option value="">No registrar movimiento de caja</option>
-                {cuentasOperativas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
-              <p className="text-xs text-gray-400 mt-1">
-                Si seleccionas una cuenta, se registra la salida de dinero automaticamente.
-              </p>
-            </div>
+          {/* Cuenta de donde sale la plata (solo contado, obligatoria) */}
+          {esContado && (
+            cuentasOperativas.length > 0 ? (
+              <div className="bg-red-50 border border-red-100 rounded-xl p-4">
+                <label className="block text-sm font-medium text-red-800 mb-1">De que cuenta se pago *</label>
+                <select
+                  name="cuenta_id"
+                  required
+                  defaultValue={cuentasOperativas[0]?.id ?? ''}
+                  className="w-full px-3 py-2.5 border border-red-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-red-400 outline-none"
+                >
+                  {cuentasOperativas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+                <p className="text-xs text-red-600 mt-1.5">
+                  De contado la factura queda pagada, o sea que el dinero ya salio. Se descuenta de esta cuenta.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <p className="text-sm text-amber-800 font-medium">No hay cuentas de banco creadas</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  Para registrar una compra de contado necesitas al menos una cuenta. Crea la cuenta en Tesoreria
+                  o cambia la forma de pago a credito.
+                </p>
+              </div>
+            )
           )}
 
           {/* PDF de la factura */}

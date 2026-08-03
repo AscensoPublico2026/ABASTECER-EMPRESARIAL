@@ -5,6 +5,7 @@ import TablaSocios from '@/components/socios/TablaSocios'
 import TablaMovimientos from '@/components/socios/TablaMovimientos'
 import FormMovimiento from '@/components/socios/FormMovimiento'
 import { obtenerDatosSocios, obtenerSociosActivos } from '@/lib/queries/socios'
+import { obtenerCuentasParaSelect } from '@/lib/queries/tesoreria'
 import { formatCOP } from '@/lib/format'
 import { Wallet, HandCoins, Users, TrendingUp, Info } from 'lucide-react'
 
@@ -13,6 +14,7 @@ export const dynamic = 'force-dynamic'
 export default async function SociosPage() {
   const datos = await obtenerDatosSocios()
   const sociosSelect = await obtenerSociosActivos()
+  const cuentas = await obtenerCuentasParaSelect()
 
   const hayProblema = !datos.configurado || datos.error !== null
   const { totales } = datos
@@ -97,6 +99,7 @@ export default async function SociosPage() {
             </div>
             <FormMovimiento
               socios={sociosSelect}
+              cuentas={cuentas}
               deshabilitado={sociosSelect.length === 0}
             />
           </div>

@@ -52,6 +52,10 @@ export async function registrarGasto(formData: FormData): Promise<ResultadoAccio
   if (tipo_soporte === 'DOCUMENTO_SOPORTE' && (!tercero_nombre || !tercero_documento)) {
     return { ok: false, mensaje: 'Para el documento soporte necesitas el nombre y el documento del tercero.' }
   }
+  // Un gasto es plata que ya salio. Sin cuenta el saldo quedaria inflado.
+  if (!cuenta_id) {
+    return { ok: false, mensaje: 'Selecciona de que cuenta se pago el gasto para poder descontarlo del saldo.' }
+  }
 
   // Es deducible si hay factura del proveedor o documento soporte
   const tieneFactura = tipo_soporte === 'FACTURA'

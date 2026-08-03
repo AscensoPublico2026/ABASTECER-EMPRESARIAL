@@ -3,7 +3,10 @@ import {
   obtenerPosicionFinanciera,
   obtenerSaldosCuentas,
   obtenerObligacionesPorPeriodo,
+  obtenerEstadoReserva,
+  obtenerCuentasParaSelect,
 } from '@/lib/queries/tesoreria'
+import WidgetReserva from '@/components/tesoreria/WidgetReserva'
 import { obtenerAnalisisVentas } from '@/lib/queries/analisisVenta'
 import { formatCOP, formatFecha } from '@/lib/format'
 import {
@@ -24,6 +27,8 @@ export default async function FinancieroPage() {
   const cuentas = await obtenerSaldosCuentas()
   const periodos = await obtenerObligacionesPorPeriodo()
   const ventas = await obtenerAnalisisVentas()
+  const { datos: reserva } = await obtenerEstadoReserva()
+  const cuentasSelect = await obtenerCuentasParaSelect()
 
   const ventasConMovimiento = ventas.filter((v) =>
     ['FACTURADA', 'DESPACHADA', 'ENTREGADO', 'POR_COBRAR', 'COBRADA', 'ENTREGA_PARCIAL'].includes(v.estado)
@@ -105,20 +110,9 @@ export default async function FinancieroPage() {
           </div>
         </div>
 
-        {/* Alerta de reserva insuficiente */}
-        {p.reserva_insuficiente && p.impuestos_por_pagar > 0 && (
-          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4">
-            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium text-amber-800">
-                La cuenta de reserva no cubre los impuestos
-              </p>
-              <p className="text-amber-700 mt-0.5">
-                Debes {formatCOP(p.impuestos_por_pagar)} en impuestos y en reservas hay {formatCOP(p.saldo_reservas)}.
-                Traslada {formatCOP(p.impuestos_por_pagar - p.saldo_reservas)} a la cuenta de reserva.
-              </p>
-            </div>
-          </div>
+        {/* Reserva de impuestos: cuanto debe estar apartado y boton para apartarlo */}
+        {reserva.debe_estar_reservado > 0 && (
+          <WidgetReserva estado={reserva} cuentas={cuentasSelect} />
         )}
 
         {/* ============================================================ */}

@@ -343,6 +343,7 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
   const retefuente = Number(formData.get('retefuente') ?? 0)
   const rete_iva = Number(formData.get('rete_iva') ?? 0)
   const rete_ica = Number(formData.get('rete_ica') ?? 0)
+  const cuenta_id = String(formData.get('cuenta_id') ?? '').trim()
 
   if (!factura_venta_id) return { ok: false, mensaje: 'Factura no valida.' }
   if (!fecha_pago) return { ok: false, mensaje: 'Selecciona la fecha en que se recibio el pago.' }
@@ -367,19 +368,54 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
     if (error) return { ok: false, mensaje: error.message }
 
     // Registrar pago en tabla pagos
-    const { data: fvData } = await supabase.from('facturas_venta').select('cliente_id, total').eq('id', factura_venta_id).single()
+    const { data: fvData } = await supabase
+      .from('facturas_venta')
+      .select('cliente_id, total, numero_factura_dian, cotizacion_id')
+      .eq('id', factura_venta_id)
+      .single()
+
+    let avisoCaja = ''
     if (fvData) {
+      const montoNeto = Number(fvData.total) - total_retenciones
+
       await supabase.from('pagos').insert({
         tipo: 'COBRO_CLIENTE',
         cliente_id: fvData.cliente_id,
         factura_venta_id,
-        monto: Number(fvData.total) - total_retenciones,
+        monto: montoNeto,
         fecha: fecha_pago,
         medio_pago: 'Transferencia',
         notas: total_retenciones > 0
           ? `Retefuente: $${retefuente} | ReteIVA: $${rete_iva} | ReteICA: $${rete_ica}`
           : null,
       })
+
+      // Registrar la entrada de dinero en tesoreria
+      if (cuenta_id) {
+        const usuario = await obtenerNombreUsuarioActual()
+        const { error: errCaja } = await supabase.from('movimientos_tesoreria').insert({
+          cuenta_id,
+          fecha: fecha_pago,
+          tipo: 'INGRESO',
+          categoria: 'COBRO_CLIENTE',
+          monto: montoNeto,
+          concepto: `Cobro factura ${fvData.numero_factura_dian ?? ''}`.trim(),
+          factura_venta_id,
+          cotizacion_id: fvData.cotizacion_id,
+          medio_pago: 'Transferencia',
+          soporte_url: soporte_url || null,
+          notas: total_retenciones > 0
+            ? `Retenciones: Rtefte ${retefuente} | RteIVA ${rete_iva} | RteICA ${rete_ica}`
+            : null,
+          creado_por_id: usuario.id,
+          creado_por_nombre: usuario.nombre,
+        })
+        avisoCaja = errCaja
+          ? ` Ojo: no se pudo registrar en caja (${errCaja.message}).`
+          : ' El dinero entro a la cuenta.'
+      } else {
+        avisoCaja = ' No se registro el ingreso en caja.'
+      }
     }
 
     // Registrar soporte de pago si se subio
@@ -396,10 +432,12 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
     revalidatePath('/ventas')
     revalidatePath('/facturacion')
     revalidatePath('/financiero')
+    revalidatePath('/tesoreria')
+    revalidatePath('/')
     const montoRecibido = fvData ? Number(fvData.total) - total_retenciones : 0
     return { ok: true, mensaje: total_retenciones > 0
-      ? `Cobro registrado. Recibido: $${montoRecibido.toLocaleString('es-CO')} (retenciones: $${total_retenciones.toLocaleString('es-CO')})`
-      : `Cobro registrado. Fecha: ${fecha_pago}`
+      ? `Cobro registrado. Recibido: $${montoRecibido.toLocaleString('es-CO')} (retenciones: $${total_retenciones.toLocaleString('es-CO')}).${avisoCaja}`
+      : `Cobro registrado: $${montoRecibido.toLocaleString('es-CO')}.${avisoCaja}`
     }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
@@ -414,6 +452,7 @@ export async function registrarPagoContado(formData: FormData): Promise<Resultad
   const retefuente = Number(formData.get('retefuente') ?? 0)
   const rete_iva = Number(formData.get('rete_iva') ?? 0)
   const rete_ica = Number(formData.get('rete_ica') ?? 0)
+  const cuenta_id = String(formData.get('cuenta_id') ?? '').trim()
 
   if (!cotizacion_id) return { ok: false, mensaje: 'Cotizacion no valida.' }
   if (!fecha_pago) return { ok: false, mensaje: 'Fecha de pago obligatoria.' }
@@ -424,7 +463,7 @@ export async function registrarPagoContado(formData: FormData): Promise<Resultad
   try {
     const supabase = createServerSupabaseClient()
 
-    const { data: cot, error: errCot } = await supabase.from('cotizaciones').select('total, subtotal, iva_total').eq('id', cotizacion_id).single()
+    const { data: cot, error: errCot } = await supabase.from('cotizaciones').select('numero, total, subtotal, iva_total, cliente_id').eq('id', cotizacion_id).single()
     if (errCot || !cot) return { ok: false, mensaje: 'Cotizacion no encontrada.' }
 
     const monto_recibido = Number(cot.total) - total_retenciones
@@ -460,12 +499,39 @@ export async function registrarPagoContado(formData: FormData): Promise<Resultad
       url_archivo: soporte_url,
     })
 
+    // Registrar la entrada de dinero en tesoreria
+    let avisoCaja = ' No se registro el ingreso en caja.'
+    if (cuenta_id) {
+      const usuario = await obtenerNombreUsuarioActual()
+      const { error: errCaja } = await supabase.from('movimientos_tesoreria').insert({
+        cuenta_id,
+        fecha: fecha_pago,
+        tipo: 'INGRESO',
+        categoria: 'COBRO_CLIENTE',
+        monto: monto_recibido,
+        concepto: `Pago de cliente ${cot.numero}`,
+        cotizacion_id,
+        medio_pago: 'Transferencia',
+        soporte_url,
+        notas: total_retenciones > 0
+          ? `Retenciones: Rtefte ${retefuente} | RteIVA ${rete_iva} | RteICA ${rete_ica}`
+          : null,
+        creado_por_id: usuario.id,
+        creado_por_nombre: usuario.nombre,
+      })
+      avisoCaja = errCaja
+        ? ` Ojo: no se pudo registrar en caja (${errCaja.message}).`
+        : ' El dinero entro a la cuenta.'
+    }
+
     revalidatePath('/ventas')
     revalidatePath('/financiero')
     revalidatePath('/compras')
+    revalidatePath('/tesoreria')
+    revalidatePath('/')
 
     const fmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 })
-    return { ok: true, mensaje: `Pago registrado: ${fmt.format(monto_recibido)} recibido.${total_retenciones > 0 ? ` Retenciones: ${fmt.format(total_retenciones)}` : ''} → En alistamiento.` }
+    return { ok: true, mensaje: `Pago registrado: ${fmt.format(monto_recibido)} recibido.${total_retenciones > 0 ? ` Retenciones: ${fmt.format(total_retenciones)}.` : ''}${avisoCaja} → En alistamiento.` }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
 
