@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Building2, Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -38,7 +38,7 @@ export default function LoginPage() {
     }
 
     setLoading(false)
-    router.push('/')
+    router.push('/panel')
   }
 
   return (
@@ -46,9 +46,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md px-6">
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <div className="flex flex-col items-center mb-8">
-            <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center mb-4">
-              <Building2 className="w-7 h-7 text-white" />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-icono.png" alt="Abastecer Empresarial" className="h-14 w-auto mb-4" />
             <h1 className="text-2xl font-bold text-gray-800">ABASTECER</h1>
             <p className="text-sm text-gray-500 mt-1">ERP Empresarial</p>
           </div>

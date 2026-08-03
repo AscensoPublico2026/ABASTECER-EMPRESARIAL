@@ -2,6 +2,29 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config'
 
+/**
+ * Rutas del SITIO WEB PUBLICO (abastecerempresarial.com).
+ * Cualquiera en internet puede verlas sin iniciar sesion.
+ * Todo lo demas (el ERP) sigue protegido con login.
+ */
+const RUTAS_PUBLICAS_EXACTAS = ['/', '/robots.txt', '/sitemap.xml', '/manifest.webmanifest']
+
+const RUTAS_PUBLICAS_PREFIJO = [
+  '/catalogo',
+  '/nosotros',
+  '/contacto',
+  '/cotizacion',
+  '/lineas',
+  '/login',
+]
+
+function esRutaPublica(pathname: string): boolean {
+  if (RUTAS_PUBLICAS_EXACTAS.includes(pathname)) return true
+  return RUTAS_PUBLICAS_PREFIJO.some(
+    (ruta) => pathname === ruta || pathname.startsWith(`${ruta}/`)
+  )
+}
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
     request: { headers: request.headers },
@@ -29,17 +52,24 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
+  const { pathname } = request.nextUrl
+
+  // El sitio web publico no necesita sesion: se sirve tal cual.
+  if (esRutaPublica(pathname) && pathname !== '/login') {
+    return response
+  }
+
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user && !request.nextUrl.pathname.startsWith('/login')) {
+  if (!user && !pathname.startsWith('/login')) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  if (user && request.nextUrl.pathname.startsWith('/login')) {
+  if (user && pathname.startsWith('/login')) {
     const url = request.nextUrl.clone()
-    url.pathname = '/'
+    url.pathname = '/panel'
     return NextResponse.redirect(url)
   }
 

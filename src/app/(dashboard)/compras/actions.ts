@@ -298,8 +298,8 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
     revalidatePath('/inventario')
     revalidatePath('/financiero')
     revalidatePath('/ventas')
+    revalidatePath('/panel')
     revalidatePath('/tesoreria')
-    revalidatePath('/')
 
     const detalleVentas = cotizacionesAfectadas.length > 0
       ? ` Costo asignado a ${cotizacionesAfectadas.length} venta(s).`
@@ -455,7 +455,7 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
     revalidatePath('/inventario')
     revalidatePath('/financiero')
     revalidatePath('/ventas')
-    revalidatePath('/')
+    revalidatePath('/panel')
 
     return { ok: true, mensaje: `Factura ${numero_factura} actualizada: ${fmt.format(total)}.` }
   } catch (e) {
@@ -543,7 +543,7 @@ export async function anularFacturaCompra(formData: FormData): Promise<Resultado
     revalidatePath('/inventario')
     revalidatePath('/financiero')
     revalidatePath('/ventas')
-    revalidatePath('/')
+    revalidatePath('/panel')
 
     return {
       ok: true,
@@ -686,7 +686,7 @@ export async function pagarFacturaCompra(formData: FormData): Promise<ResultadoA
 
     revalidatePath('/compras')
     revalidatePath('/financiero')
-    revalidatePath('/')
+    revalidatePath('/panel')
 
     return {
       ok: true,

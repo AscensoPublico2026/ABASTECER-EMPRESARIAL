@@ -10,6 +10,85 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input:not([ty
   text-transform: none;
 }
 
+/* ============================================================
+   SITIO WEB PUBLICO (abastecerempresarial.com)
+   Todo lo que este dentro de .sitio-web NO fuerza mayusculas,
+   porque son formularios que llenan clientes desde internet.
+   ============================================================ */
+.sitio-web input[type="text"],
+.sitio-web input[type="email"],
+.sitio-web input:not([type]),
+.sitio-web textarea,
+.texto-normal input[type="text"],
+.texto-normal input[type="email"],
+.texto-normal input:not([type]),
+.texto-normal textarea {
+  text-transform: none;
+}
+
+.sitio-web {
+  scroll-behavior: smooth;
+}
+
+/* Patron geometrico inspirado en la "A" del logo, para fondos oscuros */
+.patron-marca {
+  background-image:
+    linear-gradient(115deg, rgba(22, 130, 60, 0.22) 0%, rgba(22, 130, 60, 0) 42%),
+    linear-gradient(245deg, rgba(242, 183, 5, 0.14) 0%, rgba(242, 183, 5, 0) 38%),
+    radial-gradient(circle at 82% 12%, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 45%);
+}
+
+.patron-lineas {
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.045) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.045) 50%, rgba(255, 255, 255, 0.045) 75%, transparent 75%, transparent);
+  background-size: 22px 22px;
+}
+
+.patron-puntos {
+  background-image: radial-gradient(rgba(13, 27, 42, 0.10) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+/* Subrayado decorativo de titulos de seccion */
+.subrayado-oro {
+  position: relative;
+  display: inline-block;
+}
+.subrayado-oro::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.28em;
+  height: 0.22em;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #F2B705 0%, #16823C 100%);
+}
+
+/* Aparicion progresiva al hacer scroll (componente Reveal) */
+.reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1), transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .sitio-web { scroll-behavior: auto; }
+}
+
+/* Barra de scroll discreta en carruseles horizontales */
+.scroll-suave {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(13, 27, 42, 0.2) transparent;
+}
+.scroll-suave::-webkit-scrollbar { height: 6px; }
+.scroll-suave::-webkit-scrollbar-thumb { background: rgba(13, 27, 42, 0.18); border-radius: 999px; }
+.scroll-suave::-webkit-scrollbar-track { background: transparent; }
+
 @media print {
   body { background: white !important; margin: 0 !important; padding: 0 !important; }
   aside { display: none !important; }

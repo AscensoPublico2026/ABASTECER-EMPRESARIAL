@@ -160,7 +160,7 @@ export async function registrarGasto(formData: FormData): Promise<ResultadoAccio
     revalidatePath('/gastos')
     revalidatePath('/financiero')
     revalidatePath('/ventas')
-    revalidatePath('/')
+    revalidatePath('/panel')
 
     const partes = ['Gasto registrado.']
     if (numeroDS) partes.push(`Documento soporte ${numeroDS} generado.`)
@@ -205,7 +205,7 @@ export async function eliminarGasto(formData: FormData): Promise<ResultadoAccion
 
     revalidatePath('/gastos')
     revalidatePath('/financiero')
-    revalidatePath('/')
+    revalidatePath('/panel')
 
     return { ok: true, mensaje: `Gasto "${gasto.concepto}" eliminado.` }
   } catch (e) {

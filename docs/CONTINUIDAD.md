@@ -210,6 +210,26 @@ Se prefiere el préstamo para necesidades temporales porque:
 
 ---
 
+### #020 — Sitio web público sin precios, administrado desde el ERP
+**Fecha:** Agosto 2026
+**Decisión:** Abastecer tiene un sitio web público propio (`abastecerempresarial.com`) construido dentro del mismo proyecto del ERP, con estas reglas:
+
+- **No se publican precios.** El catálogo muestra productos, no tarifas. El cliente arma una lista y solicita cotización.
+- **El catálogo web nace del catálogo del ERP.** No hay dos catálogos que mantener: cada producto creado en Inventario aparece en la web, y se puede ocultar con un clic.
+- **Internet nunca ve costos.** La web lee únicamente las vistas `catalogo_web` y `lineas_web`, que excluyen costo promedio, último costo, margen y stock.
+- **Todo el contenido lo edita el equipo, no el programador.** Textos, misión, visión, valores, teléfonos, WhatsApp y redes se editan en el ERP (Sitio Web → Contenido).
+- **Toda solicitud de la web entra al ERP.** Llegan a Sitio Web → Solicitudes con estado y notas internas para seguimiento.
+
+**Razón:**
+1. **Ser encontrables.** Un cliente que busca "dotación empresarial Cali" debe poder llegar a nosotros.
+2. **No publicar precios es estratégico.** Trabajamos bajo pedido y cotizamos por cantidad y condiciones; publicar tarifas fijas nos amarraría y le mostraría márgenes a la competencia.
+3. **Cero dependencia técnica.** Laura puede cambiar cualquier texto o publicar productos sin esperar a que Julio tenga tiempo.
+4. **Una sola fuente de verdad.** El mismo producto sirve para cotizar, facturar y publicar.
+
+**Detalle técnico:** migración `supabase/migrations/023_sitio_web_publico.sql`. El dashboard del ERP se movió de `/` a `/panel` para que la raíz del dominio sea la web pública. Documentación: `docs/sitio-web/`.
+
+---
+
 ## Pendientes
 
 ### Inmediato

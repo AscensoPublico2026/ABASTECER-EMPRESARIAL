@@ -110,9 +110,9 @@ export async function registrarMovimiento(
     }
 
     revalidatePath('/socios')
+    revalidatePath('/panel')
     revalidatePath('/tesoreria')
     revalidatePath('/financiero')
-    revalidatePath('/')
 
     return {
       ok: true,
@@ -151,9 +151,9 @@ export async function eliminarMovimiento(
     if (error) return { ok: false, mensaje: error.message }
 
     revalidatePath('/socios')
+    revalidatePath('/panel')
     revalidatePath('/tesoreria')
     revalidatePath('/financiero')
-    revalidatePath('/')
     return { ok: true, mensaje: 'Movimiento eliminado. Tambien se revirtio el movimiento de caja.' }
   } catch (e) {
     return {
