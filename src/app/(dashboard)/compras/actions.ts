@@ -179,9 +179,21 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
   const soporte_url = String(formData.get('soporte_url') ?? '').trim()
   const soporte_nombre = String(formData.get('soporte_nombre') ?? '').trim()
   const cuenta_id = String(formData.get('cuenta_id') ?? '').trim()
+  const tipo_comprobante = String(formData.get('tipo_comprobante') ?? 'FACTURA').trim()
+
+  // Datos del tercero (solo para Documento Soporte)
+  const tercero_nombre = String(formData.get('tercero_nombre') ?? '').trim()
+  const tercero_documento = String(formData.get('tercero_documento') ?? '').trim()
+  const tercero_tipo_documento = String(formData.get('tercero_tipo_documento') ?? 'CC').trim()
+  const tercero_telefono = String(formData.get('tercero_telefono') ?? '').trim()
+  const tercero_direccion = String(formData.get('tercero_direccion') ?? '').trim()
+
+  const esDocSoporte = tipo_comprobante === 'DOCUMENTO_SOPORTE'
 
   if (!proveedor_id) return { ok: false, mensaje: 'Selecciona un proveedor.' }
-  if (!numero_factura) return { ok: false, mensaje: 'Ingresa el numero de factura.' }
+  if (!esDocSoporte && !numero_factura) return { ok: false, mensaje: 'Ingresa el numero de factura.' }
+  if (esDocSoporte && !tercero_nombre) return { ok: false, mensaje: 'Para el documento soporte necesitas el nombre del tercero.' }
+  if (esDocSoporte && !tercero_documento) return { ok: false, mensaje: 'Para el documento soporte necesitas el numero de documento del tercero.' }
 
   let items: ItemInput[]
   try {
@@ -216,11 +228,13 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
     const supabase = createServerSupabaseClient()
 
     // 1. Cabecera
+    // Si es documento soporte sin numero de factura, usar placeholder temporal
+    const numFacturaInicial = numero_factura || (esDocSoporte ? 'DS-PENDIENTE' : '')
     const { data: factura, error: errFactura } = await supabase
       .from('facturas_compra')
       .insert({
         proveedor_id,
-        numero_factura,
+        numero_factura: numFacturaInicial,
         fecha_factura: fecha_factura || new Date().toISOString().slice(0, 10),
         fecha_vencimiento,
         subtotal: Math.round(subtotal),
@@ -257,15 +271,51 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
     // 5. Recalcular costo real de las cotizaciones afectadas
     const cotizacionesAfectadas = await recalcularCotizacionesDeFactura(supabase, factura.id)
 
-    // 6. Documento soporte de la factura
+    // 6. Documento soporte de la factura (PDF adjunto)
     if (soporte_url) {
       await supabase.from('documentos').insert({
         entidad_tipo: 'FACTURA_COMPRA',
         entidad_id: factura.id,
-        tipo_documento: 'FACTURA',
+        tipo_documento: esDocSoporte ? 'DOCUMENTO_SOPORTE' : 'FACTURA',
         nombre_archivo: soporte_nombre || 'factura_compra.pdf',
         url_archivo: soporte_url,
       })
+    }
+
+    // 6b. Si es Documento Soporte, generarlo en la tabla documentos_soporte
+    let numeroDS: string | null = null
+    let numFacturaFinal = numero_factura || numFacturaInicial
+    if (esDocSoporte) {
+      const usuario = await obtenerNombreUsuarioActual()
+      const { data: ds, error: errDs } = await supabase
+        .from('documentos_soporte')
+        .insert({
+          fecha: fecha_factura || new Date().toISOString().slice(0, 10),
+          tercero_nombre,
+          tercero_tipo_documento,
+          tercero_documento,
+          tercero_telefono: tercero_telefono || null,
+          tercero_direccion: tercero_direccion || null,
+          concepto: calculados.map((c) => c.fila.descripcion).join(', '),
+          cantidad: calculados.length,
+          valor_unitario: total,
+          factura_compra_id: factura.id,
+          creado_por_id: usuario.id,
+          creado_por_nombre: usuario.nombre,
+        })
+        .select('id, numero')
+        .single()
+
+      if (!errDs && ds) {
+        numeroDS = ds.numero as string
+        // Si no habia numero de factura, usar el numero del DS
+        if (!numero_factura) {
+          numFacturaFinal = ds.numero as string
+          await supabase.from('facturas_compra')
+            .update({ numero_factura: numFacturaFinal })
+            .eq('id', factura.id)
+        }
+      }
     }
 
     // 7. Movimiento de tesoreria si se pago de contado
@@ -278,11 +328,11 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
         tipo: 'EGRESO',
         categoria: 'PAGO_PROVEEDOR',
         monto: total,
-        concepto: `Compra ${numero_factura}`,
+        concepto: `Compra ${numFacturaFinal}`,
         factura_compra_id: factura.id,
         cotizacion_id: cotizacionesAfectadas[0] ?? null,
         medio_pago: 'Transferencia',
-        referencia: numero_factura,
+        referencia: numFacturaFinal,
         soporte_url: soporte_url || null,
         creado_por_id: usuario.id,
         creado_por_nombre: usuario.nombre,
@@ -305,9 +355,13 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
       ? ` Costo asignado a ${cotizacionesAfectadas.length} venta(s).`
       : ' Todo el inventario quedo en stock.'
 
+    const tipoLabel = esDocSoporte
+      ? `Compra con Documento Soporte ${numeroDS ?? ''}`
+      : `Factura ${numFacturaFinal}`
+
     return {
       ok: true,
-      mensaje: `Factura ${numero_factura} registrada: ${fmt.format(total)}.${detalleVentas}${avisoCaja}`,
+      mensaje: `${tipoLabel} registrada: ${fmt.format(total)}.${detalleVentas}${avisoCaja}`,
     }
   } catch (e) {
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al registrar.' }

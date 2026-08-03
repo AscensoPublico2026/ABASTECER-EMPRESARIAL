@@ -51,10 +51,18 @@ function num(v: string) {
   return Number(v.replace(/\./g, '').replace(',', '.')) || 0
 }
 
+type TipoComprobante = 'FACTURA' | 'DOCUMENTO_SOPORTE'
+
 export default function FormFacturaCompra({ proveedores, productos, cotizaciones, cuentas }: Props) {
   const [abierto, setAbierto] = useState(false)
   const [items, setItems] = useState<ItemLocal[]>([{ ...ITEM_VACIO }])
   const [formaPago, setFormaPago] = useState('Contado')
+  const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('FACTURA')
+  const [terceroNombre, setTerceroNombre] = useState('')
+  const [terceroDocumento, setTerceroDocumento] = useState('')
+  const [terceroTipoDoc, setTerceroTipoDoc] = useState('CC')
+  const [terceroTelefono, setTerceroTelefono] = useState('')
+  const [terceroDireccion, setTerceroDireccion] = useState('')
   const [pdf, setPdf] = useState<File | null>(null)
   const [subiendo, setSubiendo] = useState(false)
   const [pendiente, startTransition] = useTransition()
@@ -62,6 +70,7 @@ export default function FormFacturaCompra({ proveedores, productos, cotizaciones
   const pdfRef = useRef<HTMLInputElement>(null)
 
   const esContado = !formaPago.includes('Credito')
+  const esDocSoporte = tipoComprobante === 'DOCUMENTO_SOPORTE'
   const cuentasOperativas = cuentas.filter((c) => !c.es_reserva)
 
   function agregarItem() {
@@ -213,6 +222,14 @@ export default function FormFacturaCompra({ proveedores, productos, cotizaciones
     }
 
     formData.set('items', JSON.stringify(itemsParseados))
+    formData.set('tipo_comprobante', tipoComprobante)
+    if (esDocSoporte) {
+      formData.set('tercero_nombre', terceroNombre)
+      formData.set('tercero_documento', terceroDocumento)
+      formData.set('tercero_tipo_documento', terceroTipoDoc)
+      formData.set('tercero_telefono', terceroTelefono)
+      formData.set('tercero_direccion', terceroDireccion)
+    }
     setResultado(null)
     setSubiendo(true)
 
@@ -243,6 +260,12 @@ export default function FormFacturaCompra({ proveedores, productos, cotizaciones
             setResultado(null)
             setItems([{ ...ITEM_VACIO, asignaciones: [] }])
             setPdf(null)
+            setTipoComprobante('FACTURA')
+            setTerceroNombre('')
+            setTerceroDocumento('')
+            setTerceroTipoDoc('CC')
+            setTerceroTelefono('')
+            setTerceroDireccion('')
           }, 2000)
         }
       })
@@ -268,9 +291,9 @@ export default function FormFacturaCompra({ proveedores, productos, cotizaciones
       <div className="bg-white rounded-2xl w-full max-w-3xl my-8 shadow-xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl z-10">
           <div>
-            <h3 className="font-semibold text-gray-800">Registrar factura de compra</h3>
+            <h3 className="font-semibold text-gray-800">Registrar compra</h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              Asigna cada item a la venta que corresponde para que la utilidad sea real
+              Con factura del proveedor o con documento soporte si no hay factura
             </p>
           </div>
           <button onClick={() => { setAbierto(false); setResultado(null) }} className="p-1.5 rounded-lg hover:bg-gray-100">
@@ -279,6 +302,33 @@ export default function FormFacturaCompra({ proveedores, productos, cotizaciones
         </div>
 
         <form action={handleSubmit} className="p-6 space-y-5">
+          {/* Tipo de comprobante */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de comprobante</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setTipoComprobante('FACTURA')}
+                className={`px-4 py-3 rounded-xl text-sm font-medium border-2 transition text-left ${tipoComprobante === 'FACTURA' ? 'border-green-400 bg-green-50 text-green-800' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+              >
+                <span className="block font-semibold">Factura del proveedor</span>
+                <span className="block text-xs mt-0.5 opacity-70">
+                  El proveedor te dio factura electronica
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTipoComprobante('DOCUMENTO_SOPORTE')}
+                className={`px-4 py-3 rounded-xl text-sm font-medium border-2 transition text-left ${tipoComprobante === 'DOCUMENTO_SOPORTE' ? 'border-blue-400 bg-blue-50 text-blue-800' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+              >
+                <span className="block font-semibold">Documento Soporte</span>
+                <span className="block text-xs mt-0.5 opacity-70">
+                  No hay factura (informal, persona natural sin obligacion)
+                </span>
+              </button>
+            </div>
+          </div>
+
           {/* Proveedor y factura */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -288,11 +338,93 @@ export default function FormFacturaCompra({ proveedores, productos, cotizaciones
                 {proveedores.map((p) => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">No. Factura *</label>
-              <input name="numero_factura" type="text" required placeholder="Ej: FCJC1119" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
-            </div>
+            {!esDocSoporte ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">No. Factura *</label>
+                <input name="numero_factura" type="text" required placeholder="Ej: FCJC1119" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">No. Factura</label>
+                <input name="numero_factura" type="text" placeholder="Opcional (se genera DS automatico)" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
+                <p className="text-xs text-blue-600 mt-1">El sistema genera el numero del DS</p>
+              </div>
+            )}
           </div>
+
+          {/* Datos del tercero para Documento Soporte */}
+          {esDocSoporte && (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm font-medium text-blue-800">Datos del tercero (para el Documento Soporte)</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-blue-700 mb-0.5">Nombre completo *</label>
+                  <input
+                    type="text"
+                    value={terceroNombre}
+                    onChange={(e) => setTerceroNombre(e.target.value)}
+                    required
+                    placeholder="Ej: JUAN PEREZ"
+                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-xs text-blue-700 mb-0.5">Tipo</label>
+                    <select
+                      value={terceroTipoDoc}
+                      onChange={(e) => setTerceroTipoDoc(e.target.value)}
+                      className="w-full px-2 py-2 border border-blue-200 rounded-lg text-xs bg-white"
+                    >
+                      <option value="CC">CC</option>
+                      <option value="NIT">NIT</option>
+                      <option value="CE">CE</option>
+                      <option value="TI">TI</option>
+                      <option value="PP">PP</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs text-blue-700 mb-0.5">Numero *</label>
+                    <input
+                      type="text"
+                      value={terceroDocumento}
+                      onChange={(e) => setTerceroDocumento(e.target.value)}
+                      required
+                      placeholder="1234567890"
+                      className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-blue-700 mb-0.5">Telefono</label>
+                  <input
+                    type="text"
+                    value={terceroTelefono}
+                    onChange={(e) => setTerceroTelefono(e.target.value)}
+                    placeholder="Opcional"
+                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-blue-700 mb-0.5">Direccion</label>
+                  <input
+                    type="text"
+                    value={terceroDireccion}
+                    onChange={(e) => setTerceroDireccion(e.target.value)}
+                    placeholder="Opcional"
+                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-blue-700">
+                La DIAN exige el DS cuando le compras a alguien que no esta obligado a facturar. Sin DS, el gasto no es deducible.
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
