@@ -3,12 +3,12 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { clsx } from 'clsx'
-import { LayoutDashboard, Users, ShoppingCart, Receipt, Truck, UserCheck, Package, BarChart3, DollarSign, LogOut, Wallet, FileText, UserCog, Settings, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { LayoutDashboard, Users, ShoppingCart, Receipt, Truck, UserCheck, Package, BarChart3, DollarSign, LogOut, Wallet, FileText, UserCog, Settings, PanelLeftClose, PanelLeftOpen, Globe } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Dashboard', href: '/panel', icon: LayoutDashboard },
   { name: 'Centro Financiero', href: '/financiero', icon: DollarSign },
   { name: 'Socios & Capital', href: '/socios', icon: Users },
   { name: 'Catalogo', href: '/inventario', icon: Package },
@@ -19,6 +19,7 @@ const navigation = [
   { name: 'Proveedores', href: '/proveedores', icon: Truck },
   { name: 'Clientes', href: '/clientes', icon: UserCheck },
   { name: 'Indicadores', href: '/indicadores', icon: BarChart3 },
+  { name: 'Sitio Web', href: '/sitio-web', icon: Globe },
   { name: 'Perfiles', href: '/perfiles', icon: UserCog },
   { name: 'Configuracion', href: '/configuracion', icon: Settings },
 ]
@@ -38,10 +39,10 @@ export default function Sidebar() {
       <aside className={clsx('fixed left-0 top-0 h-screen bg-slate-900 text-white flex flex-col transition-all duration-200 z-40', colapsado ? 'w-16' : 'w-64')}>
         <div className={clsx('border-b border-slate-700 flex items-center', colapsado ? 'p-3 justify-center' : 'p-6')}>
           {colapsado ? (
-            <img src="/logo.png" alt="A" className="w-8 h-8 rounded-lg object-contain bg-white p-0.5" />
+            <img src="/logo-icono.png" alt="A" className="w-8 h-8 rounded-lg object-contain bg-white p-0.5" />
           ) : (
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="Abastecer" className="w-10 h-10 rounded-xl object-contain bg-white p-0.5" />
+              <img src="/logo-icono.png" alt="Abastecer" className="w-10 h-10 rounded-xl object-contain bg-white p-0.5" />
               <div>
                 <h1 className="font-bold text-lg leading-tight">ABASTECER</h1>
                 <p className="text-xs text-slate-400">ERP Empresarial</p>
@@ -52,7 +53,7 @@ export default function Sidebar() {
         <nav className="flex-1 overflow-y-auto py-4 px-2">
           <ul className="space-y-1">
             {navigation.map((item) => {
-              const isActive = pathname === item.href
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
               return (
                 <li key={item.name}>
                   <Link href={item.href} title={colapsado ? item.name : undefined} className={clsx('flex items-center gap-3 rounded-xl text-sm font-medium transition-all', colapsado ? 'px-3 py-2.5 justify-center' : 'px-3 py-2.5', isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-300 hover:bg-slate-800 hover:text-white')}>

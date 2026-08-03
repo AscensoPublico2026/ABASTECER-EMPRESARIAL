@@ -694,7 +694,7 @@ export async function revertirEstadoCotizacion(formData: FormData): Promise<Resu
     revalidatePath('/ventas')
     revalidatePath('/compras')
     revalidatePath('/financiero')
-    revalidatePath('/')
+    revalidatePath('/panel')
     return { ok: true, mensaje: `Revertido: "${cot.estado}" → "${estadoAnterior}". Se limpiaron datos asociados.` }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }

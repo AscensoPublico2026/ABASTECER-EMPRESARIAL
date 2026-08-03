@@ -52,7 +52,7 @@ export async function registrarMovimiento(
     if (error) return { ok: false, mensaje: error.message }
 
     revalidatePath('/socios')
-    revalidatePath('/')
+    revalidatePath('/panel')
     return {
       ok: true,
       mensaje: `${TIPOS_MOVIMIENTO[tipo].etiqueta} registrado correctamente.`,
@@ -86,7 +86,7 @@ export async function eliminarMovimiento(
     if (error) return { ok: false, mensaje: error.message }
 
     revalidatePath('/socios')
-    revalidatePath('/')
+    revalidatePath('/panel')
     return { ok: true, mensaje: 'Movimiento eliminado.' }
   } catch (e) {
     return {
