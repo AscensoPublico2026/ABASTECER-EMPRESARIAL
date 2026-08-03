@@ -98,7 +98,11 @@ export default async function TesoreriaPage() {
             <p className={`text-2xl font-bold mt-3 tabular-nums ${posicion.disponible_real >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {formatCOP(posicion.disponible_real)}
             </p>
-            <p className="text-xs text-gray-400 mt-1">Descontando impuestos y deudas</p>
+            <p className="text-xs text-gray-400 mt-1">
+              {saldoOperativo > 0
+                ? `${formatCOP(saldoOperativo)} menos ${formatCOP(posicion.impuestos_sin_apartar)} de impuestos${posicion.cuentas_por_pagar > 0 ? ` y ${formatCOP(posicion.cuentas_por_pagar)} de deudas` : ''}`
+                : 'Descontando impuestos y deudas'}
+            </p>
           </div>
         </div>
 
