@@ -9,6 +9,7 @@ import {
   recalcularCostoCotizacion,
   cerrarSolicitudesCubiertas,
 } from '@/lib/queries/costeo'
+import { obtenerFacturaCompraDetalle } from '@/lib/queries/compras'
 
 export interface ResultadoAccion {
   ok: boolean
@@ -382,6 +383,7 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
   const itemsJson = String(formData.get('items') ?? '[]')
   const soporte_url = String(formData.get('soporte_url') ?? '').trim()
   const soporte_nombre = String(formData.get('soporte_nombre') ?? '').trim()
+  const cuenta_id = String(formData.get('cuenta_id') ?? '').trim()
 
   if (!factura_id) return { ok: false, mensaje: 'Factura no valida.' }
   if (!proveedor_id) return { ok: false, mensaje: 'Selecciona un proveedor.' }
@@ -413,6 +415,21 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
       .select('estado')
       .eq('id', factura_id)
       .single()
+
+    // Si queda de contado necesitamos saber de que cuenta salio el dinero
+    if (dias_credito === 0 && !cuenta_id) {
+      const { data: movExistente } = await supabase
+        .from('movimientos_tesoreria')
+        .select('cuenta_id')
+        .eq('factura_compra_id', factura_id)
+        .limit(1)
+      if ((movExistente ?? []).length === 0) {
+        return {
+          ok: false,
+          mensaje: 'La compra es de contado. Selecciona de que cuenta se pago para poder descontarlo del saldo.',
+        }
+      }
+    }
 
     if (!actual) return { ok: false, mensaje: 'Factura no encontrada.' }
     if (actual.estado === 'ANULADA') return { ok: false, mensaje: 'No se puede editar una factura anulada.' }
@@ -505,13 +522,63 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
       })
     }
 
+    // ---- Sincronizar el movimiento de caja ----
+    // Si cambio el total, el movimiento viejo quedaria con el valor
+    // equivocado y el saldo del banco no cuadraria.
+    let avisoCaja = ''
+    const { data: movViejos } = await supabase
+      .from('movimientos_tesoreria')
+      .select('id, cuenta_id, monto')
+      .eq('factura_compra_id', factura_id)
+
+    const movAnterior = (movViejos ?? [])[0]
+    const cuentaParaPago = cuenta_id || (movAnterior?.cuenta_id ? String(movAnterior.cuenta_id) : '')
+
+    // Borrar los movimientos viejos de esta factura
+    if ((movViejos ?? []).length > 0) {
+      await supabase.from('movimientos_tesoreria').delete().eq('factura_compra_id', factura_id)
+    }
+
+    if (nuevoEstado === 'PAGADA') {
+      if (cuentaParaPago) {
+        const usuario = await obtenerNombreUsuarioActual()
+        const { error: errCaja } = await supabase.from('movimientos_tesoreria').insert({
+          cuenta_id: cuentaParaPago,
+          fecha: fecha_factura || new Date().toISOString().slice(0, 10),
+          tipo: 'EGRESO',
+          categoria: 'PAGO_PROVEEDOR',
+          monto: total,
+          concepto: `Compra ${numero_factura}`,
+          factura_compra_id: factura_id,
+          cotizacion_id: cotizacionesNuevas[0] ?? null,
+          medio_pago: 'Transferencia',
+          referencia: numero_factura,
+          soporte_url: soporte_url || null,
+          creado_por_id: usuario.id,
+          creado_por_nombre: usuario.nombre,
+        })
+        const montoViejo = Number(movAnterior?.monto ?? 0)
+        avisoCaja = errCaja
+          ? ` Ojo: no se pudo actualizar la salida de caja (${errCaja.message}).`
+          : montoViejo > 0 && montoViejo !== total
+            ? ` La salida de caja se ajusto de ${fmt.format(montoViejo)} a ${fmt.format(total)}.`
+            : ` Salida de caja de ${fmt.format(total)} registrada.`
+      } else {
+        avisoCaja = ' Ojo: la factura quedo PAGADA pero no hay cuenta para descontar el dinero.'
+      }
+    } else if ((movViejos ?? []).length > 0) {
+      avisoCaja = ' Se quito la salida de caja porque la factura ya no esta pagada.'
+    }
+
     revalidatePath('/compras')
     revalidatePath('/inventario')
     revalidatePath('/financiero')
     revalidatePath('/ventas')
+    revalidatePath('/tesoreria')
     revalidatePath('/panel')
+    revalidatePath('/')
 
-    return { ok: true, mensaje: `Factura ${numero_factura} actualizada: ${fmt.format(total)}.` }
+    return { ok: true, mensaje: `Factura ${numero_factura} actualizada: ${fmt.format(total)}.${avisoCaja}` }
   } catch (e) {
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al editar.' }
   }
@@ -826,4 +893,15 @@ export async function editarDatosFacturaCompra(formData: FormData): Promise<Resu
   } catch (e) {
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al editar.' }
   }
+}
+
+
+
+// ============================================================
+// CARGAR EL DETALLE DE UNA FACTURA PARA EDITARLA
+// Se llama desde el cliente al abrir el modal de edicion.
+// ============================================================
+export async function cargarFacturaParaEditar(factura_id: string) {
+  if (!factura_id) return null
+  return obtenerFacturaCompraDetalle(factura_id)
 }

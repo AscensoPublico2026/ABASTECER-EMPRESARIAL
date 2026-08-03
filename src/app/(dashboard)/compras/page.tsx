@@ -233,6 +233,8 @@ export default async function ComprasPage() {
                             }}
                             proveedores={proveedores}
                             cuentas={cuentas}
+                            productos={productos}
+                            cotizaciones={cotizacionesAsignar}
                           />
                         </td>
                       </tr>
