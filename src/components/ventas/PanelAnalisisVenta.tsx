@@ -28,69 +28,83 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
     : a.margen_bruto_pct >= 20 ? 'text-amber-600'
     : 'text-red-600'
 
-  // Ordenar trazabilidad por etapas logicas del negocio
-  const ORDEN_ETAPA: Record<string, number> = {
-    COTIZACION: 1,
-    FACTURA_COMPRA: 2,
-    EGRESO_CAJA: 3,
-    GASTO: 4,
-    REMISION: 5,
-    FACTURA_VENTA: 6,
-    INGRESO_CAJA: 7,
-  }
-
-  const ETIQUETA_ETAPA: Record<number, string> = {
-    1: '1. Cotizacion',
-    2: '2. Compras y costos',
-    5: '3. Entrega',
-    6: '4. Facturacion',
-    7: '5. Cobro',
-  }
-
-  function etapaDeEvento(tipo: string): number {
-    if (tipo === 'COTIZACION') return 1
-    if (tipo === 'FACTURA_COMPRA' || tipo === 'EGRESO_CAJA' || tipo === 'GASTO') return 2
-    if (tipo === 'REMISION') return 5
-    if (tipo === 'FACTURA_VENTA') return 6
-    if (tipo === 'INGRESO_CAJA') return 7
-    return 99
-  }
+  // Ordenar trazabilidad: cada compra seguida de su pago respectivo
+  // Orden logico: Cotizacion → (Compra + su pago) × N → Entrega → Factura venta → Cobro
 
   interface EventoConEtapa extends EventoTrazabilidad {
     _esEtapa?: boolean
     _etiquetaEtapa?: string
+    _grupo?: number
   }
 
-  const eventosOrdenados = [...trazabilidad].sort((x, y) => {
-    const etapaA = etapaDeEvento(x.documento_tipo)
-    const etapaB = etapaDeEvento(y.documento_tipo)
-    if (etapaA !== etapaB) return etapaA - etapaB
-    const fa = x.documento_fecha ?? ''
-    const fb = y.documento_fecha ?? ''
-    if (fa !== fb) return fa < fb ? -1 : 1
-    return (ORDEN_ETAPA[x.documento_tipo] ?? 99) - (ORDEN_ETAPA[y.documento_tipo] ?? 99)
-  })
+  // Agrupar: emparejar cada FACTURA_COMPRA con sus EGRESO_CAJA por numero
+  function ordenarTrazabilidad(): EventoConEtapa[] {
+    const cotizacion = trazabilidad.filter((e) => e.documento_tipo === 'COTIZACION')
+    const compras = trazabilidad.filter((e) => e.documento_tipo === 'FACTURA_COMPRA')
+    const pagosProveedor = trazabilidad.filter((e) => e.documento_tipo === 'EGRESO_CAJA' && (e.estado === 'PAGO_PROVEEDOR' || (e.documento_numero ?? '').startsWith('Compra')))
+    const gastos = trazabilidad.filter((e) => e.documento_tipo === 'GASTO')
+    const pagosGasto = trazabilidad.filter((e) => e.documento_tipo === 'EGRESO_CAJA' && e.estado === 'GASTO')
+    const remisiones = trazabilidad.filter((e) => e.documento_tipo === 'REMISION')
+    const facturasVenta = trazabilidad.filter((e) => e.documento_tipo === 'FACTURA_VENTA')
+    const cobros = trazabilidad.filter((e) => e.documento_tipo === 'INGRESO_CAJA')
 
-  // Insertar separadores de etapa
-  const trazabilidadOrdenada: EventoConEtapa[] = []
-  let etapaActual = 0
-  for (const ev of eventosOrdenados) {
-    const etapa = etapaDeEvento(ev.documento_tipo)
-    if (etapa !== etapaActual && ETIQUETA_ETAPA[etapa]) {
-      trazabilidadOrdenada.push({
-        _esEtapa: true,
-        _etiquetaEtapa: ETIQUETA_ETAPA[etapa],
-        documento_tipo: '',
-        documento_numero: null,
-        documento_fecha: null,
-        valor: null,
-        estado: null,
-        documento_id: null,
-      })
-      etapaActual = etapa
+    const resultado: EventoConEtapa[] = []
+
+    // 1. Cotizacion
+    if (cotizacion.length > 0) {
+      resultado.push({ _esEtapa: true, _etiquetaEtapa: '1. Cotizacion', documento_tipo: '', documento_numero: null, documento_fecha: null, valor: null, estado: null, documento_id: null })
+      for (const c of cotizacion) resultado.push(c)
     }
-    trazabilidadOrdenada.push(ev)
+
+    // 2. Compras: cada factura seguida de su pago
+    const comprasYGastos = [...compras, ...gastos].sort((a, b) => (a.documento_fecha ?? '') < (b.documento_fecha ?? '') ? -1 : 1)
+    if (comprasYGastos.length > 0) {
+      resultado.push({ _esEtapa: true, _etiquetaEtapa: '2. Compras y costos', documento_tipo: '', documento_numero: null, documento_fecha: null, valor: null, estado: null, documento_id: null })
+      for (const doc of comprasYGastos) {
+        resultado.push(doc)
+        // Buscar el pago correspondiente a esta compra/gasto
+        if (doc.documento_tipo === 'FACTURA_COMPRA') {
+          const pago = pagosProveedor.find((p) =>
+            (p.documento_numero ?? '').includes(doc.documento_numero ?? '___')
+          )
+          if (pago) resultado.push(pago)
+        } else if (doc.documento_tipo === 'GASTO') {
+          const pago = pagosGasto.find((p) =>
+            (p.documento_numero ?? '').includes(doc.documento_numero ?? '___')
+          )
+          if (pago) resultado.push(pago)
+        }
+      }
+      // Pagos huerfanos (que no se emparejaron)
+      const pagosUsados = resultado.filter((e) => e.documento_tipo === 'EGRESO_CAJA')
+      const pagosRestantes = [...pagosProveedor, ...pagosGasto].filter(
+        (p) => !pagosUsados.some((u) => u.documento_id === p.documento_id)
+      )
+      for (const p of pagosRestantes) resultado.push(p)
+    }
+
+    // 3. Entrega
+    if (remisiones.length > 0) {
+      resultado.push({ _esEtapa: true, _etiquetaEtapa: '3. Entrega', documento_tipo: '', documento_numero: null, documento_fecha: null, valor: null, estado: null, documento_id: null })
+      for (const r of remisiones) resultado.push(r)
+    }
+
+    // 4. Facturacion
+    if (facturasVenta.length > 0) {
+      resultado.push({ _esEtapa: true, _etiquetaEtapa: '4. Facturacion', documento_tipo: '', documento_numero: null, documento_fecha: null, valor: null, estado: null, documento_id: null })
+      for (const f of facturasVenta) resultado.push(f)
+    }
+
+    // 5. Cobro
+    if (cobros.length > 0) {
+      resultado.push({ _esEtapa: true, _etiquetaEtapa: '5. Cobro del cliente', documento_tipo: '', documento_numero: null, documento_fecha: null, valor: null, estado: null, documento_id: null })
+      for (const c of cobros) resultado.push(c)
+    }
+
+    return resultado
   }
+
+  const trazabilidadOrdenada = ordenarTrazabilidad()
 
   return (
     <div className="print:hidden space-y-5">
