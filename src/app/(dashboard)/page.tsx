@@ -1,6 +1,11 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { obtenerPosicionFinanciera } from '@/lib/queries/tesoreria'
+import { obtenerAnalisisVentas } from '@/lib/queries/analisisVenta'
 import { formatCOP } from '@/lib/format'
-import { DollarSign, TrendingUp, ShoppingCart, Users, Receipt, AlertTriangle, FileCheck2, Wallet, ArrowRight } from 'lucide-react'
+import {
+  DollarSign, TrendingUp, ShoppingCart, Users, Receipt, AlertTriangle,
+  FileCheck2, Wallet, ArrowRight, Landmark, Target,
+} from 'lucide-react'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
@@ -8,54 +13,80 @@ export const dynamic = 'force-dynamic'
 export default async function DashboardPage() {
   const supabase = createServerSupabaseClient()
 
-  // Obtener datos reales en paralelo
-  const [ventasRes, comprasRes, clientesRes, cotizacionesRes, gastosRes, sociosRes] = await Promise.all([
-    supabase.from('facturas_venta').select('total, utilidad, estado, fecha_vencimiento, dias_credito'),
-    supabase.from('facturas_compra').select('total, estado'),
+  const [{ datos: p }, ventasAnalisis, ventasRes, comprasRes, clientesRes] = await Promise.all([
+    obtenerPosicionFinanciera(),
+    obtenerAnalisisVentas(),
+    supabase.from('facturas_venta').select('total, estado, fecha_vencimiento'),
+    supabase.from('facturas_compra').select('id, estado'),
     supabase.from('clientes').select('id'),
-    supabase.from('cotizaciones').select('total, estado, utilidad_estimada'),
-    supabase.from('gastos').select('monto'),
-    supabase.from('resumen_socios').select('capital_aportado, dividendos_recibidos'),
   ])
 
   const ventas = ventasRes.data ?? []
-  const compras = comprasRes.data ?? []
+  const compras = (comprasRes.data ?? []).filter((c) => c.estado !== 'ANULADA')
   const clientesCount = clientesRes.data?.length ?? 0
-  const cotizaciones = cotizacionesRes.data ?? []
-  const gastos = gastosRes.data ?? []
-  const socios = sociosRes.data ?? []
 
-  // KPIs
-  const totalVendido = ventas.reduce((s, v) => s + Number(v.total ?? 0), 0)
-  const utilidadReal = ventas.reduce((s, v) => s + Number(v.utilidad ?? 0), 0)
-  const totalCompras = compras.filter((c) => c.estado !== 'ANULADA').reduce((s, c) => s + Number(c.total ?? 0), 0)
-  const totalGastos = gastos.reduce((s, g) => s + Number(g.monto ?? 0), 0)
-  const capitalSocial = socios.reduce((s, r) => s + Number(r.capital_aportado ?? 0), 0)
-  const dividendos = socios.reduce((s, r) => s + Number(r.dividendos_recibidos ?? 0), 0)
+  const ventasSinCosto = ventasAnalisis.filter(
+    (v) =>
+      !v.tiene_costo_asignado &&
+      ['FACTURADA', 'DESPACHADA', 'ENTREGADO', 'POR_COBRAR', 'COBRADA', 'ENTREGA_PARCIAL'].includes(v.estado)
+  )
 
-  const porCobrar = ventas.filter((v) => v.estado === 'EMITIDA').reduce((s, v) => s + Number(v.total ?? 0), 0)
-  const porPagar = compras.filter((c) => c.estado === 'REGISTRADA' || c.estado === 'POR_PAGAR' || c.estado === 'VENCIDA').reduce((s, c) => s + Number(c.total ?? 0), 0)
+  // ---- Alertas ----
+  const alertas: { mensaje: string; color: string; bg: string; href?: string }[] = []
 
-  // Caja libre estimada
-  const cajaLibre = capitalSocial + utilidadReal - dividendos - porPagar - totalGastos
-
-  // Cotizaciones pendientes
-  const cotPendientes = cotizaciones.filter((c) => c.estado === 'PENDIENTE' || c.estado === 'APROBADA')
-  const totalCotizado = cotPendientes.reduce((s, c) => s + Number(c.total ?? 0), 0)
-
-  // Alertas inteligentes
-  const alertas: { mensaje: string; color: string; bg: string }[] = []
   const ventasVencidas = ventas.filter((v) => {
     if (v.estado !== 'EMITIDA' || !v.fecha_vencimiento) return false
-    const hoy = new Date(); hoy.setHours(0,0,0,0)
-    const [y,m,d] = (v.fecha_vencimiento as string).split('-').map(Number)
-    return new Date(y, m-1, d) < hoy
+    const hoy = new Date()
+    hoy.setHours(0, 0, 0, 0)
+    const [y, m, d] = String(v.fecha_vencimiento).split('-').map(Number)
+    return new Date(y, m - 1, d) < hoy
   })
-  if (ventasVencidas.length > 0) alertas.push({ mensaje: `${ventasVencidas.length} factura(s) vencida(s) por cobrar`, color: 'text-red-600', bg: 'bg-red-50' })
-  if (porCobrar > 0) alertas.push({ mensaje: `Tienes ${formatCOP(porCobrar)} por cobrar de clientes`, color: 'text-amber-600', bg: 'bg-amber-50' })
-  if (porPagar > 0) alertas.push({ mensaje: `Debes ${formatCOP(porPagar)} a proveedores`, color: 'text-red-600', bg: 'bg-red-50' })
-  if (cotPendientes.length > 0) alertas.push({ mensaje: `${cotPendientes.length} cotizacion(es) pendientes de cerrar (${formatCOP(totalCotizado)})`, color: 'text-blue-600', bg: 'bg-blue-50' })
-  if (alertas.length === 0) alertas.push({ mensaje: 'Todo al dia. Sin alertas pendientes.', color: 'text-green-600', bg: 'bg-green-50' })
+
+  if (p.en_riesgo) {
+    alertas.push({
+      mensaje: `Disponible real negativo: ${formatCOP(p.disponible_real)}. Las obligaciones superan la caja.`,
+      color: 'text-red-700', bg: 'bg-red-50', href: '/financiero',
+    })
+  }
+  if (p.reserva_insuficiente && p.impuestos_por_pagar > 0) {
+    alertas.push({
+      mensaje: `Falta ${formatCOP(p.impuestos_por_pagar - p.saldo_reservas)} en la cuenta de reserva de impuestos`,
+      color: 'text-amber-700', bg: 'bg-amber-50', href: '/financiero',
+    })
+  }
+  if (ventasSinCosto.length > 0) {
+    alertas.push({
+      mensaje: `${ventasSinCosto.length} venta(s) sin costo asignado: la utilidad esta inflada`,
+      color: 'text-amber-700', bg: 'bg-amber-50', href: '/compras',
+    })
+  }
+  if (ventasVencidas.length > 0) {
+    alertas.push({
+      mensaje: `${ventasVencidas.length} factura(s) vencida(s) por cobrar`,
+      color: 'text-red-600', bg: 'bg-red-50', href: '/facturacion',
+    })
+  }
+  if (p.cuentas_por_cobrar > 0) {
+    alertas.push({
+      mensaje: `Tienes ${formatCOP(p.cuentas_por_cobrar)} por cobrar de clientes`,
+      color: 'text-amber-600', bg: 'bg-amber-50', href: '/facturacion',
+    })
+  }
+  if (p.cuentas_por_pagar > 0) {
+    alertas.push({
+      mensaje: `Debes ${formatCOP(p.cuentas_por_pagar)} a proveedores`,
+      color: 'text-red-600', bg: 'bg-red-50', href: '/compras',
+    })
+  }
+  if (p.pipeline_num > 0) {
+    alertas.push({
+      mensaje: `${p.pipeline_num} cotizacion(es) por cerrar (${formatCOP(p.pipeline_total)})`,
+      color: 'text-blue-600', bg: 'bg-blue-50', href: '/ventas',
+    })
+  }
+  if (alertas.length === 0) {
+    alertas.push({ mensaje: 'Todo al dia. Sin alertas pendientes.', color: 'text-green-600', bg: 'bg-green-50' })
+  }
 
   return (
     <div className="p-8 space-y-8">
@@ -66,15 +97,18 @@ export default async function DashboardPage() {
 
       {/* KPIs principales */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+        <Link href="/financiero" className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:border-green-200 transition">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
               <DollarSign className="w-5 h-5 text-green-600" />
             </div>
           </div>
-          <p className={`text-2xl font-bold tabular-nums ${cajaLibre >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCOP(cajaLibre)}</p>
-          <p className="text-sm text-gray-500 mt-1">Caja libre estimada</p>
-        </div>
+          <p className={`text-2xl font-bold tabular-nums ${p.disponible_real >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {formatCOP(p.disponible_real)}
+          </p>
+          <p className="text-sm text-gray-500 mt-1">Disponible real</p>
+          <p className="text-xs text-gray-400 mt-0.5">Ya descontados impuestos y deudas</p>
+        </Link>
 
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3 mb-3">
@@ -82,8 +116,9 @@ export default async function DashboardPage() {
               <TrendingUp className="w-5 h-5 text-blue-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-800 tabular-nums">{formatCOP(totalVendido)}</p>
-          <p className="text-sm text-gray-500 mt-1">Total vendido ({ventas.length} facturas)</p>
+          <p className="text-2xl font-bold text-gray-800 tabular-nums">{formatCOP(p.ventas_subtotal_acum)}</p>
+          <p className="text-sm text-gray-500 mt-1">Vendido ({p.num_ventas} venta{p.num_ventas !== 1 ? 's' : ''})</p>
+          <p className="text-xs text-gray-400 mt-0.5">Base sin IVA</p>
         </div>
 
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -92,8 +127,9 @@ export default async function DashboardPage() {
               <ShoppingCart className="w-5 h-5 text-purple-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-800 tabular-nums">{formatCOP(totalCompras)}</p>
-          <p className="text-sm text-gray-500 mt-1">Compras ({compras.length} facturas)</p>
+          <p className="text-2xl font-bold text-gray-800 tabular-nums">{formatCOP(p.costo_real_acum)}</p>
+          <p className="text-sm text-gray-500 mt-1">Costo real ({compras.length} factura{compras.length !== 1 ? 's' : ''})</p>
+          <p className="text-xs text-gray-400 mt-0.5">Lo que costo lo vendido</p>
         </div>
 
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -107,35 +143,50 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Fila 2: utilidad, por cobrar, por pagar, gastos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Fila 2 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-2 mb-2">
             <FileCheck2 className="w-4 h-4 text-green-600" />
-            <span className="text-xs text-gray-500 uppercase">Utilidad real</span>
+            <span className="text-xs text-gray-500 uppercase">Utilidad neta</span>
           </div>
-          <p className={`text-xl font-bold tabular-nums ${utilidadReal >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCOP(utilidadReal)}</p>
+          <p className={`text-xl font-bold tabular-nums ${p.utilidad_neta_acum >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {formatCOP(p.utilidad_neta_acum)}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">Margen {p.margen_bruto_pct.toFixed(1)}%</p>
         </div>
+
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <div className="flex items-center gap-2 mb-2">
+            <Landmark className="w-4 h-4 text-red-600" />
+            <span className="text-xs text-gray-500 uppercase">Impuestos</span>
+          </div>
+          <p className="text-xl font-bold text-red-600 tabular-nums">{formatCOP(p.impuestos_por_pagar)}</p>
+          <p className="text-xs text-gray-400 mt-0.5">IVA + Simple por pagar</p>
+        </div>
+
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-2 mb-2">
             <Receipt className="w-4 h-4 text-amber-600" />
             <span className="text-xs text-gray-500 uppercase">Por cobrar</span>
           </div>
-          <p className="text-xl font-bold text-amber-600 tabular-nums">{formatCOP(porCobrar)}</p>
+          <p className="text-xl font-bold text-amber-600 tabular-nums">{formatCOP(p.cuentas_por_cobrar)}</p>
         </div>
+
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-2 mb-2">
             <ShoppingCart className="w-4 h-4 text-red-600" />
             <span className="text-xs text-gray-500 uppercase">Por pagar</span>
           </div>
-          <p className="text-xl font-bold text-red-600 tabular-nums">{formatCOP(porPagar)}</p>
+          <p className="text-xl font-bold text-red-600 tabular-nums">{formatCOP(p.cuentas_por_pagar)}</p>
         </div>
+
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-2 mb-2">
             <Wallet className="w-4 h-4 text-purple-600" />
             <span className="text-xs text-gray-500 uppercase">Gastos operativos</span>
           </div>
-          <p className="text-xl font-bold text-purple-600 tabular-nums">{formatCOP(totalGastos)}</p>
+          <p className="text-xl font-bold text-purple-600 tabular-nums">{formatCOP(p.gastos_operativos)}</p>
         </div>
       </div>
 
@@ -146,11 +197,18 @@ export default async function DashboardPage() {
             <AlertTriangle className="w-5 h-5 text-amber-500" /> Alertas
           </h3>
           <div className="space-y-2">
-            {alertas.map((a, i) => (
-              <div key={i} className={`flex items-center gap-3 p-3 rounded-xl ${a.bg}`}>
-                <p className={`text-sm font-medium ${a.color}`}>{a.mensaje}</p>
-              </div>
-            ))}
+            {alertas.map((a, i) =>
+              a.href ? (
+                <Link key={i} href={a.href} className={`flex items-center justify-between gap-3 p-3 rounded-xl transition hover:brightness-95 ${a.bg}`}>
+                  <p className={`text-sm font-medium ${a.color}`}>{a.mensaje}</p>
+                  <ArrowRight className={`w-4 h-4 flex-shrink-0 ${a.color}`} />
+                </Link>
+              ) : (
+                <div key={i} className={`flex items-center gap-3 p-3 rounded-xl ${a.bg}`}>
+                  <p className={`text-sm font-medium ${a.color}`}>{a.mensaje}</p>
+                </div>
+              )
+            )}
           </div>
         </div>
 
@@ -171,6 +229,40 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Ultimas ventas con analisis */}
+      {ventasAnalisis.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Target className="w-5 h-5 text-gray-500" />
+              <h3 className="font-semibold text-gray-800">Ultimas ventas</h3>
+            </div>
+            <Link href="/financiero" className="text-xs text-blue-600 hover:underline">Ver analisis completo</Link>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {ventasAnalisis.slice(0, 5).map((v) => (
+              <Link
+                key={v.cotizacion_id}
+                href={`/ventas/${v.cotizacion_id}`}
+                className="px-6 py-3 flex items-center gap-4 hover:bg-gray-50/50 transition"
+              >
+                <span className="font-mono text-xs text-blue-600 w-28">{v.numero}</span>
+                <span className="text-sm text-gray-700 flex-1 truncate">{v.cliente_nombre ?? 'Sin cliente'}</span>
+                <span className="text-xs text-gray-400 hidden sm:inline w-32 truncate">{v.estado}</span>
+                <span className="tabular-nums text-sm text-gray-700 w-28 text-right">{formatCOP(v.venta_subtotal)}</span>
+                <span className={`tabular-nums text-sm w-28 text-right font-medium ${
+                  v.tiene_costo_asignado
+                    ? v.utilidad_neta >= 0 ? 'text-green-600' : 'text-red-600'
+                    : 'text-gray-300'
+                }`}>
+                  {v.tiene_costo_asignado ? formatCOP(v.utilidad_neta) : 'sin costo'}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

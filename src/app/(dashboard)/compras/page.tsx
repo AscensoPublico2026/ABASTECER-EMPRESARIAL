@@ -1,10 +1,17 @@
 import Header from '@/components/layout/Header'
-import { obtenerFacturasCompra, obtenerProveedoresParaSelect } from '@/lib/queries/compras'
+import {
+  obtenerFacturasCompra,
+  obtenerProveedoresParaSelect,
+  obtenerCotizacionesParaAsignar,
+  obtenerItemsPendientesAsignar,
+} from '@/lib/queries/compras'
 import { obtenerProductoParaSelect } from '@/lib/queries/productos'
+import { obtenerCuentasParaSelect } from '@/lib/queries/tesoreria'
 import { formatCOP, formatFecha } from '@/lib/format'
-import { ShoppingCart } from 'lucide-react'
+import { ShoppingCart, Target } from 'lucide-react'
 import FormFacturaCompra from './FormFacturaCompra'
 import SolicitudesCompra from './SolicitudesCompra'
+import AccionesFacturaCompra from './AccionesFacturaCompra'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +20,9 @@ export default async function ComprasPage() {
   const { data: facturas, error, totales } = await obtenerFacturasCompra()
   const proveedores = await obtenerProveedoresParaSelect()
   const productos = await obtenerProductoParaSelect()
+  const cotizacionesAsignar = await obtenerCotizacionesParaAsignar()
+  const cuentas = await obtenerCuentasParaSelect()
+  const pendientesAsignar = await obtenerItemsPendientesAsignar()
 
   // Obtener solicitudes de compra pendientes
   const supabase = createServerSupabaseClient()
@@ -85,6 +95,49 @@ export default async function ComprasPage() {
         {/* Solicitudes de compra (alertas) */}
         <SolicitudesCompra solicitudes={solicitudes} preciosPorProducto={preciosPorProducto} />
 
+        {/* Compras sin asignar a una venta */}
+        {pendientesAsignar.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-amber-100 bg-amber-50/50 flex items-center gap-2">
+              <Target className="w-5 h-5 text-amber-600" />
+              <div>
+                <h3 className="font-semibold text-gray-800">Compras sin asignar a una venta</h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Estas unidades estan en inventario. Si fueron para una venta especifica, asignalas para que la utilidad quede real.
+                </p>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 text-left">
+                    <th className="px-6 py-2.5 font-medium text-gray-500 text-xs">Factura</th>
+                    <th className="px-6 py-2.5 font-medium text-gray-500 text-xs">Proveedor</th>
+                    <th className="px-6 py-2.5 font-medium text-gray-500 text-xs">Producto</th>
+                    <th className="px-6 py-2.5 font-medium text-gray-500 text-xs text-center">Compradas</th>
+                    <th className="px-6 py-2.5 font-medium text-gray-500 text-xs text-center">Asignadas</th>
+                    <th className="px-6 py-2.5 font-medium text-gray-500 text-xs text-center">En inventario</th>
+                    <th className="px-6 py-2.5 font-medium text-gray-500 text-xs text-right">Costo c/u</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendientesAsignar.map((p) => (
+                    <tr key={p.factura_compra_item_id} className="border-b border-gray-50 last:border-0">
+                      <td className="px-6 py-3 font-mono text-xs text-gray-700">{p.numero_factura ?? '-'}</td>
+                      <td className="px-6 py-3 text-gray-600 text-xs">{p.proveedor ?? '-'}</td>
+                      <td className="px-6 py-3 text-gray-800">{p.descripcion}</td>
+                      <td className="px-6 py-3 text-center text-gray-600">{p.cantidad_comprada}</td>
+                      <td className="px-6 py-3 text-center text-gray-600">{p.cantidad_asignada}</td>
+                      <td className="px-6 py-3 text-center font-medium text-amber-700">{p.cantidad_pendiente}</td>
+                      <td className="px-6 py-3 text-right tabular-nums text-gray-600">{formatCOP(p.costo_unitario)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -113,7 +166,12 @@ export default async function ComprasPage() {
               <h3 className="font-semibold text-gray-800">Facturas de compra</h3>
               <p className="text-sm text-gray-500 mt-0.5">Registro de compras a proveedores</p>
             </div>
-            <FormFacturaCompra proveedores={proveedores} productos={productos} />
+            <FormFacturaCompra
+              proveedores={proveedores}
+              productos={productos}
+              cotizaciones={cotizacionesAsignar}
+              cuentas={cuentas}
+            />
           </div>
 
           {error && <div className="px-6 py-4 bg-red-50 text-red-700 text-sm border-b border-red-100">Error: {error}</div>}
@@ -136,6 +194,7 @@ export default async function ComprasPage() {
                     <th className="px-6 py-3 font-medium text-gray-500 text-right">IVA</th>
                     <th className="px-6 py-3 font-medium text-gray-500 text-right">Total</th>
                     <th className="px-6 py-3 font-medium text-gray-500">Estado</th>
+                    <th className="px-6 py-3 font-medium text-gray-500">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -159,6 +218,22 @@ export default async function ComprasPage() {
                         <td className="px-6 py-4 text-right tabular-nums text-gray-700 font-medium">{formatCOP(f.total)}</td>
                         <td className="px-6 py-4">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${badgeColor}`}>{badgeLabel}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <AccionesFacturaCompra
+                            factura={{
+                              id: f.id,
+                              numero_factura: f.numero_factura,
+                              fecha_factura: f.fecha_factura,
+                              forma_pago: f.forma_pago,
+                              estado: f.estado,
+                              total: f.total,
+                              soporte_url: f.soporte_url,
+                              proveedor_id: f.proveedor_id,
+                            }}
+                            proveedores={proveedores}
+                            cuentas={cuentas}
+                          />
                         </td>
                       </tr>
                     )
