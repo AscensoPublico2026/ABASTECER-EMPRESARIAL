@@ -162,97 +162,116 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
         </div>
       </div>
 
+      {/* ============ TOTAL A SEPARAR (ARRIBA) ============ */}
+      <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-red-900 text-sm">Total a separar de esta venta</h3>
+          <p className="text-xs text-red-700 mt-0.5">Metelo en la cuenta de reserva para que no se gaste</p>
+        </div>
+        <div className="text-right">
+          <p className="text-3xl font-bold text-red-600 tabular-nums">{formatCOP(a.total_a_separar)}</p>
+          <p className="text-xs text-gray-500 mt-1">
+            <span className="text-blue-600 font-medium">IVA {formatCOP(a.iva_neto_dian)}</span>
+            {' + '}
+            <span className="text-amber-600 font-medium">Simple {formatCOP(a.impuesto_simple_pendiente)}</span>
+          </p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-        {/* ============ QUE GUARDAR PARA EL IVA ============ */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Landmark className="w-4 h-4 text-blue-600" />
-            <h3 className="font-semibold text-gray-800 text-sm">Guardar para el IVA</h3>
+        {/* ============ BOLSILLO 1: IVA ============ */}
+        <div className="bg-white rounded-2xl border border-blue-200 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+              <Landmark className="w-4 h-4 text-blue-700" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-blue-900 text-sm">Bolsillo IVA</h3>
+              <p className="text-xs text-blue-600">Plata que no es tuya, es de la DIAN</p>
+            </div>
           </div>
-          <div className="space-y-2.5 text-sm">
+
+          <div className="mt-4 space-y-2.5 text-sm">
             <div className="flex justify-between items-center">
-              <span className="text-gray-600">IVA que le cobraste al cliente</span>
+              <span className="text-gray-600">IVA que cobraste al cliente</span>
               <span className="tabular-nums text-gray-800 font-medium">{formatCOP(a.iva_cobrado)}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-600">IVA que pagaste en las compras</span>
               <span className="tabular-nums text-green-600 font-medium">- {formatCOP(a.iva_pagado)}</span>
             </div>
-            {a.retencion_reteiva > 0 && (
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">ReteIVA que te desconto el cliente</span>
-                <span className="tabular-nums text-green-600 font-medium">- {formatCOP(a.retencion_reteiva)}</span>
-              </div>
-            )}
-            <div className="flex justify-between items-center pt-2.5 border-t border-gray-100">
-              <span className="font-semibold text-gray-800">Debes apartar para IVA</span>
-              <span className={`font-bold tabular-nums text-lg ${a.iva_neto_dian > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {formatCOP(Math.max(a.iva_neto_dian - a.retencion_reteiva, 0))}
+            <div className="flex justify-between items-center pt-3 border-t-2 border-blue-200">
+              <span className="font-bold text-blue-900">Guardar para IVA</span>
+              <span className="font-bold tabular-nums text-xl text-blue-700">
+                {formatCOP(a.iva_neto_dian)}
               </span>
             </div>
           </div>
+
           <div className="mt-4 bg-blue-50 rounded-xl p-3.5">
             <p className="text-xs text-blue-800 leading-relaxed">
-              <strong>El IVA no es tuyo.</strong> El cliente te pago {formatCOP(a.iva_cobrado)} de IVA pero
-              ya descontaste {formatCOP(a.iva_pagado)} que pagaste a tus proveedores.
-              {a.retencion_reteiva > 0 ? ` Ademas el cliente ya le retuvo ${formatCOP(a.retencion_reteiva)} directamente a la DIAN.` : ''}
-              {' '}La diferencia es lo que debes separar y pagarle a la DIAN.
+              Cobraste {formatCOP(a.iva_cobrado)} de IVA al cliente, pero ya pagaste {formatCOP(a.iva_pagado)} de IVA a tus proveedores. La diferencia es lo que le debes a la DIAN. Se paga cada bimestre.
             </p>
           </div>
         </div>
 
-        {/* ============ QUE GUARDAR PARA EL SIMPLE ============ */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <h3 className="font-semibold text-gray-800 text-sm">Guardar para Impuesto Simple</h3>
+        {/* ============ BOLSILLO 2: IMPUESTO SIMPLE ============ */}
+        <div className="bg-white rounded-2xl border border-amber-200 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4 text-amber-700" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-amber-900 text-sm">Bolsillo Impuesto Simple</h3>
+              <p className="text-xs text-amber-600">Sale de tu utilidad, se paga bimestral</p>
+            </div>
           </div>
-          <div className="space-y-2.5 text-sm">
+
+          <div className="mt-4 space-y-2.5 text-sm">
             <div className="flex justify-between items-center">
-              <span className="text-gray-600">Impuesto Simple (5% sobre la venta)</span>
+              <span className="text-gray-600">5% sobre la venta ({formatCOP(a.venta_subtotal)})</span>
               <span className="tabular-nums text-gray-800 font-medium">{formatCOP(a.impuesto_simple)}</span>
             </div>
-            {a.retencion_retefuente > 0 && (
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">Retefuente que te desconto el cliente</span>
-                <span className="tabular-nums text-green-600 font-medium">- {formatCOP(a.retencion_retefuente)}</span>
-              </div>
+            {a.retenciones > 0 && (
+              <>
+                <div className="flex justify-between items-center text-green-700">
+                  <span>Retenciones que el cliente ya pago por ti:</span>
+                  <span></span>
+                </div>
+                {a.retencion_retefuente > 0 && (
+                  <div className="flex justify-between items-center pl-4">
+                    <span className="text-gray-500 text-xs">Retefuente</span>
+                    <span className="tabular-nums text-green-600 font-medium">- {formatCOP(a.retencion_retefuente)}</span>
+                  </div>
+                )}
+                {a.retencion_reteiva > 0 && (
+                  <div className="flex justify-between items-center pl-4">
+                    <span className="text-gray-500 text-xs">ReteIVA</span>
+                    <span className="tabular-nums text-green-600 font-medium">- {formatCOP(a.retencion_reteiva)}</span>
+                  </div>
+                )}
+                {a.retencion_reteica > 0 && (
+                  <div className="flex justify-between items-center pl-4">
+                    <span className="text-gray-500 text-xs">ReteICA</span>
+                    <span className="tabular-nums text-green-600 font-medium">- {formatCOP(a.retencion_reteica)}</span>
+                  </div>
+                )}
+              </>
             )}
-            {a.retencion_reteica > 0 && (
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">ReteICA que te desconto el cliente</span>
-                <span className="tabular-nums text-green-600 font-medium">- {formatCOP(a.retencion_reteica)}</span>
-              </div>
-            )}
-            <div className="flex justify-between items-center pt-2.5 border-t border-gray-100">
-              <span className="font-semibold text-gray-800">Debes apartar para Simple</span>
-              <span className="font-bold tabular-nums text-lg text-red-600">{formatCOP(a.impuesto_simple_pendiente)}</span>
+            <div className="flex justify-between items-center pt-3 border-t-2 border-amber-200">
+              <span className="font-bold text-amber-900">Guardar para Simple</span>
+              <span className="font-bold tabular-nums text-xl text-amber-700">
+                {formatCOP(a.impuesto_simple_pendiente)}
+              </span>
             </div>
           </div>
+
           <div className="mt-4 bg-amber-50 rounded-xl p-3.5">
             <p className="text-xs text-amber-800 leading-relaxed">
-              <strong>El Simple sale de tu utilidad.</strong> Es el 5% de la venta ({formatCOP(a.venta_subtotal)}).
-              {a.retenciones > 0 ? ` El cliente ya retuvo ${formatCOP(a.retenciones)} que se descuentan.` : ''}
-              {' '}Esto lo pagas cada 2 meses. Separalo para que no te coja de sorpresa.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ============ RESUMEN: TOTAL A SEPARAR ============ */}
-      <div className="bg-gradient-to-r from-red-50 to-amber-50 rounded-2xl border border-red-100 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h3 className="font-semibold text-gray-800 text-sm">Total que debes apartar de esta venta</h3>
-            <p className="text-xs text-gray-600 mt-1">
-              Separalo en la cuenta de reserva para que no se gaste sin darse cuenta
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-2xl font-bold text-red-600 tabular-nums">{formatCOP(a.total_a_separar)}</p>
-            <p className="text-xs text-gray-500 mt-0.5">
-              IVA {formatCOP(Math.max(a.iva_neto_dian - a.retencion_reteiva, 0))} + Simple {formatCOP(a.impuesto_simple_pendiente)}
+              {a.retenciones > 0
+                ? `El impuesto es ${formatCOP(a.impuesto_simple)} pero el cliente ya le pago ${formatCOP(a.retenciones)} a la DIAN por ti (retenciones). Solo te falta guardar la diferencia.`
+                : `Es el 5% de lo que vendiste. Nadie te retuvo, asi que debes guardar el 100% de este impuesto.`}
             </p>
           </div>
         </div>
