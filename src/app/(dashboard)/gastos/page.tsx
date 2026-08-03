@@ -24,10 +24,13 @@ const CATEGORIAS: Record<string, string> = {
 export default async function GastosPage() {
   const supabase = createServerSupabaseClient()
 
+  // Nota: no se puede embeber documentos_soporte porque hay dos llaves foraneas
+  // entre gastos y documentos_soporte (gasto_id y documento_soporte_id).
+  // PostgREST no sabe cual usar, asi que se consulta aparte.
   const [{ data, error }, cotizaciones, cuentas] = await Promise.all([
     supabase
       .from('gastos')
-      .select('*, cotizaciones(numero), documentos_soporte(id, numero)')
+      .select('*, cotizaciones(numero)')
       .order('fecha', { ascending: false })
       .limit(100),
     obtenerCotizacionesParaAsignar(),
@@ -35,6 +38,21 @@ export default async function GastosPage() {
   ])
 
   const gastos = data ?? []
+
+  // Documentos soporte de estos gastos, indexados por gasto_id
+  const soportesPorGasto = new Map<string, { id: string; numero: string }>()
+  if (gastos.length > 0) {
+    const { data: soportes } = await supabase
+      .from('documentos_soporte')
+      .select('id, numero, gasto_id')
+      .in('gasto_id', gastos.map((g) => g.id))
+
+    for (const s of soportes ?? []) {
+      if (s.gasto_id) {
+        soportesPorGasto.set(String(s.gasto_id), { id: String(s.id), numero: String(s.numero) })
+      }
+    }
+  }
   const totalGastos = gastos.reduce((s, g) => s + Number(g.monto ?? 0), 0)
   const totalCostoVenta = gastos
     .filter((g) => g.es_costo_venta)
@@ -129,7 +147,7 @@ export default async function GastosPage() {
                 <tbody>
                   {gastos.map((g) => {
                     const cot = g.cotizaciones as { numero?: string } | null
-                    const ds = g.documentos_soporte as { id?: string; numero?: string } | null
+                    const ds = soportesPorGasto.get(String(g.id)) ?? null
                     return (
                       <tr key={g.id} className={`border-b border-gray-50 hover:bg-gray-50/50 ${!g.deducible ? 'bg-amber-50/30' : ''}`}>
                         <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatFecha(g.fecha)}</td>
