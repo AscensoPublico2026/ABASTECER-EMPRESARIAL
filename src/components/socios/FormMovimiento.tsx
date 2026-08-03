@@ -20,11 +20,13 @@ import {
 
 interface FormMovimientoProps {
   socios: { id: string; nombre: string }[]
+  cuentas?: { id: string; nombre: string; es_reserva: boolean }[]
   deshabilitado?: boolean
 }
 
 export default function FormMovimiento({
   socios,
+  cuentas = [],
   deshabilitado = false,
 }: FormMovimientoProps) {
   const [abierto, setAbierto] = useState(false)
@@ -38,6 +40,8 @@ export default function FormMovimiento({
 
   const meta = TIPOS_MOVIMIENTO[tipo]
   const montoNumerico = Number(monto.replace(/\./g, '').replace(',', '.')) || 0
+  const entra = meta.direccion === 'ENTRA'
+  const cuentasOperativas = cuentas.filter((c) => !c.es_reserva)
 
   function handleSubmit(formData: FormData) {
     setResultado(null)
@@ -183,6 +187,39 @@ export default function FormMovimiento({
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
             />
           </div>
+
+          {/* Cuenta afectada */}
+          {cuentasOperativas.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                {entra ? 'A que cuenta entra el dinero' : 'De que cuenta sale el dinero'}
+              </label>
+              <select
+                name="cuenta_id"
+                defaultValue={cuentasOperativas[0]?.id ?? ''}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              >
+                {cuentasOperativas.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                ))}
+                <option value="">No registrar movimiento de caja</option>
+              </select>
+              <div className={`mt-2 flex items-start gap-2 p-3 rounded-lg text-xs ${entra ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-800'}`}>
+                {entra
+                  ? <ArrowDownLeft className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                  : <ArrowUpRight className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />}
+                <span>
+                  {montoNumerico > 0
+                    ? entra
+                      ? `Entran ${formatCOP(montoNumerico)} a la cuenta y sube el disponible.`
+                      : `Salen ${formatCOP(montoNumerico)} de la cuenta y baja el disponible.`
+                    : entra
+                      ? 'El dinero entra a la cuenta y sube el disponible.'
+                      : 'El dinero sale de la cuenta y baja el disponible.'}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Descripcion */}
           <div>

@@ -10,6 +10,7 @@ import { marcarFacturaCobrada } from './actions'
 interface Props {
   facturas: FacturaVentaConCliente[]
   clientes: string[]
+  cuentas?: { id: string; nombre: string; es_reserva: boolean }[]
 }
 
 function diasRestantes(fechaVencimiento: string | null): number | null {
@@ -22,7 +23,7 @@ function diasRestantes(fechaVencimiento: string | null): number | null {
   return diff
 }
 
-export default function TablaVentas({ facturas, clientes }: Props) {
+export default function TablaVentas({ facturas, clientes, cuentas = [] }: Props) {
   const [filtroCliente, setFiltroCliente] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
   const [filtroPago, setFiltroPago] = useState('')
@@ -40,6 +41,9 @@ export default function TablaVentas({ facturas, clientes }: Props) {
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
   const [pendiente, startTransition] = useTransition()
   const fileRef = useRef<HTMLInputElement>(null)
+
+  const cuentasOperativas = cuentas.filter((c) => !c.es_reserva)
+  const [cuentaId, setCuentaId] = useState('')
 
   const filtradas = facturas.filter((fv) => {
     if (filtroCliente && (fv.cliente_nombre ?? '') !== filtroCliente) return false
@@ -77,6 +81,8 @@ export default function TablaVentas({ facturas, clientes }: Props) {
       const fd = new FormData()
       fd.set('factura_venta_id', modalCobrar.id)
       fd.set('fecha_pago', fechaPago)
+      const cuentaElegida = cuentaId || cuentasOperativas[0]?.id || ''
+      fd.set('cuenta_id', cuentaElegida === 'NINGUNA' ? '' : cuentaElegida)
 
       // Retenciones
       if (aplicaRetenciones) {
@@ -258,16 +264,34 @@ export default function TablaVentas({ facturas, clientes }: Props) {
                 <p className="text-xs text-green-600 mt-1">Al marcar como cobrada, esta factura pasa a estado &quot;Cobrada&quot;</p>
               </div>
 
-              {/* Fecha de pago */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha en que se recibio el pago *</label>
-                <input
-                  type="date"
-                  value={fechaPago}
-                  onChange={(e) => setFechaPago(e.target.value)}
-                  required
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
-                />
+              {/* Fecha de pago y cuenta donde entro el dinero */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha en que se recibio el pago *</label>
+                  <input
+                    type="date"
+                    value={fechaPago}
+                    onChange={(e) => setFechaPago(e.target.value)}
+                    required
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                  />
+                </div>
+                {cuentasOperativas.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">A que cuenta entro</label>
+                    <select
+                      value={cuentaId || cuentasOperativas[0]?.id || ''}
+                      onChange={(e) => setCuentaId(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                    >
+                      {cuentasOperativas.map((c) => (
+                        <option key={c.id} value={c.id}>{c.nombre}</option>
+                      ))}
+                      <option value="NINGUNA">No registrar en caja</option>
+                    </select>
+                    <p className="text-xs text-green-600 mt-1">El dinero se suma a esta cuenta</p>
+                  </div>
+                )}
               </div>
 
               {/* Retenciones */}

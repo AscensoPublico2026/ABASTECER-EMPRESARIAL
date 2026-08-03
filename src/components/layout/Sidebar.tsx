@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { clsx } from 'clsx'
-import { LayoutDashboard, Users, ShoppingCart, Receipt, Truck, UserCheck, Package, BarChart3, DollarSign, LogOut, Wallet, FileText, UserCog, Settings, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { LayoutDashboard, Users, ShoppingCart, Receipt, Truck, UserCheck, Package, BarChart3, DollarSign, LogOut, Wallet, FileText, UserCog, Settings, PanelLeftClose, PanelLeftOpen, Landmark } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Centro Financiero', href: '/financiero', icon: DollarSign },
+  { name: 'Tesoreria', href: '/tesoreria', icon: Landmark },
   { name: 'Socios & Capital', href: '/socios', icon: Users },
   { name: 'Catalogo', href: '/inventario', icon: Package },
   { name: 'Cotizaciones', href: '/ventas', icon: Receipt },
