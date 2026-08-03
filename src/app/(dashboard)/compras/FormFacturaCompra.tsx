@@ -8,6 +8,8 @@ import {
   PlusCircle, X, Loader2, CheckCircle2, AlertCircle, Trash2, Plus,
   Upload, FileCheck, Target, Package,
 } from 'lucide-react'
+import MiniFormProveedor from '@/components/inline/MiniFormProveedor'
+import MiniFormProducto from '@/components/inline/MiniFormProducto'
 
 interface CotizacionOpcion {
   id: string
@@ -53,8 +55,10 @@ function num(v: string) {
 
 type TipoComprobante = 'FACTURA' | 'DOCUMENTO_SOPORTE'
 
-export default function FormFacturaCompra({ proveedores, productos, cotizaciones, cuentas }: Props) {
+export default function FormFacturaCompra({ proveedores: proveedoresIniciales, productos: productosIniciales, cotizaciones, cuentas }: Props) {
   const [abierto, setAbierto] = useState(false)
+  const [listaProveedores, setListaProveedores] = useState(proveedoresIniciales)
+  const [listaProductos, setListaProductos] = useState(productosIniciales)
   const [items, setItems] = useState<ItemLocal[]>([{ ...ITEM_VACIO }])
   const [formaPago, setFormaPago] = useState('Contado')
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('FACTURA')
@@ -87,7 +91,7 @@ export default function FormFacturaCompra({ proveedores, productos, cotizaciones
   }
 
   function seleccionarProducto(idx: number, productoId: string) {
-    const producto = productos.find((p) => p.id === productoId)
+    const producto = listaProductos.find((p) => p.id === productoId)
     setItems(items.map((item, i) => {
       if (i !== idx) return item
       if (!producto) return { ...item, producto_id: '', iva_porcentaje: '19', asignaciones: [] }
@@ -335,8 +339,9 @@ export default function FormFacturaCompra({ proveedores, productos, cotizaciones
               <label className="block text-sm font-medium text-gray-700 mb-1">Proveedor *</label>
               <select name="proveedor_id" required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
                 <option value="">Seleccionar proveedor</option>
-                {proveedores.map((p) => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
+                {listaProveedores.map((p) => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
               </select>
+              <MiniFormProveedor onCreado={(p) => setListaProveedores((prev) => [...prev, p])} />
             </div>
             {!esDocSoporte ? (
               <div>
@@ -510,9 +515,12 @@ export default function FormFacturaCompra({ proveedores, productos, cotizaciones
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-gray-700">Items de la factura</label>
-              <button type="button" onClick={agregarItem} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
-                <Plus className="w-3.5 h-3.5" /> Agregar item
-              </button>
+              <div className="flex items-center gap-3">
+                <MiniFormProducto onCreado={(p) => setListaProductos((prev) => [...prev, p])} />
+                <button type="button" onClick={agregarItem} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
+                  <Plus className="w-3.5 h-3.5" /> Agregar item
+                </button>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -533,7 +541,7 @@ export default function FormFacturaCompra({ proveedores, productos, cotizaciones
                         className="flex-1 px-2 py-2 border border-gray-200 rounded-lg text-sm bg-white"
                       >
                         <option value="">-- Producto del catalogo --</option>
-                        {productos.map((p) => (
+                        {listaProductos.map((p) => (
                           <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>
                         ))}
                       </select>
