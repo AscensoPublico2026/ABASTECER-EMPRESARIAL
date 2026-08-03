@@ -37,13 +37,20 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
     _grupo?: number
   }
 
-  // Agrupar: emparejar cada FACTURA_COMPRA con sus EGRESO_CAJA por numero
+  function separador(etiqueta: string): EventoConEtapa {
+    return {
+      _esEtapa: true, _etiquetaEtapa: etiqueta, documento_tipo: '',
+      documento_numero: null, documento_fecha: null, valor: null,
+      estado: null, documento_id: null,
+    }
+  }
+
+  // Agrupar: emparejar cada compra/gasto con su salida de caja
   function ordenarTrazabilidad(): EventoConEtapa[] {
     const cotizacion = trazabilidad.filter((e) => e.documento_tipo === 'COTIZACION')
     const compras = trazabilidad.filter((e) => e.documento_tipo === 'FACTURA_COMPRA')
-    const pagosProveedor = trazabilidad.filter((e) => e.documento_tipo === 'EGRESO_CAJA' && (e.estado === 'PAGO_PROVEEDOR' || (e.documento_numero ?? '').startsWith('Compra')))
     const gastos = trazabilidad.filter((e) => e.documento_tipo === 'GASTO')
-    const pagosGasto = trazabilidad.filter((e) => e.documento_tipo === 'EGRESO_CAJA' && e.estado === 'GASTO')
+    const salidas = trazabilidad.filter((e) => e.documento_tipo === 'EGRESO_CAJA')
     const remisiones = trazabilidad.filter((e) => e.documento_tipo === 'REMISION')
     const facturasVenta = trazabilidad.filter((e) => e.documento_tipo === 'FACTURA_VENTA')
     const cobros = trazabilidad.filter((e) => e.documento_tipo === 'INGRESO_CAJA')
@@ -52,52 +59,62 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
 
     // 1. Cotizacion
     if (cotizacion.length > 0) {
-      resultado.push({ _esEtapa: true, _etiquetaEtapa: '1. Cotizacion', documento_tipo: '', documento_numero: null, documento_fecha: null, valor: null, estado: null, documento_id: null })
+      resultado.push(separador('1. Cotizacion'))
       for (const c of cotizacion) resultado.push(c)
     }
 
-    // 2. Compras: cada factura seguida de su pago
-    const comprasYGastos = [...compras, ...gastos].sort((a, b) => (a.documento_fecha ?? '') < (b.documento_fecha ?? '') ? -1 : 1)
-    if (comprasYGastos.length > 0) {
-      resultado.push({ _esEtapa: true, _etiquetaEtapa: '2. Compras y costos', documento_tipo: '', documento_numero: null, documento_fecha: null, valor: null, estado: null, documento_id: null })
-      for (const doc of comprasYGastos) {
+    // 2. Compras y gastos: cada documento seguido de SU pago
+    // El concepto del movimiento de caja contiene el numero del documento,
+    // por ejemplo "Compra FCJA1119" para la factura FCJA1119.
+    const docsCosto = [...compras, ...gastos].sort((a, b) => {
+      const fa = a.documento_fecha ?? ''
+      const fb = b.documento_fecha ?? ''
+      if (fa !== fb) return fa < fb ? -1 : 1
+      return (a.documento_numero ?? '').localeCompare(b.documento_numero ?? '')
+    })
+
+    if (docsCosto.length > 0) {
+      resultado.push(separador('2. Compras y costos'))
+
+      // Cada salida de caja se consume una sola vez
+      const salidasDisponibles = [...salidas]
+
+      for (const doc of docsCosto) {
         resultado.push(doc)
-        // Buscar el pago correspondiente a esta compra/gasto
-        if (doc.documento_tipo === 'FACTURA_COMPRA') {
-          const pago = pagosProveedor.find((p) =>
-            (p.documento_numero ?? '').includes(doc.documento_numero ?? '___')
-          )
-          if (pago) resultado.push(pago)
-        } else if (doc.documento_tipo === 'GASTO') {
-          const pago = pagosGasto.find((p) =>
-            (p.documento_numero ?? '').includes(doc.documento_numero ?? '___')
-          )
-          if (pago) resultado.push(pago)
+
+        const numero = (doc.documento_numero ?? '').trim()
+        if (!numero) continue
+
+        // Buscar la salida de caja cuyo concepto menciona este documento
+        const idx = salidasDisponibles.findIndex((p) =>
+          (p.documento_numero ?? '').toUpperCase().includes(numero.toUpperCase())
+        )
+
+        if (idx !== -1) {
+          resultado.push(salidasDisponibles[idx])
+          salidasDisponibles.splice(idx, 1)
         }
       }
-      // Pagos huerfanos (que no se emparejaron)
-      const pagosUsados = resultado.filter((e) => e.documento_tipo === 'EGRESO_CAJA')
-      const pagosRestantes = [...pagosProveedor, ...pagosGasto].filter(
-        (p) => !pagosUsados.some((u) => u.documento_id === p.documento_id)
-      )
-      for (const p of pagosRestantes) resultado.push(p)
+
+      // Salidas que no se pudieron emparejar con ningun documento
+      for (const p of salidasDisponibles) resultado.push(p)
     }
 
     // 3. Entrega
     if (remisiones.length > 0) {
-      resultado.push({ _esEtapa: true, _etiquetaEtapa: '3. Entrega', documento_tipo: '', documento_numero: null, documento_fecha: null, valor: null, estado: null, documento_id: null })
+      resultado.push(separador('3. Entrega'))
       for (const r of remisiones) resultado.push(r)
     }
 
     // 4. Facturacion
     if (facturasVenta.length > 0) {
-      resultado.push({ _esEtapa: true, _etiquetaEtapa: '4. Facturacion', documento_tipo: '', documento_numero: null, documento_fecha: null, valor: null, estado: null, documento_id: null })
+      resultado.push(separador('4. Facturacion'))
       for (const f of facturasVenta) resultado.push(f)
     }
 
     // 5. Cobro
     if (cobros.length > 0) {
-      resultado.push({ _esEtapa: true, _etiquetaEtapa: '5. Cobro del cliente', documento_tipo: '', documento_numero: null, documento_fecha: null, valor: null, estado: null, documento_id: null })
+      resultado.push(separador('5. Cobro del cliente'))
       for (const c of cobros) resultado.push(c)
     }
 
