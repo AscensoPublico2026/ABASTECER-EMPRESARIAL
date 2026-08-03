@@ -3,8 +3,8 @@ import IconoSitio from './IconoSitio'
 
 /**
  * Imagen de un producto del catalogo.
- * Si todavia no le han cargado foto, dibuja un marcador de posicion elegante
- * con el icono de su linea: el catalogo se ve bien desde el primer dia.
+ * Si no tiene foto, muestra un placeholder premium con el icono de su linea
+ * y un patron sutil que da la impresion de catalogo industrial.
  */
 export default function ImagenProducto({
   url,
@@ -21,6 +21,7 @@ export default function ImagenProducto({
 }) {
   if (url) {
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={url}
         alt={alto}
@@ -34,12 +35,17 @@ export default function ImagenProducto({
   return (
     <div
       className={clsx(
-        'flex h-full w-full items-center justify-center bg-gradient-to-br from-marca-50 via-white to-marca-100 patron-puntos',
+        'relative flex h-full w-full items-center justify-center overflow-hidden bg-gradient-to-br from-marca-50 via-white to-marca-100',
         className
       )}
       aria-hidden="true"
     >
-      <IconoSitio nombre={icono ?? 'caja'} className="h-1/3 max-h-16 w-auto text-marca-200" />
+      {/* Patron de fondo */}
+      <div className="absolute inset-0 patron-puntos opacity-50" />
+      {/* Circulo decorativo */}
+      <div className="absolute h-[70%] w-[70%] rounded-full bg-marca-50 ring-1 ring-marca-100/50" />
+      {/* Icono */}
+      <IconoSitio nombre={icono ?? 'caja'} className="relative h-1/4 max-h-14 w-auto text-marca-300" />
     </div>
   )
 }

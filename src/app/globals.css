@@ -12,8 +12,6 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input:not([ty
 
 /* ============================================================
    SITIO WEB PUBLICO (abastecerempresarial.com)
-   Todo lo que este dentro de .sitio-web NO fuerza mayusculas,
-   porque son formularios que llenan clientes desde internet.
    ============================================================ */
 .sitio-web input[type="text"],
 .sitio-web input[type="email"],
@@ -30,25 +28,147 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input:not([ty
   scroll-behavior: smooth;
 }
 
-/* Patron geometrico inspirado en la "A" del logo, para fondos oscuros */
+/* ============================================================
+   PATRON DE FONDO - Geometrico marca (fondos oscuros)
+   ============================================================ */
 .patron-marca {
   background-image:
-    linear-gradient(115deg, rgba(22, 130, 60, 0.22) 0%, rgba(22, 130, 60, 0) 42%),
-    linear-gradient(245deg, rgba(242, 183, 5, 0.14) 0%, rgba(242, 183, 5, 0) 38%),
-    radial-gradient(circle at 82% 12%, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 45%);
+    linear-gradient(115deg, rgba(22, 130, 60, 0.28) 0%, rgba(22, 130, 60, 0) 38%),
+    linear-gradient(245deg, rgba(242, 183, 5, 0.18) 0%, rgba(242, 183, 5, 0) 32%),
+    radial-gradient(ellipse at 80% 10%, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 50%);
 }
 
 .patron-lineas {
-  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.045) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.045) 50%, rgba(255, 255, 255, 0.045) 75%, transparent 75%, transparent);
-  background-size: 22px 22px;
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.04) 50%, rgba(255, 255, 255, 0.04) 75%, transparent 75%, transparent);
+  background-size: 20px 20px;
 }
 
 .patron-puntos {
-  background-image: radial-gradient(rgba(13, 27, 42, 0.10) 1px, transparent 1px);
-  background-size: 18px 18px;
+  background-image: radial-gradient(rgba(13, 27, 42, 0.08) 1.2px, transparent 1.2px);
+  background-size: 20px 20px;
 }
 
-/* Subrayado decorativo de titulos de seccion */
+.patron-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* ============================================================
+   GLASSMORPHISM & CARDS PREMIUM
+   ============================================================ */
+.glass {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-light {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 32px -8px rgba(13, 27, 42, 0.12), 0 2px 8px -2px rgba(13, 27, 42, 0.06);
+}
+
+.glass-dark {
+  background: rgba(13, 27, 42, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.card-premium {
+  background: white;
+  border: 1px solid rgba(13, 27, 42, 0.06);
+  box-shadow:
+    0 1px 3px rgba(13, 27, 42, 0.04),
+    0 8px 24px -8px rgba(13, 27, 42, 0.08),
+    0 24px 48px -16px rgba(13, 27, 42, 0.06);
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card-premium:hover {
+  border-color: rgba(22, 130, 60, 0.2);
+  box-shadow:
+    0 1px 3px rgba(13, 27, 42, 0.04),
+    0 12px 32px -8px rgba(13, 27, 42, 0.14),
+    0 32px 64px -16px rgba(22, 130, 60, 0.1);
+  transform: translateY(-4px);
+}
+
+.card-dark {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.3);
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card-dark:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(242, 183, 5, 0.3);
+  box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.4);
+  transform: translateY(-3px);
+}
+
+/* ============================================================
+   GRADIENTES PREMIUM
+   ============================================================ */
+.gradient-hero {
+  background: linear-gradient(165deg, #0D1B2A 0%, #132B43 35%, #0f2235 60%, #0a1a2e 100%);
+}
+
+.gradient-section-dark {
+  background: linear-gradient(180deg, #0D1B2A 0%, #0f2438 50%, #0D1B2A 100%);
+}
+
+.gradient-verde {
+  background: linear-gradient(135deg, #16823C 0%, #1a9e48 50%, #14753a 100%);
+}
+
+.gradient-oro-text {
+  background: linear-gradient(135deg, #F2B705 0%, #ffd04a 50%, #F2B705 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-border {
+  position: relative;
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(22, 130, 60, 0.4), rgba(242, 183, 5, 0.4));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ============================================================
+   GLOW & LIGHT EFFECTS
+   ============================================================ */
+.glow-verde {
+  box-shadow: 0 0 40px -10px rgba(22, 130, 60, 0.5), 0 0 80px -20px rgba(22, 130, 60, 0.3);
+}
+
+.glow-oro {
+  box-shadow: 0 0 40px -10px rgba(242, 183, 5, 0.4), 0 0 80px -20px rgba(242, 183, 5, 0.2);
+}
+
+.text-glow {
+  text-shadow: 0 0 40px rgba(242, 183, 5, 0.3);
+}
+
+/* ============================================================
+   SUBRAYADO DECORATIVO
+   ============================================================ */
 .subrayado-oro {
   position: relative;
   display: inline-block;
@@ -58,29 +178,89 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input:not([ty
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -0.28em;
-  height: 0.22em;
+  bottom: -0.3em;
+  height: 0.2em;
   border-radius: 999px;
   background: linear-gradient(90deg, #F2B705 0%, #16823C 100%);
 }
 
-/* Aparicion progresiva al hacer scroll (componente Reveal) */
+/* ============================================================
+   ANIMACIONES & REVEAL
+   ============================================================ */
 .reveal {
   opacity: 0;
-  transform: translateY(22px);
-  transition: opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1), transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1), transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: opacity, transform;
 }
 .reveal.visible {
   opacity: 1;
   transform: translateY(0);
 }
-@media (prefers-reduced-motion: reduce) {
-  .reveal { opacity: 1; transform: none; transition: none; }
-  .sitio-web { scroll-behavior: auto; }
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-12px) rotate(1deg); }
 }
 
-/* Barra de scroll discreta en carruseles horizontales */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-float { animation: float-slow 8s ease-in-out infinite; }
+.animate-pulse-glow { animation: pulse-glow 3s ease-in-out infinite; }
+.animate-slide-in { animation: slide-in-right 0.6s ease-out both; }
+.animate-count { animation: count-up 0.8s ease-out both; }
+
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+/* Badge brillante tipo notificacion */
+.badge-pulse {
+  position: relative;
+}
+.badge-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: inherit;
+  opacity: 0;
+  animation: pulse-glow 2s ease-in-out infinite;
+  z-index: -1;
+}
+
+/* ============================================================
+   BARRA DE MARCAS / TRUST BAR
+   ============================================================ */
+.trust-bar {
+  background: linear-gradient(180deg, rgba(13, 27, 42, 0.02) 0%, rgba(13, 27, 42, 0.05) 100%);
+  border-top: 1px solid rgba(13, 27, 42, 0.06);
+  border-bottom: 1px solid rgba(13, 27, 42, 0.06);
+}
+
+/* ============================================================
+   SCROLL & MISC
+   ============================================================ */
 .scroll-suave {
   scrollbar-width: thin;
   scrollbar-color: rgba(13, 27, 42, 0.2) transparent;
@@ -89,6 +269,29 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input:not([ty
 .scroll-suave::-webkit-scrollbar-thumb { background: rgba(13, 27, 42, 0.18); border-radius: 999px; }
 .scroll-suave::-webkit-scrollbar-track { background: transparent; }
 
+/* Texto con gradiente de recorte */
+.text-gradient {
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Divider con gradiente */
+.divider-gradient {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(13, 27, 42, 0.1) 20%, rgba(13, 27, 42, 0.1) 80%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .sitio-web { scroll-behavior: auto; }
+  .animate-float, .animate-pulse-glow, .shimmer { animation: none; }
+  .card-premium:hover, .card-dark:hover { transform: none; }
+}
+
+/* ============================================================
+   PRINT
+   ============================================================ */
 @media print {
   body { background: white !important; margin: 0 !important; padding: 0 !important; }
   aside { display: none !important; }
@@ -102,6 +305,5 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input:not([ty
   .print\:my-0 { margin-top: 0 !important; margin-bottom: 0 !important; }
   .print\:shadow-none { box-shadow: none !important; }
   .print\:p-8 { padding: 2rem !important; }
-  /* FORZAR colores de fondo en impresion (header azul de tabla, etc) */
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
 }
