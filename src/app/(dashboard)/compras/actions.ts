@@ -680,3 +680,80 @@ export async function pagarFacturaCompra(formData: FormData): Promise<ResultadoA
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al pagar.' }
   }
 }
+
+
+// ============================================================
+// EDITAR SOLO DATOS DE CABECERA (proveedor, numero, fecha, PDF)
+// No toca items ni asignaciones: es el caso comun de corregir
+// un numero de factura o adjuntar el PDF despues.
+// ============================================================
+export async function editarDatosFacturaCompra(formData: FormData): Promise<ResultadoAccion> {
+  uppercaseFormData(formData)
+  const factura_id = String(formData.get('factura_id') ?? '').trim()
+  const proveedor_id = String(formData.get('proveedor_id') ?? '').trim()
+  const numero_factura = String(formData.get('numero_factura') ?? '').trim()
+  const fecha_factura = String(formData.get('fecha_factura') ?? '').trim()
+  const forma_pago = String(formData.get('forma_pago') ?? '').trim()
+  const notas = String(formData.get('notas') ?? '').trim()
+  const soporte_url = String(formData.get('soporte_url') ?? '').trim()
+  const soporte_nombre = String(formData.get('soporte_nombre') ?? '').trim()
+
+  if (!factura_id) return { ok: false, mensaje: 'Factura no valida.' }
+
+  try {
+    const supabase = createServerSupabaseClient()
+
+    const { data: actual } = await supabase
+      .from('facturas_compra')
+      .select('estado, numero_factura')
+      .eq('id', factura_id)
+      .single()
+
+    if (!actual) return { ok: false, mensaje: 'Factura no encontrada.' }
+    if (actual.estado === 'ANULADA') return { ok: false, mensaje: 'No se puede editar una factura anulada.' }
+
+    const cambios: Record<string, unknown> = {}
+    if (proveedor_id) cambios.proveedor_id = proveedor_id
+    if (numero_factura) cambios.numero_factura = numero_factura
+    if (notas) cambios.notas = notas
+    if (soporte_url) cambios.soporte_url = soporte_url
+
+    if (fecha_factura) {
+      cambios.fecha_factura = fecha_factura
+      if (forma_pago) {
+        const dias = diasDeFormaPago(forma_pago)
+        cambios.forma_pago = forma_pago
+        cambios.dias_credito = dias
+        if (dias > 0) {
+          const d = new Date(fecha_factura)
+          d.setDate(d.getDate() + dias)
+          cambios.fecha_vencimiento = d.toISOString().slice(0, 10)
+        } else {
+          cambios.fecha_vencimiento = null
+        }
+      }
+    }
+
+    if (Object.keys(cambios).length === 0) {
+      return { ok: false, mensaje: 'No hay cambios para guardar.' }
+    }
+
+    const { error } = await supabase.from('facturas_compra').update(cambios).eq('id', factura_id)
+    if (error) return { ok: false, mensaje: error.message }
+
+    if (soporte_url) {
+      await supabase.from('documentos').insert({
+        entidad_tipo: 'FACTURA_COMPRA',
+        entidad_id: factura_id,
+        tipo_documento: 'FACTURA',
+        nombre_archivo: soporte_nombre || 'factura_compra.pdf',
+        url_archivo: soporte_url,
+      })
+    }
+
+    revalidatePath('/compras')
+    return { ok: true, mensaje: 'Factura actualizada correctamente.' }
+  } catch (e) {
+    return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al editar.' }
+  }
+}

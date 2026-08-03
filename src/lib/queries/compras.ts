@@ -12,6 +12,8 @@ export interface ResumenFacturaCompra {
   dias_credito: number
   fecha_vencimiento: string | null
   proveedor_nombre: string | null
+  proveedor_id: string | null
+  soporte_url: string | null
 }
 
 export async function obtenerFacturasCompra(): Promise<{
@@ -44,6 +46,8 @@ export async function obtenerFacturasCompra(): Promise<{
         dias_credito: Number(f.dias_credito ?? 0),
         fecha_vencimiento: f.fecha_vencimiento,
         proveedor_nombre: prov?.razon_social ?? null,
+        proveedor_id: f.proveedor_id ?? null,
+        soporte_url: f.soporte_url ?? null,
       }
     })
 
