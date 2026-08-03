@@ -40,7 +40,12 @@
 --   El numero no cambia. Eso prueba que el calculo esta bien.
 -- ============================================================
 
-create or replace view public.posicion_financiera as
+-- Hay que hacer DROP porque estamos agregando una columna nueva
+-- (impuestos_sin_apartar) y reordenando, y PostgreSQL no lo permite
+-- con CREATE OR REPLACE VIEW en ese caso.
+drop view if exists public.posicion_financiera;
+
+create view public.posicion_financiera as
 with
 saldos as (
   select
