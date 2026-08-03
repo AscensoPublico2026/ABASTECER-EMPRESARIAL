@@ -86,8 +86,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
           React.createElement(View, { style: s.clienteBox },
             React.createElement(Text, { style: s.clienteNombre }, cliente?.razon_social ?? 'Sin cliente'),
             cliente?.nit && React.createElement(Text, { style: s.clienteDetalle }, `NIT: ${cliente.nit}`),
-            cliente?.contacto_nombre && React.createElement(Text, { style: s.clienteDetalle }, `Contacto: ${cliente.contacto_nombre}`),
-            cliente?.contacto_telefono && React.createElement(Text, { style: s.clienteDetalle }, `Tel: ${cliente.contacto_telefono}`),
             cliente?.contacto_email && React.createElement(Text, { style: s.clienteDetalle }, `Email: ${cliente.contacto_email}`),
             cliente?.direccion_entrega && React.createElement(Text, { style: s.clienteDetalle }, `Dir: ${cliente.direccion_entrega}, ${cliente.ciudad ?? ''}`),
           ),
@@ -134,13 +132,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
           cot.fecha_validez && React.createElement(Text, { style: s.condTexto }, `Validez: Hasta ${formatFecha(cot.fecha_validez)}`),
           cot.observaciones && React.createElement(Text, { style: s.condTexto }, `Observaciones: ${cot.observaciones}`),
           React.createElement(Text, { style: s.condTexto }, `Datos para pago: ${EMPRESA.banco} | ${EMPRESA.tipo_cuenta} | No. ${EMPRESA.numero_cuenta} | A nombre de ${EMPRESA.razon_social} NIT ${EMPRESA.nit}`),
-        ),
-        // Firma
-        React.createElement(View, { style: s.firma },
-          React.createElement(View, { style: s.firmaLinea }),
-          React.createElement(Text, { style: s.firmaNombre }, EMPRESA.representante_legal),
-          React.createElement(Text, { style: s.firmaCargo }, 'Representante Legal'),
-          React.createElement(Text, { style: s.firmaCargo }, EMPRESA.razon_social),
         ),
         // Pie
         React.createElement(Text, { style: s.pie },
