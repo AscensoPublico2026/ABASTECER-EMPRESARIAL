@@ -30,7 +30,7 @@ alter table public.movimientos_tesoreria
 
 -- 2. Parametro tributario: tasa del GMF (4 por mil = 0.004)
 insert into public.config_tributaria (clave, valor, unidad, descripcion) values
-  ('GMF_TASA', 0.0040, 'DECIMAL', 'Gravamen a los Movimientos Financieros. 4 por mil = 0.004. Bold lo cobra en cada salida.')
+  ('GMF_TASA', 0.4000, 'PORCENTAJE', 'Gravamen a los Movimientos Financieros. 4 por mil. Se divide entre 1000 al calcular.')
 on conflict (clave) do update set valor = excluded.valor, descripcion = excluded.descripcion;
 
 
@@ -81,9 +81,9 @@ begin
     return new;
   end if;
 
-  -- Obtener la tasa
+  -- Obtener la tasa (guardada como 0.4 PORCENTAJE = 4 por mil)
   select coalesce(
-    (select valor from public.config_tributaria where clave = 'GMF_TASA'),
+    (select valor / 1000 from public.config_tributaria where clave = 'GMF_TASA'),
     0.004
   ) into tasa;
 
