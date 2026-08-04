@@ -15,6 +15,7 @@ const ETIQUETA_DOC: Record<string, { texto: string; color: string }> = {
   COTIZACION:     { texto: 'Cotizacion',      color: 'bg-blue-50 text-blue-700 border-blue-200' },
   FACTURA_COMPRA: { texto: 'Factura compra',  color: 'bg-amber-50 text-amber-700 border-amber-200' },
   EGRESO_CAJA:    { texto: 'Salida de caja',  color: 'bg-red-50 text-red-700 border-red-200' },
+  GMF:            { texto: '4x1000',          color: 'bg-slate-50 text-slate-600 border-slate-200' },
   GASTO:          { texto: 'Gasto',           color: 'bg-orange-50 text-orange-700 border-orange-200' },
   REMISION:       { texto: 'Remision',        color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
   FACTURA_VENTA:  { texto: 'Factura venta',   color: 'bg-purple-50 text-purple-700 border-purple-200' },
@@ -45,15 +46,21 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
     }
   }
 
-  // Agrupar: emparejar cada compra/gasto con su salida de caja
+  // Agrupar: emparejar cada compra/gasto con su salida de caja y su GMF
   function ordenarTrazabilidad(): EventoConEtapa[] {
     const cotizacion = trazabilidad.filter((e) => e.documento_tipo === 'COTIZACION')
     const compras = trazabilidad.filter((e) => e.documento_tipo === 'FACTURA_COMPRA')
     const gastos = trazabilidad.filter((e) => e.documento_tipo === 'GASTO')
-    const salidas = trazabilidad.filter((e) => e.documento_tipo === 'EGRESO_CAJA')
     const remisiones = trazabilidad.filter((e) => e.documento_tipo === 'REMISION')
     const facturasVenta = trazabilidad.filter((e) => e.documento_tipo === 'FACTURA_VENTA')
     const cobros = trazabilidad.filter((e) => e.documento_tipo === 'INGRESO_CAJA')
+
+    // El GMF va aparte: su concepto contiene el numero del documento
+    // ("GMF (4x1000) Compra FCJA1119") y si no lo separamos se emparejaria
+    // como si fuera el pago.
+    const todasSalidas = trazabilidad.filter((e) => e.documento_tipo === 'EGRESO_CAJA')
+    const gmfs = todasSalidas.filter((e) => e.estado === 'GMF')
+    const salidas = todasSalidas.filter((e) => e.estado !== 'GMF')
 
     const resultado: EventoConEtapa[] = []
 
@@ -63,9 +70,7 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
       for (const c of cotizacion) resultado.push(c)
     }
 
-    // 2. Compras y gastos: cada documento seguido de SU pago
-    // El concepto del movimiento de caja contiene el numero del documento,
-    // por ejemplo "Compra FCJA1119" para la factura FCJA1119.
+    // 2. Compras y gastos: cada documento seguido de SU pago y del 4x1000
     const docsCosto = [...compras, ...gastos].sort((a, b) => {
       const fa = a.documento_fecha ?? ''
       const fb = b.documento_fecha ?? ''
@@ -76,28 +81,39 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
     if (docsCosto.length > 0) {
       resultado.push(separador('2. Compras y costos'))
 
-      // Cada salida de caja se consume una sola vez
+      // Cada salida y cada GMF se consumen una sola vez
       const salidasDisponibles = [...salidas]
+      const gmfsDisponibles = [...gmfs]
 
       for (const doc of docsCosto) {
         resultado.push(doc)
 
         const numero = (doc.documento_numero ?? '').trim()
         if (!numero) continue
+        const numeroUp = numero.toUpperCase()
 
-        // Buscar la salida de caja cuyo concepto menciona este documento
-        const idx = salidasDisponibles.findIndex((p) =>
-          (p.documento_numero ?? '').toUpperCase().includes(numero.toUpperCase())
+        // El pago real
+        const idxPago = salidasDisponibles.findIndex((p) =>
+          (p.documento_numero ?? '').toUpperCase().includes(numeroUp)
         )
+        if (idxPago !== -1) {
+          resultado.push(salidasDisponibles[idxPago])
+          salidasDisponibles.splice(idxPago, 1)
+        }
 
-        if (idx !== -1) {
-          resultado.push(salidasDisponibles[idx])
-          salidasDisponibles.splice(idx, 1)
+        // El 4x1000 que genero ese pago
+        const idxGmf = gmfsDisponibles.findIndex((g) =>
+          (g.documento_numero ?? '').toUpperCase().includes(numeroUp)
+        )
+        if (idxGmf !== -1) {
+          resultado.push(gmfsDisponibles[idxGmf])
+          gmfsDisponibles.splice(idxGmf, 1)
         }
       }
 
-      // Salidas que no se pudieron emparejar con ningun documento
+      // Salidas y GMF que no se pudieron emparejar
       for (const p of salidasDisponibles) resultado.push(p)
+      for (const g of gmfsDisponibles) resultado.push(g)
     }
 
     // 3. Entrega
@@ -416,9 +432,11 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{ev._etiquetaEtapa}</span>
               </div>
             ) : (
-              <div key={`${ev.documento_tipo}-${ev.documento_id ?? i}`} className="px-5 py-3 flex items-center gap-4 hover:bg-gray-50/50">
-                <span className={`px-2.5 py-1 rounded-lg text-xs font-medium border whitespace-nowrap ${et.color}`}>
-                  {et.texto}
+              <div key={`${ev.documento_tipo}-${ev.documento_id ?? i}`} className={`px-5 py-3 flex items-center gap-4 hover:bg-gray-50/50 ${ev.estado === 'GMF' ? 'pl-10 bg-slate-50/40' : ''}`}>
+                <span className={`px-2.5 py-1 rounded-lg text-xs font-medium border whitespace-nowrap ${
+                  ev.estado === 'GMF' ? ETIQUETA_DOC.GMF.color : et.color
+                }`}>
+                  {ev.estado === 'GMF' ? ETIQUETA_DOC.GMF.texto : et.texto}
                 </span>
                 <span className="font-mono text-xs text-gray-700 flex-1 truncate">
                   {ev.documento_numero ?? '-'}
