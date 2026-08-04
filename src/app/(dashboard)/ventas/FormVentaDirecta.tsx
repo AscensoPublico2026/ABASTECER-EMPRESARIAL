@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { ventaDirecta } from './actions'
 import { formatCOP } from '@/lib/format'
+import { ivaPorcentaje } from '@/lib/numeros'
 import { ShoppingBag, X, Loader2, CheckCircle2, AlertCircle, Trash2, Plus, AlertTriangle } from 'lucide-react'
 
 interface Props {
@@ -83,7 +84,7 @@ export default function FormVentaDirecta({ clientes, productos }: Props) {
       cantidad: Number(item.cantidad) || 1,
       precio_unitario: Number(item.precio_unitario.toString().replace(/\./g, '').replace(',', '.')) || 0,
       costo_unitario: Number(item.costo_unitario.toString().replace(/\./g, '').replace(',', '.')) || 0,
-      iva_porcentaje: Number(item.iva_porcentaje) || 19,
+      iva_porcentaje: ivaPorcentaje(item.iva_porcentaje),
     })).filter((i) => i.descripcion && i.precio_unitario > 0)
     formData.set('items', JSON.stringify(itemsParseados))
     setResultado(null)

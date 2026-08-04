@@ -4,6 +4,7 @@ import { useState, useTransition, useRef } from 'react'
 import { anularFacturaCompra, pagarFacturaCompra, editarFacturaCompra, cargarFacturaParaEditar } from './actions'
 import { createClient } from '@/lib/supabase/client'
 import { formatCOP } from '@/lib/format'
+import { ivaPorcentaje } from '@/lib/numeros'
 import {
   Pencil, Ban, DollarSign, FileText, Loader2, X,
   AlertCircle, CheckCircle2, Upload, FileCheck, Trash2, Plus, Target, Package,
@@ -206,7 +207,7 @@ export default function AccionesFacturaCompra({
         descripcion: it.descripcion,
         cantidad: Number(it.cantidad) || 1,
         precio_unitario: num(it.precio_unitario),
-        iva_porcentaje: Number(it.iva_porcentaje) || 19,
+        iva_porcentaje: ivaPorcentaje(it.iva_porcentaje),
         asignaciones: it.asignaciones
           .filter((a) => a.cotizacion_id && Number(a.cantidad) > 0)
           .map((a) => ({ cotizacion_id: a.cotizacion_id, cantidad: Number(a.cantidad) })),
