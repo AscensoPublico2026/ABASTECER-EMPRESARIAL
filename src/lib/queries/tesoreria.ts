@@ -246,7 +246,9 @@ export async function obtenerLibroTesoreria(): Promise<{
       cuenta_es_reserva: Boolean(m.cuenta_es_reserva),
       origen: String(m.origen ?? 'Manual'),
       // Solo los movimientos que no vienen de otro modulo se pueden borrar aqui
-      es_manual: m.origen === 'Manual',
+      // Los manuales y los GMF se pueden borrar desde el libro.
+      // El GMF porque a veces el banco no lo cobra (entidades exentas).
+      es_manual: m.origen === 'Manual' || m.categoria === 'GMF',
       movimiento_relacionado_id: m.movimiento_relacionado_id ?? null,
     }))
 
