@@ -4,6 +4,7 @@ import { useState, useTransition, useRef } from 'react'
 import { registrarFacturaCompra } from './actions'
 import { createClient } from '@/lib/supabase/client'
 import { formatCOP } from '@/lib/format'
+import { ivaPorcentaje } from '@/lib/numeros'
 import {
   PlusCircle, X, Loader2, CheckCircle2, AlertCircle, Trash2, Plus,
   Upload, FileCheck, Target, Package,
@@ -213,7 +214,7 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
         descripcion: item.descripcion,
         cantidad: Number(item.cantidad) || 1,
         precio_unitario: num(item.precio_unitario),
-        iva_porcentaje: Number(item.iva_porcentaje) || 19,
+        iva_porcentaje: ivaPorcentaje(item.iva_porcentaje),
         asignaciones: item.asignaciones
           .filter((a) => a.cotizacion_id && Number(a.cantidad) > 0)
           .map((a) => ({ cotizacion_id: a.cotizacion_id, cantidad: Number(a.cantidad) })),

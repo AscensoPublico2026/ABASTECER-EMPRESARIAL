@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { editarCotizacion } from '../../actions'
 import { formatCOP } from '@/lib/format'
+import { ivaPorcentaje } from '@/lib/numeros'
 import { Loader2, CheckCircle2, AlertCircle, Trash2, Plus, Save } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -96,7 +97,7 @@ export default function FormEditarCotizacion({ cotizacion, clientes, productos }
       cantidad: Number(item.cantidad) || 1,
       precio_unitario: Number(item.precio_unitario.replace(/\./g, '').replace(',', '.')) || 0,
       costo_unitario: Number(item.costo_unitario.replace(/\./g, '').replace(',', '.')) || 0,
-      iva_porcentaje: Number(item.iva_porcentaje) || 19,
+      iva_porcentaje: ivaPorcentaje(item.iva_porcentaje),
     })).filter((i) => i.descripcion && i.precio_unitario > 0)
 
     formData.set('cotizacion_id', cotizacion.id)
