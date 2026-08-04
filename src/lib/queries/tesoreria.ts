@@ -78,6 +78,8 @@ export interface PosicionFinanciera {
   utilidad_neta_acum: number
   margen_bruto_pct: number
   gastos_operativos: number
+  gmf_pagado: number
+  gastos_operativos_total: number
   resultado_operativo: number
   capital_social: number
   prestamos_socios: number
@@ -96,6 +98,7 @@ const POSICION_VACIA: PosicionFinanciera = {
   cuentas_por_cobrar: 0, disponible_proyectado: 0,
   ventas_subtotal_acum: 0, costo_real_acum: 0, utilidad_bruta_acum: 0,
   utilidad_neta_acum: 0, margen_bruto_pct: 0, gastos_operativos: 0,
+  gmf_pagado: 0, gastos_operativos_total: 0,
   resultado_operativo: 0, capital_social: 0, prestamos_socios: 0,
   dividendos_pagados: 0, num_ventas: 0, pipeline_total: 0, pipeline_num: 0,
   reserva_insuficiente: false, en_riesgo: false,
@@ -133,6 +136,8 @@ export async function obtenerPosicionFinanciera(): Promise<{
         utilidad_neta_acum: num(data.utilidad_neta_acum),
         margen_bruto_pct: num(data.margen_bruto_pct),
         gastos_operativos: num(data.gastos_operativos),
+        gmf_pagado: num(data.gmf_pagado),
+        gastos_operativos_total: num(data.gastos_operativos_total),
         resultado_operativo: num(data.resultado_operativo),
         capital_social: num(data.capital_social),
         prestamos_socios: num(data.prestamos_socios),
@@ -313,5 +318,33 @@ export async function obtenerEstadoReserva(): Promise<{
     }
   } catch (e) {
     return { datos: RESERVA_VACIA, error: e instanceof Error ? e.message : 'Error' }
+  }
+}
+
+
+// ============================================================
+// GMF (4x1000) POR PERIODO
+// ============================================================
+export interface GmfPeriodo {
+  anio: string
+  mes: string
+  num_transacciones: number
+  gmf_pagado: number
+  base_aproximada: number
+}
+
+export async function obtenerGmfPorPeriodo(): Promise<GmfPeriodo[]> {
+  try {
+    const supabase = createServerSupabaseClient()
+    const { data } = await supabase.from('gmf_por_periodo').select('*').limit(24)
+    return (data ?? []).map((r) => ({
+      anio: String(r.anio),
+      mes: String(r.mes),
+      num_transacciones: Number(r.num_transacciones ?? 0),
+      gmf_pagado: Number(r.gmf_pagado ?? 0),
+      base_aproximada: Number(r.base_aproximada ?? 0),
+    }))
+  } catch {
+    return []
   }
 }

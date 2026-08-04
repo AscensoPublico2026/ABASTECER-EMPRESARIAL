@@ -282,6 +282,15 @@ export default async function FinancieroPage() {
                 <span className="text-gray-600">(−) Gastos operativos</span>
                 <span className="font-medium text-gray-800 tabular-nums">{formatCOP(p.gastos_operativos)}</span>
               </div>
+              {p.gmf_pagado > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">
+                    (−) 4x1000 que cobro el banco
+                    <span className="block text-xs text-gray-400">Gasto financiero, no costo de la mercancia</span>
+                  </span>
+                  <span className="font-medium text-gray-800 tabular-nums">{formatCOP(p.gmf_pagado)}</span>
+                </div>
+              )}
               <div className="border-t border-gray-100 pt-3 flex justify-between items-center">
                 <span className="font-medium text-gray-800">Resultado operativo</span>
                 <span className={`font-bold text-lg tabular-nums ${

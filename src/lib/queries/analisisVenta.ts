@@ -37,6 +37,9 @@ export interface AnalisisVenta {
   margen_neto_pct: number
   total_a_separar: number
   monto_recibido: number
+  gmf_venta: number
+  num_gmf: number
+  utilidad_neta_con_gmf: number
   // Calidad del dato
   num_facturas_compra: number
   num_gastos: number
@@ -77,6 +80,9 @@ function mapAnalisis(r: Record<string, unknown>): AnalisisVenta {
     margen_neto_pct: n(r.margen_neto_pct),
     total_a_separar: n(r.total_a_separar),
     monto_recibido: n(r.monto_recibido),
+    gmf_venta: n(r.gmf_venta),
+    num_gmf: n(r.num_gmf),
+    utilidad_neta_con_gmf: n(r.utilidad_neta_con_gmf),
     num_facturas_compra: n(r.num_facturas_compra),
     num_gastos: n(r.num_gastos),
     num_gastos_sin_soporte: n(r.num_gastos_sin_soporte),

@@ -8,6 +8,7 @@ import {
   obtenerLibroTesoreria,
   obtenerEstadoReserva,
   obtenerPosicionFinanciera,
+  obtenerGmfPorPeriodo,
 } from '@/lib/queries/tesoreria'
 import { formatCOP } from '@/lib/format'
 import { Landmark, PiggyBank, Wallet, TrendingUp, AlertCircle } from 'lucide-react'
@@ -20,6 +21,7 @@ export default async function TesoreriaPage() {
   const { movimientos, error: errLibro } = await obtenerLibroTesoreria()
   const { datos: reserva } = await obtenerEstadoReserva()
   const { datos: posicion } = await obtenerPosicionFinanciera()
+  const gmfPeriodos = await obtenerGmfPorPeriodo()
 
   const operativas = cuentasSaldo.filter((c) => !c.es_reserva)
   const reservas = cuentasSaldo.filter((c) => c.es_reserva)
@@ -111,17 +113,61 @@ export default async function TesoreriaPage() {
           </div>
         </div>
 
-        {/* Lo que se ha ido en 4x1000 */}
+        {/* Lo que se ha ido en 4x1000, mes por mes */}
         {totalGmf > 0 && (
-          <div className="flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4">
-            <Landmark className="w-5 h-5 text-slate-500 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm text-slate-800">
-                <strong>{formatCOP(totalGmf)}</strong> se han ido en 4x1000 (GMF)
-              </p>
-              <p className="text-xs text-slate-600 mt-0.5">
-                El banco cobra 4 pesos por cada mil que sale. Filtra por &quot;4x1000 (GMF)&quot; en el libro para verlos.
-                Si en alguna transaccion el banco no lo cobro, puedes borrar ese cobro con el icono de basura.
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-slate-100 rounded-xl">
+                  <Landmark className="w-5 h-5 text-slate-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800">Lo que se lleva el banco (4x1000)</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    Gasto financiero. No afecta el margen de las ventas, si el resultado operativo.
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-400">Total acumulado</p>
+                <p className="text-xl font-bold text-slate-700 tabular-nums">{formatCOP(totalGmf)}</p>
+              </div>
+            </div>
+
+            {gmfPeriodos.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                    <tr>
+                      <th className="px-6 py-3 text-left font-medium">Mes</th>
+                      <th className="px-6 py-3 text-center font-medium">Transacciones</th>
+                      <th className="px-6 py-3 text-right font-medium">Plata que se movio</th>
+                      <th className="px-6 py-3 text-right font-medium">4x1000 pagado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {gmfPeriodos.map((g) => (
+                      <tr key={g.mes} className="hover:bg-gray-50/60">
+                        <td className="px-6 py-3 font-medium text-gray-700">{g.mes}</td>
+                        <td className="px-6 py-3 text-center text-gray-500">{g.num_transacciones}</td>
+                        <td className="px-6 py-3 text-right tabular-nums text-gray-500">
+                          {formatCOP(g.base_aproximada)}
+                        </td>
+                        <td className="px-6 py-3 text-right tabular-nums font-medium text-slate-700">
+                          {formatCOP(g.gmf_pagado)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="px-6 py-4 bg-slate-50/60 border-t border-gray-100">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                El banco cobra 4 pesos por cada mil que sale. Cada salida genera su cobro automaticamente.
+                Si en alguna transaccion el banco NO lo cobro, filtra por &quot;4x1000 (GMF)&quot; en el libro
+                de abajo y borralo con el icono de basura.
               </p>
             </div>
           </div>
