@@ -23,6 +23,7 @@ const ETIQUETA_CATEGORIA: Record<string, string> = {
   TRASLADO_ENTRADA: 'Traslado (entra)',
   TRASLADO_SALIDA: 'Traslado (sale)',
   AJUSTE: 'Ajuste',
+  GMF: '4x1000 (GMF)',
   OTRO: 'Otro',
 }
 
