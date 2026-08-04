@@ -32,6 +32,11 @@ export default async function TesoreriaPage() {
   const saldos: Record<string, number> = {}
   for (const c of cuentasSaldo) saldos[c.id] = c.saldo_actual
 
+  // Cuanto se ha ido en 4x1000
+  const totalGmf = movimientos
+    .filter((m) => m.categoria === 'GMF')
+    .reduce((s, m) => s + m.monto, 0)
+
   return (
     <>
       <Header
@@ -105,6 +110,22 @@ export default async function TesoreriaPage() {
             </p>
           </div>
         </div>
+
+        {/* Lo que se ha ido en 4x1000 */}
+        {totalGmf > 0 && (
+          <div className="flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4">
+            <Landmark className="w-5 h-5 text-slate-500 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm text-slate-800">
+                <strong>{formatCOP(totalGmf)}</strong> se han ido en 4x1000 (GMF)
+              </p>
+              <p className="text-xs text-slate-600 mt-0.5">
+                El banco cobra 4 pesos por cada mil que sale. Filtra por &quot;4x1000 (GMF)&quot; en el libro para verlos.
+                Si en alguna transaccion el banco no lo cobro, puedes borrar ese cobro con el icono de basura.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Reserva de impuestos */}
         <WidgetReserva estado={reserva} cuentas={cuentasSelect} />

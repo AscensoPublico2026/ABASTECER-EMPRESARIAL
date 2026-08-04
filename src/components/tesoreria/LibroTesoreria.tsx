@@ -58,9 +58,11 @@ export default function LibroTesoreria({ movimientos, cuentas }: Props) {
   const hayFiltros = filtroCuenta || filtroTipo || filtroCategoria || busqueda
 
   function borrar(m: MovimientoLibro) {
-    const texto = m.movimiento_relacionado_id
-      ? 'Este movimiento es un traslado. Se van a borrar los dos lados. Seguro?'
-      : `Eliminar el movimiento "${m.concepto}" por ${formatCOP(m.monto)}?`
+    const texto = m.categoria === 'GMF'
+      ? `Quitar este cobro de 4x1000 por ${formatCOP(m.monto)}?\n\nHazlo solo si el banco NO te cobro el 4x1000 en esta transaccion.`
+      : m.movimiento_relacionado_id
+        ? 'Este movimiento es un traslado. Se van a borrar los dos lados. Seguro?'
+        : `Eliminar el movimiento "${m.concepto}" por ${formatCOP(m.monto)}?`
     if (!confirm(texto)) return
 
     setBorrando(m.id)
@@ -171,7 +173,7 @@ export default function LibroTesoreria({ movimientos, cuentas }: Props) {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filtrados.map((m) => (
-                <tr key={m.id} className="hover:bg-gray-50/60">
+                <tr key={m.id} className={`hover:bg-gray-50/60 ${m.categoria === 'GMF' ? 'bg-slate-50/50 text-gray-500' : ''}`}>
                   <td className="px-6 py-3.5 whitespace-nowrap text-gray-600">{formatFecha(m.fecha)}</td>
                   <td className="px-6 py-3.5">
                     <div className="flex items-start gap-2">

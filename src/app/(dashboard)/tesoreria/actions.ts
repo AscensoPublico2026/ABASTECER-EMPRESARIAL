@@ -106,8 +106,9 @@ export async function registrarMovimientoManual(formData: FormData): Promise<Res
 
 // ============================================================
 // ELIMINAR MOVIMIENTO
-// Solo movimientos manuales. Los que vienen de una venta, compra,
-// gasto o socio se deben corregir desde su propio modulo.
+// Se pueden borrar los manuales y los del 4x1000 (porque a veces el
+// banco no lo cobra). Los que vienen de una venta, compra, gasto o
+// socio se deben corregir desde su propio modulo.
 // ============================================================
 export async function eliminarMovimientoTesoreria(formData: FormData): Promise<ResultadoAccion> {
   const id = String(formData.get('id') ?? '').trim()
@@ -118,21 +119,27 @@ export async function eliminarMovimientoTesoreria(formData: FormData): Promise<R
 
     const { data: mov, error: errMov } = await supabase
       .from('movimientos_tesoreria')
-      .select('id, monto, concepto, cotizacion_id, factura_venta_id, factura_compra_id, gasto_id, movimiento_socio_id, movimiento_relacionado_id')
+      .select('id, monto, concepto, categoria, cotizacion_id, factura_venta_id, factura_compra_id, gasto_id, movimiento_socio_id, movimiento_relacionado_id')
       .eq('id', id)
       .maybeSingle()
 
     if (errMov) return { ok: false, mensaje: errMov.message }
     if (!mov) return { ok: false, mensaje: 'El movimiento ya no existe.' }
 
-    const vieneDeOtroModulo =
-      mov.cotizacion_id || mov.factura_venta_id || mov.factura_compra_id ||
-      mov.gasto_id || mov.movimiento_socio_id
+    const esGmf = mov.categoria === 'GMF'
 
-    if (vieneDeOtroModulo) {
-      return {
-        ok: false,
-        mensaje: 'Este movimiento lo genero una venta, compra, gasto o aporte de socio. Corrigelo desde ese modulo para que todo quede cuadrado.',
+    // El GMF hereda los vinculos del movimiento que lo genero, pero se
+    // puede borrar libremente porque el banco no siempre lo cobra.
+    if (!esGmf) {
+      const vieneDeOtroModulo =
+        mov.cotizacion_id || mov.factura_venta_id || mov.factura_compra_id ||
+        mov.gasto_id || mov.movimiento_socio_id
+
+      if (vieneDeOtroModulo) {
+        return {
+          ok: false,
+          mensaje: 'Este movimiento lo genero una venta, compra, gasto o aporte de socio. Corrigelo desde ese modulo para que todo quede cuadrado.',
+        }
       }
     }
 
@@ -147,9 +154,11 @@ export async function eliminarMovimientoTesoreria(formData: FormData): Promise<R
     refrescarTodo()
     return {
       ok: true,
-      mensaje: mov.movimiento_relacionado_id
-        ? 'Traslado eliminado (los dos lados).'
-        : `Movimiento eliminado: ${fmt.format(Number(mov.monto ?? 0))}.`,
+      mensaje: esGmf
+        ? `4x1000 de ${fmt.format(Number(mov.monto ?? 0))} eliminado. El banco no lo cobro en esta transaccion.`
+        : mov.movimiento_relacionado_id
+          ? 'Traslado eliminado (los dos lados).'
+          : `Movimiento eliminado: ${fmt.format(Number(mov.monto ?? 0))}.`,
     }
   } catch (e) {
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al eliminar.' }
