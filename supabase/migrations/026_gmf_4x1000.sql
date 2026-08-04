@@ -145,7 +145,11 @@ comment on column public.cuentas.cobra_gmf is
 
 
 -- 7. Actualizar la vista libro_tesoreria para que muestre el GMF bonito
-create or replace view public.libro_tesoreria as
+-- Hay que hacer DROP porque se agrego la columna gmf_de_id y PostgreSQL
+-- no permite agregar columnas con CREATE OR REPLACE VIEW.
+drop view if exists public.libro_tesoreria;
+
+create view public.libro_tesoreria as
 select
   mt.id,
   mt.fecha,
