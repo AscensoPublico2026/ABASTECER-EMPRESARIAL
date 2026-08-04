@@ -209,6 +209,25 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
         </div>
       </div>
 
+      {/* ============ 4x1000 INFORMATIVO ============ */}
+      {a.gmf_venta > 0 && (
+        <div className="flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4">
+          <Landmark className="w-5 h-5 text-slate-500 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm text-slate-800">
+              El banco cobro <strong>{formatCOP(a.gmf_venta)}</strong> de 4x1000 por mover la plata de esta venta
+              <span className="text-slate-500"> ({a.num_gmf} transaccion{a.num_gmf !== 1 ? 'es' : ''})</span>
+            </p>
+            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+              No se descuenta del margen bruto porque es un gasto financiero, no un costo de la mercancia:
+              depende de cuantas transferencias hiciste, no de la venta. Si lo descuentas, quedan{' '}
+              <strong className="tabular-nums">{formatCOP(a.utilidad_neta_con_gmf)}</strong>.
+              El acumulado de todas las ventas se ve en el Centro Financiero.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ============ TOTAL A SEPARAR (ARRIBA) ============ */}
       <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex items-center justify-between">
         <div>
