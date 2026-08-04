@@ -22,10 +22,17 @@
 --   3. gmf_por_periodo: acumulado por mes para ver cuanto se come
 --      el banco.
 --
--- OJO: hay que hacer DROP de las 3 vistas porque se agregan columnas
+-- OJO: hay que hacer DROP de las vistas porque se agregan columnas
 -- nuevas y PostgreSQL no lo permite con CREATE OR REPLACE VIEW.
--- El orden importa: posicion_financiera y estado_reserva_impuestos
--- dependen de analisis_venta.
+--
+-- CUATRO vistas dependen de analisis_venta y hay que recrearlas todas:
+--   1. posicion_financiera        (024)
+--   2. estado_reserva_impuestos   (023)
+--   3. obligaciones_por_periodo   (022)
+--   4. analisis_venta             (021) <- la base
+--
+-- analisis_venta_items NO depende de analisis_venta (usa
+-- asignacion_costos directo), asi que no hay que tocarla.
 -- ============================================================
 
 
@@ -34,6 +41,7 @@
 -- ------------------------------------------------------------
 drop view if exists public.posicion_financiera;
 drop view if exists public.estado_reserva_impuestos;
+drop view if exists public.obligaciones_por_periodo;
 drop view if exists public.analisis_venta;
 
 
@@ -169,6 +177,41 @@ left join gmf_de_venta  gv   on gv.cotizacion_id = c.id;
 
 comment on view public.analisis_venta is
   'Analisis financiero por venta. El GMF (gmf_venta) es informativo: no entra al costo_real ni al margen bruto porque es un gasto financiero, no un costo de la mercancia.';
+
+
+-- ------------------------------------------------------------
+-- PASO 2b: obligaciones_por_periodo (identica, se recrea porque
+-- dependia de analisis_venta)
+-- ------------------------------------------------------------
+create view public.obligaciones_por_periodo as
+select
+  to_char(av.fecha, 'YYYY')                                as anio,
+  case
+    when extract(month from av.fecha) in (1,2)   then 1
+    when extract(month from av.fecha) in (3,4)   then 2
+    when extract(month from av.fecha) in (5,6)   then 3
+    when extract(month from av.fecha) in (7,8)   then 4
+    when extract(month from av.fecha) in (9,10)  then 5
+    else 6
+  end                                                      as bimestre,
+  to_char(av.fecha, 'YYYY-MM')                             as mes,
+  count(*)                                                 as num_ventas,
+  sum(av.venta_subtotal)                                   as base_gravable,
+  sum(av.iva_cobrado)                                      as iva_cobrado,
+  sum(av.iva_pagado)                                       as iva_descontable,
+  sum(av.iva_neto_dian)                                    as iva_a_pagar,
+  sum(av.impuesto_simple)                                  as simple_causado,
+  sum(av.retenciones)                                      as retenciones_a_favor,
+  sum(av.impuesto_simple_pendiente)                        as simple_a_pagar,
+  sum(av.utilidad_bruta)                                   as utilidad_bruta,
+  sum(av.utilidad_neta)                                    as utilidad_neta
+from public.analisis_venta av
+where av.estado in ('FACTURADA','DESPACHADA','ENTREGADO','POR_COBRAR','COBRADA','ENTREGA_PARCIAL')
+group by 1, 2, 3
+order by 1 desc, 3 desc;
+
+comment on view public.obligaciones_por_periodo is
+  'IVA e impuesto Simple agrupados por mes y bimestre, para saber cuanto declarar en cada periodo.';
 
 
 -- ------------------------------------------------------------
