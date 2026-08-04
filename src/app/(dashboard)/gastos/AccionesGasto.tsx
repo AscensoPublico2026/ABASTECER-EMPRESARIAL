@@ -1,9 +1,15 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { eliminarGasto, completarDocumentoSoporte } from './actions'
+import { eliminarGasto, completarDocumentoSoporte, editarGasto, cargarGastoParaEditar } from './actions'
 import { formatCOP } from '@/lib/format'
-import { Trash2, FilePlus2, Loader2, X, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Trash2, FilePlus2, Loader2, X, AlertCircle, CheckCircle2, Pencil, Target } from 'lucide-react'
+
+interface CotizacionOpcion {
+  id: string
+  numero: string
+  cliente_nombre?: string
+}
 
 interface Props {
   gasto: {
@@ -13,17 +19,102 @@ interface Props {
     deducible: boolean
     tieneDocumentoSoporte: boolean
   }
+  cotizaciones?: CotizacionOpcion[]
+  cuentas?: { id: string; nombre: string; es_reserva: boolean }[]
 }
 
-export default function AccionesGasto({ gasto }: Props) {
+const CATEGORIAS_GASTO = [
+  ['CONSTITUCION', 'Constitucion'],
+  ['IMPUESTOS', 'Impuestos'],
+  ['SERVICIOS', 'Servicios'],
+  ['TRANSPORTE', 'Transporte'],
+  ['MARKETING', 'Marketing'],
+  ['TECNOLOGIA', 'Tecnologia'],
+  ['LEGAL', 'Legal'],
+  ['BANCARIO', 'Bancario'],
+  ['OTROS', 'Otros'],
+] as const
+
+export default function AccionesGasto({ gasto, cotizaciones = [], cuentas = [] }: Props) {
   const [pendiente, startTransition] = useTransition()
-  const [modal, setModal] = useState<null | 'soporte' | 'eliminar'>(null)
+  const [modal, setModal] = useState<null | 'soporte' | 'eliminar' | 'editar'>(null)
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
+
+  // Estado del formulario de edicion
+  const [cargando, setCargando] = useState(false)
+  const [concepto, setConcepto] = useState('')
+  const [montoTxt, setMontoTxt] = useState('')
+  const [ivaTxt, setIvaTxt] = useState('')
+  const [fecha, setFecha] = useState('')
+  const [categoria, setCategoria] = useState('OTROS')
+  const [esCostoVenta, setEsCostoVenta] = useState(false)
+  const [cotizacionId, setCotizacionId] = useState('')
+  const [cuentaId, setCuentaId] = useState('')
+  const [notas, setNotas] = useState('')
+
+  const cuentasOperativas = cuentas.filter((c) => !c.es_reserva)
 
   function cerrar() {
     setModal(null)
     setResultado(null)
   }
+
+  function limpiarNum(v: string) {
+    return Number(v.replace(/\./g, '').replace(',', '.')) || 0
+  }
+
+  async function abrirEditar() {
+    setModal('editar')
+    setResultado(null)
+    setCargando(true)
+    try {
+      const d = await cargarGastoParaEditar(gasto.id)
+      if (!d) {
+        setResultado({ ok: false, mensaje: 'No se pudo cargar el gasto.' })
+        setCargando(false)
+        return
+      }
+      setConcepto(d.concepto)
+      setMontoTxt(String(d.monto))
+      setIvaTxt(String(d.iva_incluido))
+      setFecha(d.fecha)
+      setCategoria(d.categoria)
+      setEsCostoVenta(d.es_costo_venta)
+      setCotizacionId(d.cotizacion_id ?? '')
+      setCuentaId(d.cuenta_id ?? cuentasOperativas[0]?.id ?? '')
+      setNotas(d.notas ?? '')
+    } catch (e) {
+      setResultado({ ok: false, mensaje: e instanceof Error ? e.message : 'Error al cargar.' })
+    }
+    setCargando(false)
+  }
+
+  function guardarEdicion() {
+    const fd = new FormData()
+    fd.set('gasto_id', gasto.id)
+    fd.set('concepto', concepto)
+    fd.set('monto', montoTxt)
+    fd.set('iva_incluido', ivaTxt || '0')
+    fd.set('fecha', fecha)
+    fd.set('categoria', categoria)
+    fd.set('cuenta_id', cuentaId)
+    fd.set('notas', notas)
+    if (esCostoVenta) {
+      fd.set('es_costo_venta', 'true')
+      fd.set('cotizacion_id', cotizacionId)
+    }
+
+    setResultado(null)
+    startTransition(async () => {
+      const res = await editarGasto(fd)
+      setResultado(res)
+      if (res.ok) setTimeout(cerrar, 2200)
+    })
+  }
+
+  const montoNum = limpiarNum(montoTxt)
+  const ivaNum = limpiarNum(ivaTxt)
+  const cambioMonto = montoNum > 0 && montoNum !== gasto.monto
 
   function handleSoporte(formData: FormData) {
     formData.set('gasto_id', gasto.id)
@@ -58,12 +149,227 @@ export default function AccionesGasto({ gasto }: Props) {
       )}
 
       <button
+        onClick={abrirEditar}
+        title="Editar el gasto"
+        className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition"
+      >
+        <Pencil className="w-3.5 h-3.5" />
+      </button>
+
+      <button
         onClick={() => setModal('eliminar')}
         title="Eliminar gasto"
         className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition"
       >
         <Trash2 className="w-3.5 h-3.5" />
       </button>
+
+      {/* ===== MODAL EDITAR ===== */}
+      {modal === 'editar' && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-lg my-8 shadow-xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl">
+              <div>
+                <h3 className="font-semibold text-gray-800">Editar gasto</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Actual: {formatCOP(gasto.monto)}
+                </p>
+              </div>
+              <button onClick={cerrar} className="p-1.5 rounded-lg hover:bg-gray-100">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            {cargando ? (
+              <div className="py-16 text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto" />
+                <p className="text-sm text-gray-500 mt-3">Cargando el gasto...</p>
+              </div>
+            ) : (
+              <div className="p-6 space-y-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5">
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    Al guardar se ajusta la salida de caja y, si es costo de una venta,
+                    se recalcula su utilidad. El 4x1000 tambien se recalcula solo.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Concepto *</label>
+                  <input
+                    type="text"
+                    value={concepto}
+                    onChange={(e) => setConcepto(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Monto total *</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={montoTxt}
+                      onChange={(e) => setMontoTxt(e.target.value)}
+                      className={`w-full px-3 py-2.5 border rounded-xl text-sm tabular-nums text-right ${
+                        cambioMonto ? 'border-amber-300 bg-amber-50' : 'border-gray-200'
+                      }`}
+                    />
+                    {cambioMonto && (
+                      <p className="text-xs text-amber-700 mt-1">
+                        Antes: {formatCOP(gasto.monto)}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">IVA incluido</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={ivaTxt}
+                      onChange={(e) => setIvaTxt(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm tabular-nums text-right"
+                    />
+                    {ivaNum > montoNum && montoNum > 0 && (
+                      <p className="text-xs text-red-600 mt-1">El IVA no puede superar el monto</p>
+                    )}
+                  </div>
+                </div>
+
+                {montoNum > 0 && (
+                  <div className="bg-gray-50 rounded-xl px-4 py-3 text-xs text-gray-600 flex justify-between">
+                    <span>Base sin IVA:</span>
+                    <span className="tabular-nums font-medium text-gray-800">
+                      {formatCOP(montoNum - ivaNum)}
+                    </span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Fecha *</label>
+                    <input
+                      type="date"
+                      value={fecha}
+                      onChange={(e) => setFecha(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                    <select
+                      value={categoria}
+                      onChange={(e) => setCategoria(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
+                    >
+                      {CATEGORIAS_GASTO.map(([v, t]) => (
+                        <option key={v} value={v}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {cuentasOperativas.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">De que cuenta se pago *</label>
+                    <select
+                      value={cuentaId}
+                      onChange={(e) => setCuentaId(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
+                    >
+                      {cuentasOperativas.map((c) => (
+                        <option key={c.id} value={c.id}>{c.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Costo de venta */}
+                {cotizaciones.length > 0 && (
+                  <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-4 space-y-3">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={esCostoVenta}
+                        onChange={(e) => setEsCostoVenta(e.target.checked)}
+                        className="mt-0.5 rounded border-gray-300 text-blue-600"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-blue-900">Es costo de una venta</span>
+                        <p className="text-xs text-blue-700 mt-0.5">
+                          Se descuenta de la utilidad de esa venta. Si no lo marcas, es gasto operativo.
+                        </p>
+                      </div>
+                    </label>
+
+                    {esCostoVenta && (
+                      <div>
+                        <label className="block text-xs font-medium text-blue-800 mb-1">
+                          <Target className="w-3 h-3 inline mr-1" />
+                          A que venta
+                        </label>
+                        <select
+                          value={cotizacionId}
+                          onChange={(e) => setCotizacionId(e.target.value)}
+                          className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                        >
+                          <option value="">-- Seleccionar venta --</option>
+                          {cotizaciones.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.numero}{c.cliente_nombre ? ` · ${c.cliente_nombre}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                  <textarea
+                    value={notas}
+                    onChange={(e) => setNotas(e.target.value)}
+                    rows={2}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none"
+                  />
+                </div>
+
+                <p className="text-xs text-gray-500">
+                  El soporte tributario (factura o documento soporte) no se cambia aqui.
+                  Si necesitas generar el documento soporte, usa el boton de la hoja con el signo mas.
+                </p>
+
+                {resultado && (
+                  <div className={`flex items-start gap-2 p-3 rounded-xl text-sm ${resultado.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                    {resultado.ok ? <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />}
+                    <span>{resultado.mensaje}</span>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={cerrar}
+                    className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={guardarEdicion}
+                    disabled={pendiente || montoNum <= 0 || ivaNum > montoNum || !cuentaId}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {pendiente && <Loader2 className="w-4 h-4 animate-spin" />} Guardar cambios
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ===== MODAL DOCUMENTO SOPORTE ===== */}
       {modal === 'soporte' && (

@@ -213,6 +213,8 @@ export default async function GastosPage() {
                                 deducible: Boolean(g.deducible),
                                 tieneDocumentoSoporte: Boolean(ds?.id),
                               }}
+                              cotizaciones={cotizaciones}
+                              cuentas={cuentas}
                             />
                           </div>
                         </td>

@@ -15,6 +15,16 @@ function monto(v: FormDataEntryValue | null): number {
   return Number(String(v ?? '0').replace(/\./g, '').replace(',', '.')) || 0
 }
 
+const _fmt = new Intl.NumberFormat('es-CO', {
+  style: 'currency',
+  currency: 'COP',
+  minimumFractionDigits: 0,
+})
+
+function fmtCop(v: number): string {
+  return _fmt.format(v)
+}
+
 // ============================================================
 // REGISTRAR GASTO
 // Puede ser:
@@ -286,5 +296,205 @@ export async function completarDocumentoSoporte(formData: FormData): Promise<Res
     return { ok: true, mensaje: `Documento soporte ${ds.numero} generado. El gasto ya es deducible.` }
   } catch (e) {
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' }
+  }
+}
+
+
+
+// ============================================================
+// CARGAR UN GASTO PARA EDITARLO
+// ============================================================
+export interface GastoDetalle {
+  id: string
+  concepto: string
+  monto: number
+  iva_incluido: number
+  fecha: string
+  categoria: string
+  cotizacion_id: string | null
+  es_costo_venta: boolean
+  deducible: boolean
+  tiene_soporte: boolean
+  tercero_nombre: string | null
+  tercero_documento: string | null
+  pagado_por: string | null
+  forma_pago: string | null
+  notas: string | null
+  soporte_url: string | null
+  cuenta_id: string | null
+  tiene_documento_soporte: boolean
+}
+
+export async function cargarGastoParaEditar(gasto_id: string): Promise<GastoDetalle | null> {
+  if (!gasto_id) return null
+  try {
+    const supabase = createServerSupabaseClient()
+
+    const { data: g } = await supabase
+      .from('gastos')
+      .select('*')
+      .eq('id', gasto_id)
+      .maybeSingle()
+
+    if (!g) return null
+
+    // De que cuenta salio (esta en el movimiento de tesoreria)
+    const { data: mov } = await supabase
+      .from('movimientos_tesoreria')
+      .select('cuenta_id')
+      .eq('gasto_id', gasto_id)
+      .neq('categoria', 'GMF')
+      .limit(1)
+      .maybeSingle()
+
+    // Tiene documento soporte generado?
+    const { data: ds } = await supabase
+      .from('documentos_soporte')
+      .select('id')
+      .eq('gasto_id', gasto_id)
+      .limit(1)
+      .maybeSingle()
+
+    return {
+      id: String(g.id),
+      concepto: String(g.concepto ?? ''),
+      monto: Number(g.monto ?? 0),
+      iva_incluido: Number(g.iva_incluido ?? 0),
+      fecha: String(g.fecha ?? '').slice(0, 10),
+      categoria: String(g.categoria ?? 'OTROS'),
+      cotizacion_id: (g.cotizacion_id as string | null) ?? null,
+      es_costo_venta: Boolean(g.es_costo_venta),
+      deducible: Boolean(g.deducible),
+      tiene_soporte: Boolean(g.tiene_soporte),
+      tercero_nombre: (g.tercero_nombre as string | null) ?? null,
+      tercero_documento: (g.tercero_documento as string | null) ?? null,
+      pagado_por: (g.pagado_por as string | null) ?? null,
+      forma_pago: (g.forma_pago as string | null) ?? null,
+      notas: (g.notas as string | null) ?? null,
+      soporte_url: (g.soporte_url as string | null) ?? null,
+      cuenta_id: mov?.cuenta_id ? String(mov.cuenta_id) : null,
+      tiene_documento_soporte: Boolean(ds),
+    }
+  } catch {
+    return null
+  }
+}
+
+
+// ============================================================
+// EDITAR GASTO
+// Corrige monto, concepto, fecha, categoria y a que venta se imputa.
+// Sincroniza el movimiento de caja: si cambia el monto o la cuenta, la
+// salida de dinero se ajusta para que el saldo del banco cuadre.
+// ============================================================
+export async function editarGasto(formData: FormData): Promise<ResultadoAccion> {
+  uppercaseFormData(formData)
+
+  const gasto_id = String(formData.get('gasto_id') ?? '').trim()
+  const concepto = String(formData.get('concepto') ?? '').trim()
+  const valor = monto(formData.get('monto'))
+  const iva_incluido = monto(formData.get('iva_incluido'))
+  const fecha = String(formData.get('fecha') ?? '').trim()
+  const categoria = String(formData.get('categoria') ?? 'OTROS').trim()
+  const cotizacion_id = String(formData.get('cotizacion_id') ?? '').trim()
+  const es_costo_venta = formData.get('es_costo_venta') === 'on' || formData.get('es_costo_venta') === 'true'
+  const cuenta_id = String(formData.get('cuenta_id') ?? '').trim()
+  const notas = String(formData.get('notas') ?? '').trim()
+
+  if (!gasto_id) return { ok: false, mensaje: 'Gasto no valido.' }
+  if (!concepto) return { ok: false, mensaje: 'El concepto es obligatorio.' }
+  if (valor <= 0) return { ok: false, mensaje: 'El monto debe ser mayor a cero.' }
+  if (iva_incluido > valor) return { ok: false, mensaje: 'El IVA no puede ser mayor al monto total.' }
+  if (es_costo_venta && !cotizacion_id) {
+    return { ok: false, mensaje: 'Si es costo de una venta, selecciona la cotizacion.' }
+  }
+  if (!cuenta_id) {
+    return { ok: false, mensaje: 'Selecciona de que cuenta se pago el gasto.' }
+  }
+
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Estado anterior, para saber que recalcular
+    const { data: antes } = await supabase
+      .from('gastos')
+      .select('monto, cotizacion_id, es_costo_venta')
+      .eq('id', gasto_id)
+      .maybeSingle()
+
+    if (!antes) return { ok: false, mensaje: 'Gasto no encontrado.' }
+
+    const montoAnterior = Number(antes.monto ?? 0)
+    const cotizacionAnterior = (antes.cotizacion_id as string | null) ?? null
+
+    // 1. Actualizar el gasto
+    const { error: errUpd } = await supabase
+      .from('gastos')
+      .update({
+        concepto,
+        monto: valor,
+        iva_incluido,
+        fecha,
+        categoria,
+        cotizacion_id: es_costo_venta ? cotizacion_id : null,
+        es_costo_venta,
+        notas: notas || null,
+      })
+      .eq('id', gasto_id)
+
+    if (errUpd) return { ok: false, mensaje: errUpd.message }
+
+    // 2. Sincronizar el movimiento de caja
+    // Si cambio el monto o la cuenta, el movimiento viejo quedaria mal y
+    // el saldo del banco no cuadraria. Se borra y se crea de nuevo.
+    // Al borrarlo, su GMF se va en cascada; al crearlo, el trigger genera
+    // el GMF nuevo con el monto correcto.
+    let avisoCaja = ''
+    await supabase.from('movimientos_tesoreria').delete().eq('gasto_id', gasto_id)
+
+    const usuario = await obtenerNombreUsuarioActual()
+    const { error: errCaja } = await supabase.from('movimientos_tesoreria').insert({
+      cuenta_id,
+      fecha,
+      tipo: 'EGRESO',
+      categoria: 'GASTO',
+      monto: valor,
+      concepto,
+      gasto_id,
+      cotizacion_id: es_costo_venta ? cotizacion_id : null,
+      medio_pago: String(formData.get('forma_pago') ?? 'Transferencia'),
+      creado_por_id: usuario.id,
+      creado_por_nombre: usuario.nombre,
+    })
+
+    if (errCaja) {
+      avisoCaja = ` Ojo: no se pudo actualizar la salida de caja (${errCaja.message}).`
+    } else if (montoAnterior !== valor) {
+      avisoCaja = ` La salida de caja se ajusto de ${fmtCop(montoAnterior)} a ${fmtCop(valor)}.`
+    }
+
+    // 3. Recalcular las ventas afectadas: la de antes y la de ahora
+    const porRecalcular = new Set<string>()
+    if (cotizacionAnterior) porRecalcular.add(cotizacionAnterior)
+    if (es_costo_venta && cotizacion_id) porRecalcular.add(cotizacion_id)
+
+    for (const cid of Array.from(porRecalcular)) {
+      await recalcularCostoCotizacion(supabase, cid)
+      revalidatePath(`/ventas/${cid}`)
+    }
+
+    revalidatePath('/gastos')
+    revalidatePath('/financiero')
+    revalidatePath('/tesoreria')
+    revalidatePath('/ventas')
+    revalidatePath('/panel')
+    revalidatePath('/')
+
+    return {
+      ok: true,
+      mensaje: `Gasto actualizado: ${fmtCop(valor)}.${avisoCaja}`,
+    }
+  } catch (e) {
+    return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al editar.' }
   }
 }
