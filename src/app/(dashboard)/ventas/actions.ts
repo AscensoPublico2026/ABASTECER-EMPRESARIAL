@@ -636,15 +636,22 @@ export async function generarRemision(formData: FormData): Promise<ResultadoAcci
     if (errCot || !cot) return { ok: false, mensaje: 'Cotizacion no encontrada.' }
     if (cot.estado !== 'EN_ALISTAMIENTO') return { ok: false, mensaje: `Solo se puede remisionar desde "En alistamiento". Estado actual: ${cot.estado}` }
 
-    // Generar numero de remision: REM-2026-001
+    // Generar numero de remision: REM-2026-201, 202, 203...
     const year = new Date().getFullYear()
-    const { count } = await supabase
+    const { data: maxRem } = await supabase
       .from('remisiones')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', `${year}-01-01`)
+      .select('numero')
+      .like('numero', `REM-${year}-%`)
+      .order('numero', { ascending: false })
+      .limit(1)
 
-    const consecutivo = (count ?? 0) + 51
-    const numero_remision = `REM-${year}-${String(consecutivo).padStart(3, '0')}`
+    let siguiente = 201
+    if (maxRem && maxRem.length > 0) {
+      const partes = (maxRem[0].numero as string).split('-')
+      const ultimo = parseInt(partes[2], 10)
+      if (!isNaN(ultimo)) siguiente = ultimo + 1
+    }
+    const numero_remision = `REM-${year}-${String(siguiente).padStart(3, '0')}`
 
     // Crear registro de remision
     const usuario = await obtenerNombreUsuarioActual()
