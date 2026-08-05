@@ -81,9 +81,9 @@ begin
     return new;
   end if;
 
-  -- Obtener la tasa (guardada como 0.4 PORCENTAJE = 4 por mil)
+  -- Obtener la tasa (guardada como 0.4 PORCENTAJE = 0.4% = 4 por mil)
   select coalesce(
-    (select valor / 1000 from public.config_tributaria where clave = 'GMF_TASA'),
+    (select valor / 100 from public.config_tributaria where clave = 'GMF_TASA'),
     0.004
   ) into tasa;
 
