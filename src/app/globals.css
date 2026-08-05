@@ -293,6 +293,9 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input:not([ty
    PRINT
    ============================================================ */
 @media print {
+  @page {
+    margin: 0;
+  }
   body { background: white !important; margin: 0 !important; padding: 0 !important; }
   aside { display: none !important; }
   header { display: none !important; }
@@ -305,5 +308,7 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input:not([ty
   .print\:my-0 { margin-top: 0 !important; margin-bottom: 0 !important; }
   .print\:shadow-none { box-shadow: none !important; }
   .print\:p-8 { padding: 2rem !important; }
+  .print\:p-\[15mm\] { padding: 15mm !important; }
+  /* FORZAR colores de fondo en impresion (header azul de tabla, etc) */
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
 }

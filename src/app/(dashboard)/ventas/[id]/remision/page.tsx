@@ -42,7 +42,7 @@ export default async function RemisionPage({ params }: { params: { id: string } 
       </div>
 
       {/* Documento de remision (imprimible) */}
-      <div className="max-w-[210mm] mx-auto my-8 print:my-0 bg-white shadow-lg print:shadow-none p-10 print:p-8">
+      <div className="max-w-[210mm] mx-auto my-8 print:my-0 bg-white shadow-lg print:shadow-none p-10 print:p-[15mm]">
 
         {/* Encabezado */}
         <div className="flex items-start justify-between border-b border-gray-200 pb-6 mb-6">
