@@ -244,6 +244,27 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
   try {
     const supabase = createServerSupabaseClient()
 
+    // 0. Evitar duplicados: mismo proveedor + mismo numero de factura
+    // (por doble clic, reintento tras error, etc). No aplica a Documento
+    // Soporte porque ahi el numero se genera solo (DS-2026-00X).
+    if (!esDocSoporte && numero_factura) {
+      const { data: yaExiste } = await supabase
+        .from('facturas_compra')
+        .select('id, total, estado')
+        .eq('proveedor_id', proveedor_id)
+        .eq('numero_factura', numero_factura)
+        .neq('estado', 'ANULADA')
+        .limit(1)
+        .maybeSingle()
+
+      if (yaExiste) {
+        return {
+          ok: false,
+          mensaje: `Ya existe una factura ${numero_factura} de este proveedor por ${fmt.format(Number(yaExiste.total))} (estado ${yaExiste.estado}). Si es otra factura distinta con el mismo numero, revisala en la lista. Si fue un doble clic, no la registres de nuevo.`,
+        }
+      }
+    }
+
     // 1. Cabecera
     // Si es documento soporte sin numero de factura, usar placeholder temporal
     const numFacturaInicial = numero_factura || (esDocSoporte ? 'DS-PENDIENTE' : '')
@@ -269,7 +290,15 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
       .select('id')
       .single()
 
-    if (errFactura) return { ok: false, mensaje: errFactura.message }
+    if (errFactura) {
+      if (errFactura.code === '23505') {
+        return {
+          ok: false,
+          mensaje: `Ya existe una factura ${numFacturaInicial} de este proveedor. No se volvio a registrar.`,
+        }
+      }
+      return { ok: false, mensaje: errFactura.message }
+    }
 
     // 2. Items (el trigger actualiza costo_promedio y stock)
     const { data: itemsGuardados, error: errItems } = await supabase
