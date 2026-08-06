@@ -301,3 +301,156 @@ select
     where mt.cotizacion_id = c.id and mt.tipo = 'INGRESO') as en_banco
 from public.cotizaciones c
 where c.numero = 'COT-2026-012';
+
+
+
+-- ############################################################
+-- ##  PARTE 5  --  EL PAGO CUADRA PERO NO SE VE EN PANTALLA
+-- ############################################################
+-- Caso real: COT-2026-012, estado DESPACHADA, monto_recibido
+-- 1.486.720 y en_banco 1.486.720. El dato esta perfecto, entonces el
+-- problema es en que pantalla se esta buscando.
+--
+-- Corre las 5 consultas de esta parte de una sola vez. La 5.a es la
+-- que normalmente resuelve el misterio.
+
+
+-- ------------------------------------------------------------
+-- 5.a  A QUE CUENTA ENTRO LA PLATA (la causa mas comun)
+-- ------------------------------------------------------------
+-- Si la cuenta esta INACTIVA, su saldo NO se muestra en las tarjetas de
+-- Tesoreria (la consulta filtra activa = true) aunque el movimiento si
+-- exista. Y si es cuenta de RESERVA, la plata no cuenta como disponible:
+-- aparece aparte, como plata apartada para impuestos.
+select
+  cu.nombre                        as cuenta_donde_entro,
+  cu.tipo,
+  cu.activa,
+  cu.es_reserva,
+  mt.fecha,
+  mt.monto,
+  mt.categoria,
+  mt.concepto,
+  mt.creado_por_nombre,
+  case
+    when not cu.activa
+      then 'AQUI ESTA EL PROBLEMA: la cuenta esta INACTIVA. Su saldo no se muestra en Tesoreria. Activala.'
+    when cu.es_reserva
+      then 'AQUI ESTA EL PROBLEMA: entro a la cuenta de RESERVA DE IMPUESTOS, no a la operativa. No cuenta como disponible. Trasladala a la cuenta operativa.'
+    else 'La cuenta esta bien (activa y operativa). Mira las consultas 5.b a 5.e.'
+  end as diagnostico
+from public.movimientos_tesoreria mt
+join public.cuentas cu on cu.id = mt.cuenta_id
+join public.cotizaciones c on c.id = mt.cotizacion_id
+where c.numero = 'COT-2026-012'
+  and mt.tipo = 'INGRESO';
+
+
+-- ------------------------------------------------------------
+-- 5.b  Aparece la venta en el analisis? (alimenta el detalle
+--      de la venta y la tabla de /financiero)
+-- ------------------------------------------------------------
+select
+  av.numero,
+  av.estado,
+  av.venta_subtotal,
+  av.monto_recibido,
+  av.costo_real,
+  av.utilidad_bruta,
+  av.margen_bruto_pct,
+  av.tiene_costo_asignado,
+  av.iva_neto_dian,
+  av.impuesto_simple_pendiente,
+  av.total_a_separar
+from public.analisis_venta av
+where av.numero = 'COT-2026-012';
+-- Si esto sale VACIO, la venta no existe para ningun reporte financiero.
+-- Si sale con tiene_costo_asignado = false, el margen esta al 100%
+-- porque la compra no se asigno a esta venta.
+
+
+-- ------------------------------------------------------------
+-- 5.c  Aparece en la trazabilidad de la venta?
+--      (es la linea de tiempo que se ve en /ventas/[id])
+-- ------------------------------------------------------------
+select documento_tipo, documento_numero, documento_fecha, valor, estado
+from public.trazabilidad_venta
+where cotizacion_numero = 'COT-2026-012'
+order by documento_fecha, documento_tipo;
+-- Debe haber una fila INGRESO_CAJA con los 1.486.720.
+
+
+-- ------------------------------------------------------------
+-- 5.d  Como quedaron todas tus cuentas
+-- ------------------------------------------------------------
+-- Revisa la columna "activa". Cualquier cuenta en false tiene su plata
+-- escondida de las tarjetas de Tesoreria.
+select
+  nombre,
+  activa,
+  es_reserva,
+  saldo_inicial,
+  total_ingresos,
+  total_egresos,
+  saldo_actual,
+  num_movimientos
+from public.saldos_cuentas
+order by activa desc, es_reserva, orden;
+
+
+-- ------------------------------------------------------------
+-- 5.e  Por que el "disponible real" puede verse bajo
+-- ------------------------------------------------------------
+-- Tu plata puede estar toda ahi y el disponible verse chico porque el
+-- ERP te esta descontando impuestos y deudas. Esta consulta te muestra
+-- la resta completa, paso a paso.
+select
+  saldo_operativo               as tienes_en_cuentas_operativas,
+  saldo_reservas                as apartado_para_impuestos,
+  saldo_total                   as total_en_el_banco,
+  iva_por_pagar,
+  simple_por_pagar,
+  retenciones_por_declarar,
+  impuestos_por_pagar,
+  impuestos_sin_apartar         as impuestos_que_aun_no_apartaste,
+  cuentas_por_pagar             as le_debes_a_proveedores,
+  disponible_real               as tu_plata_de_verdad,
+  cuentas_por_cobrar            as te_deben_los_clientes,
+  disponible_proyectado
+from public.posicion_financiera;
+-- Formula: disponible_real = saldo_operativo
+--                          - impuestos_que_aun_no_apartaste
+--                          - le_debes_a_proveedores
+--
+-- OJO: si acabas de borrar todas las compras, cuentas_por_pagar queda
+-- en 0 y el disponible_real SUBE. Eso es correcto: ya no le debes nada
+-- registrado a ningun proveedor.
+
+
+-- ------------------------------------------------------------
+-- 5.f  DONDE DEBERIA VERSE ESTA VENTA (estado DESPACHADA)
+-- ------------------------------------------------------------
+-- Recordatorio de los filtros reales del ERP para el estado DESPACHADA:
+--
+--   /ventas .......... SI se ve, en el bloque "En proceso" (el de la
+--                      linea naranja), NO en el bloque de arriba de
+--                      "Cotizaciones". Si buscas arriba, no esta.
+--   /tesoreria ....... SI se ve el ingreso en el Libro. Busca
+--                      "COT-2026-012" en el buscador del libro.
+--   /financiero ...... SI se cuenta (DESPACHADA esta en el filtro).
+--   /ventas/[id] ..... SI, en la linea de tiempo como "Entrada de caja".
+--
+-- Lo que le FALTA a esta venta por estar en DESPACHADA:
+--   * No tiene factura de venta (se despacho con remision).
+--     Por eso no aparece en cuentas_por_cobrar ni en el modulo de
+--     facturacion. Cuando emitas la factura DIAN pasa a FACTURADA.
+select
+  c.numero,
+  c.estado,
+  c.remision_numero,
+  (select count(*) from public.facturas_venta fv where fv.cotizacion_id = c.id)
+    as tiene_factura_de_venta,
+  (select count(*) from public.remisiones r where r.cotizacion_id = c.id)
+    as tiene_remision
+from public.cotizaciones c
+where c.numero = 'COT-2026-012';
