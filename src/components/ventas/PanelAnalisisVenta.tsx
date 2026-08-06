@@ -24,6 +24,23 @@ const ETIQUETA_DOC: Record<string, { texto: string; color: string }> = {
 
 export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }: Props) {
   const sinCosto = !a.tiene_costo_asignado
+
+  /**
+   * Retenciones que SI son anticipo del impuesto Simple.
+   *
+   * Solo la retefuente y la reteICA. La reteIVA es anticipo del IVA y se
+   * descuenta en el bolsillo del IVA, no aqui.
+   *
+   * POR QUE IMPORTA: el panel antes listaba las TRES retenciones dentro
+   * del bolsillo del Simple, pero el calculo (correctamente) solo restaba
+   * retefuente + reteICA. Con una reteIVA de 36.480 el usuario veia
+   * "64.000 menos 36.480 = 64.000" y parecia un error de suma, cuando el
+   * numero estaba bien y lo que estaba mal era la caja donde se mostraba.
+   *
+   * Restarla en los dos lados seria contarla dos veces y dejaria de
+   * apartar 36.480 que hay que pagarle a la DIAN.
+   */
+  const retencionesDelSimple = a.retencion_retefuente + a.retencion_reteica
   const margenColor =
     a.margen_bruto_pct >= 30 ? 'text-green-600'
     : a.margen_bruto_pct >= 20 ? 'text-amber-600'
@@ -267,6 +284,16 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
               <span className="text-gray-600">IVA que pagaste en las compras</span>
               <span className="tabular-nums text-green-600 font-medium">- {formatCOP(a.iva_pagado)}</span>
             </div>
+            {/* La reteIVA es anticipo del IVA, NO del Simple. Va en ESTE
+                bolsillo. Antes se listaba en el bolsillo del Simple, y como
+                el calculo (correctamente) no la restaba de ahi, las dos
+                cajas parecian tener un error de suma. */}
+            {a.retencion_reteiva > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">ReteIVA que te retuvo el cliente</span>
+                <span className="tabular-nums text-green-600 font-medium">- {formatCOP(a.retencion_reteiva)}</span>
+              </div>
+            )}
             <div className="flex justify-between items-center pt-3 border-t-2 border-blue-200">
               <span className="font-bold text-blue-900">Guardar para IVA</span>
               <span className="font-bold tabular-nums text-xl text-blue-700">
@@ -277,7 +304,9 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
 
           <div className="mt-4 bg-blue-50 rounded-xl p-3.5">
             <p className="text-xs text-blue-800 leading-relaxed">
-              Cobraste {formatCOP(a.iva_cobrado)} de IVA al cliente, pero ya pagaste {formatCOP(a.iva_pagado)} de IVA a tus proveedores. La diferencia es lo que le debes a la DIAN. Se paga cada bimestre.
+              {a.retencion_reteiva > 0
+                ? `Cobraste ${formatCOP(a.iva_cobrado)} de IVA al cliente. Ya pagaste ${formatCOP(a.iva_pagado)} de IVA a tus proveedores y el cliente le adelanto ${formatCOP(a.retencion_reteiva)} a la DIAN por ti (reteIVA). Lo que queda es lo que tienes que guardar. Se paga cada bimestre.`
+                : `Cobraste ${formatCOP(a.iva_cobrado)} de IVA al cliente, pero ya pagaste ${formatCOP(a.iva_pagado)} de IVA a tus proveedores. La diferencia es lo que le debes a la DIAN. Se paga cada bimestre.`}
             </p>
           </div>
         </div>
@@ -299,7 +328,10 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
               <span className="text-gray-600">5% sobre la venta ({formatCOP(a.venta_subtotal)})</span>
               <span className="tabular-nums text-gray-800 font-medium">{formatCOP(a.impuesto_simple)}</span>
             </div>
-            {a.retenciones > 0 && (
+            {/* Solo retefuente y reteICA son anticipo del Simple. La
+                reteIVA se muestra en el bolsillo del IVA, que es lo que
+                de verdad reduce. */}
+            {retencionesDelSimple > 0 && (
               <>
                 <div className="flex justify-between items-center text-green-700">
                   <span>Retenciones que el cliente ya pago por ti:</span>
@@ -311,12 +343,6 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
                     <span className="tabular-nums text-green-600 font-medium">- {formatCOP(a.retencion_retefuente)}</span>
                   </div>
                 )}
-                {a.retencion_reteiva > 0 && (
-                  <div className="flex justify-between items-center pl-4">
-                    <span className="text-gray-500 text-xs">ReteIVA</span>
-                    <span className="tabular-nums text-green-600 font-medium">- {formatCOP(a.retencion_reteiva)}</span>
-                  </div>
-                )}
                 {a.retencion_reteica > 0 && (
                   <div className="flex justify-between items-center pl-4">
                     <span className="text-gray-500 text-xs">ReteICA</span>
@@ -324,6 +350,18 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
                   </div>
                 )}
               </>
+            )}
+            {/* Si al cliente solo le retuvieron reteIVA, hay que decirlo
+                aqui: si no, el usuario ve el Simple completo y cree que
+                el sistema se comio la retencion. */}
+            {a.retencion_reteiva > 0 && retencionesDelSimple === 0 && (
+              <div className="flex items-start gap-1.5 bg-white border border-amber-200 rounded-lg px-2.5 py-2">
+                <Landmark className="w-3.5 h-3.5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <span className="text-xs text-gray-600 leading-relaxed">
+                  Los {formatCOP(a.retencion_reteiva)} de reteIVA no bajan este impuesto:
+                  bajan el del <strong>bolsillo IVA</strong> (mira la caja azul).
+                </span>
+              </div>
             )}
             <div className="flex justify-between items-center pt-3 border-t-2 border-amber-200">
               <span className="font-bold text-amber-900">Guardar para Simple</span>
@@ -335,9 +373,11 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
 
           <div className="mt-4 bg-amber-50 rounded-xl p-3.5">
             <p className="text-xs text-amber-800 leading-relaxed">
-              {a.retenciones > 0
-                ? `El impuesto es ${formatCOP(a.impuesto_simple)} pero el cliente ya le pago ${formatCOP(a.retenciones)} a la DIAN por ti (retenciones). Solo te falta guardar la diferencia.`
-                : `Es el 5% de lo que vendiste. Nadie te retuvo, asi que debes guardar el 100% de este impuesto.`}
+              {retencionesDelSimple > 0
+                ? `El impuesto es ${formatCOP(a.impuesto_simple)} pero el cliente ya le adelanto ${formatCOP(retencionesDelSimple)} a la DIAN por ti (retefuente y reteICA). Solo te falta guardar la diferencia.`
+                : a.retencion_reteiva > 0
+                  ? `Es el 5% de lo que vendiste y va completo, porque a ti solo te retuvieron reteIVA, que es un anticipo del IVA y no de este impuesto. Ese descuento ya esta aplicado en el bolsillo IVA.`
+                  : `Es el 5% de lo que vendiste. Nadie te retuvo, asi que debes guardar el 100% de este impuesto.`}
             </p>
           </div>
         </div>
