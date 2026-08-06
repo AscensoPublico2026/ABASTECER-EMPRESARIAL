@@ -163,12 +163,27 @@ export interface ObligacionPeriodo {
   mes: string
   num_ventas: number
   base_gravable: number
+  // ---- Bolsillo IVA ----
   iva_cobrado: number
   iva_descontable: number
+  /** ReteIVA: es anticipo del IVA, descuenta ESTE bolsillo */
+  reteiva: number
   iva_a_pagar: number
+  iva_saldo_favor: number
+  // ---- Bolsillo Simple ----
   simple_causado: number
-  retenciones_a_favor: number
+  retefuente: number
+  reteica: number
+  /** Solo retefuente + reteICA. La reteIVA NO entra aqui. */
+  retenciones_del_simple: number
   simple_a_pagar: number
+  simple_saldo_favor: number
+  /**
+   * Suma de las TRES retenciones. Solo informativo.
+   * No restarlo de un solo impuesto: seria contarlo dos veces.
+   */
+  retenciones_a_favor: number
+  // ---- Resultado ----
   utilidad_bruta: number
   utilidad_neta: number
 }
@@ -185,10 +200,16 @@ export async function obtenerObligacionesPorPeriodo(): Promise<ObligacionPeriodo
       base_gravable: Number(r.base_gravable ?? 0),
       iva_cobrado: Number(r.iva_cobrado ?? 0),
       iva_descontable: Number(r.iva_descontable ?? 0),
+      reteiva: Number(r.reteiva ?? 0),
       iva_a_pagar: Number(r.iva_a_pagar ?? 0),
+      iva_saldo_favor: Number(r.iva_saldo_favor ?? 0),
       simple_causado: Number(r.simple_causado ?? 0),
+      retefuente: Number(r.retefuente ?? 0),
+      reteica: Number(r.reteica ?? 0),
+      retenciones_del_simple: Number(r.retenciones_del_simple ?? 0),
       retenciones_a_favor: Number(r.retenciones_a_favor ?? 0),
       simple_a_pagar: Number(r.simple_a_pagar ?? 0),
+      simple_saldo_favor: Number(r.simple_saldo_favor ?? 0),
       utilidad_bruta: Number(r.utilidad_bruta ?? 0),
       utilidad_neta: Number(r.utilidad_neta ?? 0),
     }))

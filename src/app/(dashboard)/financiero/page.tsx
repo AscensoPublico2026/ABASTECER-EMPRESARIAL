@@ -373,10 +373,13 @@ export default async function FinancieroPage() {
                     <th className="px-4 py-2.5 font-medium text-gray-500 text-xs">Bimestre</th>
                     <th className="px-4 py-2.5 font-medium text-gray-500 text-xs text-center">Ventas</th>
                     <th className="px-4 py-2.5 font-medium text-gray-500 text-xs text-right">Base</th>
-                    <th className="px-4 py-2.5 font-medium text-gray-500 text-xs text-right">IVA cobrado</th>
-                    <th className="px-4 py-2.5 font-medium text-gray-500 text-xs text-right">IVA descontable</th>
-                    <th className="px-4 py-2.5 font-medium text-gray-500 text-xs text-right">IVA a pagar</th>
-                    <th className="px-6 py-2.5 font-medium text-gray-500 text-xs text-right">Simple a pagar</th>
+                    <th className="px-4 py-2.5 font-medium text-blue-600 text-xs text-right">IVA cobrado</th>
+                    <th className="px-4 py-2.5 font-medium text-blue-600 text-xs text-right">(−) IVA compras</th>
+                    <th className="px-4 py-2.5 font-medium text-blue-600 text-xs text-right">(−) ReteIVA</th>
+                    <th className="px-4 py-2.5 font-medium text-blue-700 text-xs text-right">= IVA a pagar</th>
+                    <th className="px-4 py-2.5 font-medium text-amber-600 text-xs text-right border-l border-gray-200">Simple 5%</th>
+                    <th className="px-4 py-2.5 font-medium text-amber-600 text-xs text-right">(−) Rtefte + RteICA</th>
+                    <th className="px-6 py-2.5 font-medium text-amber-700 text-xs text-right">= Simple a pagar</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -388,14 +391,43 @@ export default async function FinancieroPage() {
                       </td>
                       <td className="px-4 py-3 text-center text-gray-600">{per.num_ventas}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-600">{formatCOP(per.base_gravable)}</td>
+                      {/* BOLSILLO IVA: la resta se ve completa.
+                          Antes faltaba la columna de reteIVA y el
+                          "IVA a pagar" no cuadraba con las dos de al lado. */}
                       <td className="px-4 py-3 text-right tabular-nums text-gray-600">{formatCOP(per.iva_cobrado)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-600">{formatCOP(per.iva_descontable)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums font-medium text-red-600">{formatCOP(per.iva_a_pagar)}</td>
-                      <td className="px-6 py-3 text-right tabular-nums font-medium text-purple-600">{formatCOP(per.simple_a_pagar)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-green-600">{per.iva_descontable > 0 ? `- ${formatCOP(per.iva_descontable)}` : formatCOP(0)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-green-600">{per.reteiva > 0 ? `- ${formatCOP(per.reteiva)}` : formatCOP(0)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-blue-700">
+                        {formatCOP(per.iva_a_pagar)}
+                        {per.iva_saldo_favor > 0 && (
+                          <span className="block text-xs font-normal text-green-600">
+                            +{formatCOP(per.iva_saldo_favor)} a favor
+                          </span>
+                        )}
+                      </td>
+                      {/* BOLSILLO SIMPLE: solo retefuente y reteICA */}
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-600 border-l border-gray-200">{formatCOP(per.simple_causado)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-green-600">{per.retenciones_del_simple > 0 ? `- ${formatCOP(per.retenciones_del_simple)}` : formatCOP(0)}</td>
+                      <td className="px-6 py-3 text-right tabular-nums font-semibold text-amber-700">
+                        {formatCOP(per.simple_a_pagar)}
+                        {per.simple_saldo_favor > 0 && (
+                          <span className="block text-xs font-normal text-green-600">
+                            +{formatCOP(per.simple_saldo_favor)} a favor
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="px-6 py-3 bg-blue-50/50 border-t border-blue-100">
+              <p className="text-xs text-blue-900 leading-relaxed">
+                Cada retencion descuenta SU propio impuesto: la <strong>reteIVA</strong> baja el
+                IVA, y la <strong>retefuente y la reteICA</strong> bajan el Simple. Por eso van en
+                columnas separadas. Si se restaran de los dos lados se contarian dos veces y
+                terminarias apartando menos de lo que le debes a la DIAN.
+              </p>
             </div>
           </div>
         )}

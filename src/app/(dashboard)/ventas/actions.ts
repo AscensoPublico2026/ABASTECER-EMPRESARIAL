@@ -895,25 +895,146 @@ export async function revertirEstadoCotizacion(formData: FormData): Promise<Resu
     if (!estadoAnterior) return { ok: false, mensaje: `No se puede revertir desde estado "${cot.estado}". Solo se revierte: Aprobada, Pagada, En alistamiento, Facturada, Despachada.` }
 
     // --- LIMPIAR TODO LO ASOCIADO SEGUN EL ESTADO QUE SE REVIERTE ---
+    //
+    // BUG GRAVE QUE ESTO ARREGLA: antes esta funcion solo cambiaba el
+    // estado y limpiaba unos campos de la cotizacion. NO borraba el
+    // ingreso de tesoreria, NO devolvia el stock y NO borraba el registro
+    // de pagos.
+    //
+    // Resultado: al deshacer una venta cobrada, la cotizacion volvia a
+    // PENDIENTE pero la plata seguia en el banco para siempre, como
+    // "Pago de cliente COT-XXXX" sin ninguna venta detras. Y no se podia
+    // borrar a mano, porque eliminarMovimientoTesoreria bloquea los
+    // movimientos que vienen de una venta. Quedaba atascado.
+    //
+    // Ahora deshacer revierte TODO: plata, stock, documentos y solicitudes.
 
-    // Si revierte desde EN_ALISTAMIENTO → limpiar solicitudes de compra + datos de pago
+    const deshecho: string[] = []
+
+    // ---- 1. Devolver la plata que habia entrado al banco ----
+    // Aplica a cualquier estado que se revierta: si hay un cobro asociado
+    // a esta venta y la venta deja de estar cobrada, la plata no puede
+    // quedarse en la cuenta.
+    if (cot.estado === 'EN_ALISTAMIENTO' || cot.estado === 'PAGADA' || cot.estado === 'FACTURADA') {
+      const { data: ingresos } = await supabase
+        .from('movimientos_tesoreria')
+        .select('id, monto')
+        .eq('cotizacion_id', id)
+        .eq('tipo', 'INGRESO')
+
+      const totalIngresos = (ingresos ?? []).reduce((s, m) => s + Number(m.monto ?? 0), 0)
+
+      if (totalIngresos > 0) {
+        const { error: errBorrarIngreso } = await supabase
+          .from('movimientos_tesoreria')
+          .delete()
+          .eq('cotizacion_id', id)
+          .eq('tipo', 'INGRESO')
+
+        if (errBorrarIngreso) {
+          return {
+            ok: false,
+            mensaje: `No se pudo devolver el ingreso de ${fmt.format(totalIngresos)} (${errBorrarIngreso.message}). No se revirtio nada para no dejar el saldo descuadrado.`,
+          }
+        }
+        deshecho.push(`se saco del banco el cobro de ${fmt.format(totalIngresos)}`)
+      }
+
+      // El registro en la tabla pagos tambien sobra
+      const { data: fvIds } = await supabase
+        .from('facturas_venta')
+        .select('id')
+        .eq('cotizacion_id', id)
+
+      for (const fv of fvIds ?? []) {
+        await supabase.from('pagos').delete().eq('factura_venta_id', fv.id as string)
+      }
+
+      // Y el soporte de pago que se habia subido
+      await supabase
+        .from('documentos')
+        .delete()
+        .eq('entidad_tipo', 'COTIZACION')
+        .eq('entidad_id', id)
+        .eq('tipo_documento', 'SOPORTE_PAGO')
+    }
+
+    // ---- 2. Solicitudes de compra generadas al alistar ----
     if (cot.estado === 'EN_ALISTAMIENTO') {
       await supabase.from('solicitudes_compra').delete().eq('cotizacion_id', id)
+      deshecho.push('se borraron las solicitudes de compra')
     }
 
-    // Si revierte desde PAGADA → limpiar datos de pago
-    if (cot.estado === 'EN_ALISTAMIENTO' || cot.estado === 'PAGADA') {
-      // Nada extra, se limpia abajo
-    }
-
-    // Si revierte desde DESPACHADA → limpiar remision
+    // ---- 3. Remision ----
     if (cot.estado === 'DESPACHADA') {
       await supabase.from('remisiones').delete().eq('cotizacion_id', id)
+      deshecho.push('se anulo la remision')
     }
 
-    // Si revierte desde FACTURADA → anular factura de venta asociada
+    // ---- 4. Factura de venta: anular y DEVOLVER EL STOCK ----
     if (cot.estado === 'FACTURADA') {
-      await supabase.from('facturas_venta').update({ estado: 'ANULADA' }).eq('cotizacion_id', id)
+      // La factura se marca ANULADA (no se borra: es un documento fiscal
+      // y hay que poder rastrearlo). Pero el stock SI hay que devolverlo:
+      // el trigger trg_descontar_stock solo resta al insertar los items y
+      // no existe ninguno que sume al anular. Sin esto el inventario
+      // quedaba faltando las unidades de una venta que ya no existe.
+      const { data: facturas } = await supabase
+        .from('facturas_venta')
+        .select('id, numero_factura_dian, estado')
+        .eq('cotizacion_id', id)
+        .neq('estado', 'ANULADA')
+
+      for (const fv of facturas ?? []) {
+        const { data: items } = await supabase
+          .from('factura_venta_items')
+          .select('producto_id, cantidad')
+          .eq('factura_venta_id', fv.id as string)
+
+        let unidadesDevueltas = 0
+        for (const it of items ?? []) {
+          if (!it.producto_id) continue
+          const { data: prod } = await supabase
+            .from('productos')
+            .select('stock_actual')
+            .eq('id', it.producto_id as string)
+            .maybeSingle()
+
+          await supabase
+            .from('productos')
+            .update({ stock_actual: Number(prod?.stock_actual ?? 0) + Number(it.cantidad ?? 0) })
+            .eq('id', it.producto_id as string)
+
+          unidadesDevueltas += Number(it.cantidad ?? 0)
+        }
+
+        // Los movimientos de banco atados a la factura (no solo los que
+        // traen cotizacion_id)
+        await supabase
+          .from('movimientos_tesoreria')
+          .delete()
+          .eq('factura_venta_id', fv.id as string)
+          .eq('tipo', 'INGRESO')
+
+        await supabase.from('pagos').delete().eq('factura_venta_id', fv.id as string)
+
+        await supabase
+          .from('facturas_venta')
+          .update({ estado: 'ANULADA' })
+          .eq('id', fv.id as string)
+
+        deshecho.push(
+          `se anulo la factura ${fv.numero_factura_dian ?? ''}`.trim() +
+          (unidadesDevueltas > 0 ? ` y volvieron ${unidadesDevueltas} unidades al inventario` : ''),
+        )
+      }
+
+      // El PDF de la factura que se habia adjuntado
+      await supabase
+        .from('documentos')
+        .delete()
+        .eq('entidad_tipo', 'COTIZACION')
+        .eq('entidad_id', id)
+        .eq('tipo_documento', 'FACTURA')
     }
 
     // Construir datos de actualizacion
@@ -944,10 +1065,22 @@ export async function revertirEstadoCotizacion(formData: FormData): Promise<Resu
     const { error } = await supabase.from('cotizaciones').update(updateData).eq('id', id)
     if (error) return { ok: false, mensaje: error.message }
 
+    // Refrescar TODAS las pantallas que muestran plata, no solo /ventas.
+    // Antes faltaba /tesoreria: al deshacer, el libro de movimientos
+    // seguia mostrando el pago viejo hasta recargar a mano.
     revalidatePath('/ventas')
     revalidatePath('/compras')
     revalidatePath('/financiero')
+    revalidatePath('/tesoreria')
+    revalidatePath('/inventario')
+    revalidatePath('/indicadores')
     revalidatePath('/panel')
-    return { ok: true, mensaje: `Revertido: "${cot.estado}" → "${estadoAnterior}". Se limpiaron datos asociados.` }
+    revalidatePath('/')
+
+    const detalle = deshecho.length > 0 ? ` Ademas: ${deshecho.join(', ')}.` : ''
+    return {
+      ok: true,
+      mensaje: `Revertido: "${cot.estado}" → "${estadoAnterior}".${detalle}`,
+    }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
