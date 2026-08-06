@@ -10,6 +10,12 @@ export interface ResultadoAccion {
   mensaje: string
 }
 
+const fmt = new Intl.NumberFormat('es-CO', {
+  style: 'currency',
+  currency: 'COP',
+  minimumFractionDigits: 0,
+})
+
 interface ItemInput {
   producto_id: string | null
   descripcion: string
@@ -69,7 +75,6 @@ export async function crearCotizacion(formData: FormData): Promise<ResultadoAcci
     if (errorItems) return { ok: false, mensaje: errorItems.message }
 
     revalidatePath('/ventas')
-    const fmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 })
     return { ok: true, mensaje: `Cotizacion ${cot.numero} creada: ${fmt.format(total)} | Utilidad: ${fmt.format(utilidad_estimada)} (${margen_pct}%)` }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al crear.' } }
 }
@@ -104,6 +109,41 @@ export async function cerrarVenta(formData: FormData): Promise<ResultadoAccion> 
       .select('*, cotizacion_items(*)')
       .eq('id', cotizacion_id).single()
     if (errorCot || !cot) return { ok: false, mensaje: errorCot?.message ?? 'Cotizacion no encontrada.' }
+
+    // Evitar facturar dos veces la misma cotizacion.
+    // Antes no habia guard: dos clics creaban DOS facturas_venta con dos
+    // juegos de items, el trigger descontaba el stock DOS veces y la
+    // cartera quedaba duplicada.
+    const { data: facturaExistente } = await supabase
+      .from('facturas_venta')
+      .select('id, numero_factura_dian, total')
+      .eq('cotizacion_id', cotizacion_id)
+      .neq('estado', 'ANULADA')
+      .limit(1)
+      .maybeSingle()
+
+    if (facturaExistente) {
+      return {
+        ok: false,
+        mensaje: `Esta venta ya tiene la factura ${facturaExistente.numero_factura_dian ?? ''} por ${fmt.format(Number(facturaExistente.total))}. No se creo otra.`,
+      }
+    }
+
+    // El mismo numero de factura DIAN no se puede usar dos veces
+    const { data: dianRepetida } = await supabase
+      .from('facturas_venta')
+      .select('id')
+      .eq('numero_factura_dian', numero_factura_dian)
+      .neq('estado', 'ANULADA')
+      .limit(1)
+      .maybeSingle()
+
+    if (dianRepetida) {
+      return {
+        ok: false,
+        mensaje: `El numero de factura ${numero_factura_dian} ya esta usado en otra venta.`,
+      }
+    }
 
     // Verificar OC obligatoria para credito
     if (cot.dias_credito > 0 && !oc_cliente) {
@@ -245,7 +285,6 @@ export async function ventaDirecta(formData: FormData): Promise<ResultadoAccion>
 
     revalidatePath('/ventas')
     revalidatePath('/financiero')
-    const fmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 })
     return { ok: true, mensaje: `Venta directa registrada: ${fmt.format(total)} | Utilidad: ${fmt.format(utilidad)} (${margen_pct}%)` }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
@@ -328,7 +367,6 @@ export async function editarCotizacion(formData: FormData): Promise<ResultadoAcc
 
     revalidatePath('/ventas')
     revalidatePath(`/ventas/${cotizacion_id}`)
-    const fmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 })
     return { ok: true, mensaje: `Cotizacion actualizada: ${fmt.format(total)} | Utilidad: ${fmt.format(utilidad_estimada)} (${margen_pct}%)` }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al editar.' } }
 }
@@ -353,12 +391,43 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
   try {
     const supabase = createServerSupabaseClient()
 
-    // Actualizar estado a COBRADA + registrar retenciones
+    // Evitar cobrar dos veces la misma factura (doble clic / reintento).
+    // Antes no se validaba: cada ejecucion insertaba otro pago y otro
+    // INGRESO en tesoreria, duplicando la plata en el banco.
+    const { data: estadoActual } = await supabase
+      .from('facturas_venta')
+      .select('estado, total, numero_factura_dian')
+      .eq('id', factura_venta_id)
+      .maybeSingle()
+
+    if (!estadoActual) return { ok: false, mensaje: 'Factura no encontrada.' }
+    if (estadoActual.estado === 'COBRADA') {
+      return { ok: false, mensaje: `La factura ${estadoActual.numero_factura_dian ?? ''} ya esta cobrada. No se registro de nuevo.` }
+    }
+    if (estadoActual.estado === 'ANULADA') {
+      return { ok: false, mensaje: 'La factura esta anulada.' }
+    }
+
+    // Las retenciones no pueden superar el total de la factura
+    if (total_retenciones > Number(estadoActual.total)) {
+      return {
+        ok: false,
+        mensaje: `Las retenciones (${fmt.format(total_retenciones)}) no pueden ser mayores al total de la factura (${fmt.format(Number(estadoActual.total))}).`,
+      }
+    }
+
+    // Actualizar estado a COBRADA + registrar retenciones con su desglose.
+    // El desglose es clave: la reteIVA reduce el IVA y la retefuente/reteICA
+    // reducen el Simple. Antes solo se guardaba el total y el desglose
+    // quedaba en texto libre, imposible de usar en los calculos.
     const { error } = await supabase
       .from('facturas_venta')
       .update({
         estado: 'COBRADA',
         retencion_total: total_retenciones,
+        retencion_retefuente: retefuente,
+        retencion_reteiva: rete_iva,
+        retencion_reteica: rete_ica,
         notas: total_retenciones > 0
           ? `Pago: ${fecha_pago} | Retenciones: Rtefte $${retefuente}, RteIVA $${rete_iva}, RteICA $${rete_ica} | Total retenido: $${total_retenciones}`
           : `Pago recibido: ${fecha_pago}`,
@@ -416,6 +485,27 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
       } else {
         avisoCaja = ' No se registro el ingreso en caja.'
       }
+
+      // Reflejar el cobro y las retenciones en la cotizacion.
+      // CADENA ROTA que esto arregla: los calculos de impuestos leen de
+      // la cotizacion. En el flujo a credito las retenciones se guardaban
+      // solo en facturas_venta, asi que para toda venta a credito el
+      // sistema veia retenciones = 0 y exigia apartar mas plata de la
+      // debida (con reteIVA de 36.480, sobre-reservaba esos 36.480).
+      if (fvData.cotizacion_id) {
+        await supabase
+          .from('cotizaciones')
+          .update({
+            estado: 'COBRADA',
+            monto_recibido: montoNeto,
+            fecha_pago,
+            retencion_retefuente: retefuente,
+            retencion_reteiva: rete_iva,
+            retencion_reteica: rete_ica,
+            retencion_total: total_retenciones,
+          })
+          .eq('id', fvData.cotizacion_id)
+      }
     }
 
     // Registrar soporte de pago si se subio
@@ -463,12 +553,40 @@ export async function registrarPagoContado(formData: FormData): Promise<Resultad
   try {
     const supabase = createServerSupabaseClient()
 
-    const { data: cot, error: errCot } = await supabase.from('cotizaciones').select('numero, total, subtotal, iva_total, cliente_id').eq('id', cotizacion_id).single()
+    const { data: cot, error: errCot } = await supabase.from('cotizaciones').select('numero, total, subtotal, iva_total, cliente_id, estado, fecha_pago').eq('id', cotizacion_id).single()
     if (errCot || !cot) return { ok: false, mensaje: 'Cotizacion no encontrada.' }
+
+    // Evitar registrar el pago dos veces (doble clic / reintento).
+    // Antes no habia guard: cada ejecucion insertaba otro INGRESO en
+    // tesoreria, duplicando la plata en el banco.
+    if (cot.fecha_pago) {
+      return {
+        ok: false,
+        mensaje: `El pago de ${cot.numero} ya se registro el ${cot.fecha_pago}. No se registro de nuevo.`,
+      }
+    }
+
+    // Las retenciones no pueden superar el total: si no, el ingreso a
+    // tesoreria salia NEGATIVO y reducia el saldo de la cuenta.
+    if (total_retenciones > Number(cot.total)) {
+      return {
+        ok: false,
+        mensaje: `Las retenciones (${fmt.format(total_retenciones)}) no pueden ser mayores al total de la venta (${fmt.format(Number(cot.total))}).`,
+      }
+    }
 
     const monto_recibido = Number(cot.total) - total_retenciones
     const provision_iva = Number(cot.iva_total) // IVA cobrado (se ajusta cuando compre)
-    const provision_simple = Math.round(Number(cot.subtotal) * 0.05) // 5% del subtotal
+    // La tarifa del Simple sale de config_tributaria, no hardcodeada.
+    // Antes estaba fija en 5% y si la tarifa cambiaba, la provision
+    // guardada dejaba de coincidir con la que calcula analisis_venta.
+    const { data: tarifaSimple } = await supabase
+      .from('config_tributaria')
+      .select('valor')
+      .eq('clave', 'SIMPLE_TARIFA')
+      .maybeSingle()
+    const pctSimple = Number(tarifaSimple?.valor ?? 5)
+    const provision_simple = Math.round(Number(cot.subtotal) * pctSimple / 100)
 
     // Actualizar cotizacion a EN_ALISTAMIENTO (salta PAGADA porque ya registramos todo)
     const { error } = await supabase.from('cotizaciones').update({
@@ -530,7 +648,6 @@ export async function registrarPagoContado(formData: FormData): Promise<Resultad
     revalidatePath('/tesoreria')
     revalidatePath('/')
 
-    const fmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 })
     return { ok: true, mensaje: `Pago registrado: ${fmt.format(monto_recibido)} recibido.${total_retenciones > 0 ? ` Retenciones: ${fmt.format(total_retenciones)}.` : ''}${avisoCaja} → En alistamiento.` }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }

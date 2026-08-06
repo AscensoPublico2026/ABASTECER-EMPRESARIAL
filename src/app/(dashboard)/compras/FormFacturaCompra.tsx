@@ -183,7 +183,7 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
     items.forEach((item) => {
       const sub = (Number(item.cantidad) || 0) * num(item.precio_unitario)
       subtotal += sub
-      iva += sub * ((Number(item.iva_porcentaje) || 0) / 100)
+      iva += sub * (ivaPorcentaje(item.iva_porcentaje) / 100)
     })
     const total = subtotal + iva
     const totalRetenciones = tieneRetencion ? num(retefuente) + num(reteiva) + num(reteica) : 0

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { obtenerNombreUsuarioActual } from '@/lib/queries/perfil'
 import { uppercaseFormData } from '@/lib/uppercase'
+import { montoDesdeTexto } from '@/lib/numeros'
 
 export interface ResultadoAccion {
   ok: boolean
@@ -25,14 +26,26 @@ function refrescarTodo() {
   revalidatePath('/')
 }
 
+/**
+ * OJO: la version anterior hacia replace(/\./g, '') a ciegas, asi que
+ * un traslado de "2500.50" se registraba como 250.050 (100 veces mas).
+ * montoDesdeTexto distingue el punto de miles del punto decimal.
+ */
 function limpiarMonto(valor: string): number {
-  return Number(valor.replace(/\./g, '').replace(',', '.')) || 0
+  return montoDesdeTexto(valor)
 }
 
 // ============================================================
 // MOVIMIENTO MANUAL (ingreso o egreso que no viene de otro modulo)
 // ============================================================
 const CATEGORIAS_MANUALES = ['AJUSTE', 'OTRO', 'PAGO_IMPUESTO'] as const
+
+/**
+ * Que impuesto se pago. Sin este dato la obligacion NUNCA se extingue:
+ * la plata sale del banco y las vistas siguen exigiendo el mismo
+ * impuesto, descontandolo dos veces del disponible real.
+ */
+const TIPOS_IMPUESTO = ['IVA', 'SIMPLE', 'RETEFUENTE', 'RETEICA', 'ICA', 'OTRO'] as const
 
 export async function registrarMovimientoManual(formData: FormData): Promise<ResultadoAccion> {
   uppercaseFormData(formData)
@@ -56,6 +69,24 @@ export async function registrarMovimientoManual(formData: FormData): Promise<Res
   if (!concepto) return { ok: false, mensaje: 'Escribe de que se trata el movimiento.' }
   if (!(CATEGORIAS_MANUALES as readonly string[]).includes(categoria)) {
     return { ok: false, mensaje: 'Categoria no valida para un movimiento manual.' }
+  }
+
+  // Si es un pago de impuesto hay que saber CUAL, para poder descontar
+  // esa obligacion. Si no, el ERP seguiria pidiendo apartar esa plata.
+  const tipoImpuestoRaw = String(formData.get('tipo_impuesto') ?? '').trim().toUpperCase()
+  let tipo_impuesto: string | null = null
+
+  if (categoria === 'PAGO_IMPUESTO') {
+    if (!(TIPOS_IMPUESTO as readonly string[]).includes(tipoImpuestoRaw)) {
+      return {
+        ok: false,
+        mensaje: 'Indica que impuesto estas pagando (IVA, Simple, retefuente, reteICA, ICA u otro). Sin eso el sistema no puede descontar la obligacion.',
+      }
+    }
+    if (tipo !== 'EGRESO') {
+      return { ok: false, mensaje: 'Un pago de impuesto es una salida de dinero, no una entrada.' }
+    }
+    tipo_impuesto = tipoImpuestoRaw
   }
 
   try {
@@ -85,6 +116,7 @@ export async function registrarMovimientoManual(formData: FormData): Promise<Res
       categoria,
       monto,
       concepto,
+      tipo_impuesto,
       medio_pago: medio_pago || null,
       referencia: referencia || null,
       notas: notas || null,
@@ -97,7 +129,9 @@ export async function registrarMovimientoManual(formData: FormData): Promise<Res
     refrescarTodo()
     return {
       ok: true,
-      mensaje: `${tipo === 'INGRESO' ? 'Entrada' : 'Salida'} de ${fmt.format(monto)} registrada.`,
+      mensaje: tipo_impuesto
+        ? `Pago de ${tipo_impuesto} por ${fmt.format(monto)} registrado. La obligacion quedo descontada.`
+        : `${tipo === 'INGRESO' ? 'Entrada' : 'Salida'} de ${fmt.format(monto)} registrada.`,
     }
   } catch (e) {
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al registrar.' }
@@ -169,6 +203,16 @@ export async function eliminarMovimientoTesoreria(formData: FormData): Promise<R
 // TRASLADO ENTRE CUENTAS
 // Genera dos movimientos emparejados: sale de una, entra a la otra.
 // ============================================================
+/**
+ * Traslada plata entre dos cuentas propias.
+ *
+ * Usa la funcion de base de datos trasladar_entre_cuentas, que hace los
+ * dos movimientos en UNA transaccion. La version anterior hacia 3
+ * llamadas sueltas y si fallaba a mitad podia:
+ *   - dejar un EGRESO huerfano (plata que sale y no entra a ningun lado)
+ *   - dejar el emparejamiento a medias, y al borrar un lado quedaba
+ *     vivo el otro (plata creada de la nada)
+ */
 async function ejecutarTraslado(
   cuenta_origen_id: string,
   cuenta_destino_id: string,
@@ -177,82 +221,30 @@ async function ejecutarTraslado(
   concepto: string,
 ): Promise<{ ok: boolean; mensaje: string }> {
   const supabase = createServerSupabaseClient()
-
-  const { data: cuentas } = await supabase
-    .from('saldos_cuentas')
-    .select('id, nombre, saldo_actual')
-    .in('id', [cuenta_origen_id, cuenta_destino_id])
-
-  const origen = (cuentas ?? []).find((c) => String(c.id) === cuenta_origen_id)
-  const destino = (cuentas ?? []).find((c) => String(c.id) === cuenta_destino_id)
-
-  if (!origen) return { ok: false, mensaje: 'La cuenta de origen no existe.' }
-  if (!destino) return { ok: false, mensaje: 'La cuenta de destino no existe.' }
-
-  const saldoOrigen = Number(origen.saldo_actual ?? 0)
-  if (saldoOrigen < monto) {
-    return {
-      ok: false,
-      mensaje: `${origen.nombre} solo tiene ${fmt.format(saldoOrigen)} y quieres trasladar ${fmt.format(monto)}.`,
-    }
-  }
-
   const usuario = await obtenerNombreUsuarioActual()
 
-  // 1. Sale de la cuenta origen
-  const { data: salida, error: errSalida } = await supabase
-    .from('movimientos_tesoreria')
-    .insert({
-      cuenta_id: cuenta_origen_id,
-      fecha,
-      tipo: 'EGRESO',
-      categoria: 'TRASLADO_SALIDA',
-      monto,
-      concepto: `${concepto} (sale de ${origen.nombre})`,
-      medio_pago: 'Transferencia',
-      creado_por_id: usuario.id,
-      creado_por_nombre: usuario.nombre,
-    })
-    .select('id')
-    .single()
+  const { data, error } = await supabase.rpc('trasladar_entre_cuentas', {
+    p_cuenta_origen: cuenta_origen_id,
+    p_cuenta_destino: cuenta_destino_id,
+    p_monto: monto,
+    p_fecha: fecha,
+    p_concepto: concepto,
+    p_usuario_id: usuario.id,
+    p_usuario_nombre: usuario.nombre,
+  })
 
-  if (errSalida || !salida) {
-    return { ok: false, mensaje: errSalida?.message ?? 'No se pudo registrar la salida.' }
+  if (error) {
+    return { ok: false, mensaje: `No se pudo trasladar: ${error.message}` }
   }
 
-  // 2. Entra a la cuenta destino, apuntando a la salida
-  const { data: entrada, error: errEntrada } = await supabase
-    .from('movimientos_tesoreria')
-    .insert({
-      cuenta_id: cuenta_destino_id,
-      fecha,
-      tipo: 'INGRESO',
-      categoria: 'TRASLADO_ENTRADA',
-      monto,
-      concepto: `${concepto} (entra a ${destino.nombre})`,
-      medio_pago: 'Transferencia',
-      movimiento_relacionado_id: salida.id,
-      creado_por_id: usuario.id,
-      creado_por_nombre: usuario.nombre,
-    })
-    .select('id')
-    .single()
-
-  if (errEntrada || !entrada) {
-    // Deshacer la salida para no dejar plata perdida
-    await supabase.from('movimientos_tesoreria').delete().eq('id', salida.id)
-    return { ok: false, mensaje: errEntrada?.message ?? 'No se pudo registrar la entrada. Se deshizo la salida.' }
+  const res = data as { ok?: boolean; mensaje?: string } | null
+  if (!res) {
+    return { ok: false, mensaje: 'No se pudo trasladar (sin respuesta de la base de datos).' }
   }
-
-  // 3. Cerrar el emparejamiento en el otro sentido
-  await supabase
-    .from('movimientos_tesoreria')
-    .update({ movimiento_relacionado_id: entrada.id })
-    .eq('id', salida.id)
 
   return {
-    ok: true,
-    mensaje: `${fmt.format(monto)} trasladados de ${origen.nombre} a ${destino.nombre}.`,
+    ok: Boolean(res.ok),
+    mensaje: res.mensaje ?? (res.ok ? 'Traslado registrado.' : 'No se pudo trasladar.'),
   }
 }
 

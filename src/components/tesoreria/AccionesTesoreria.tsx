@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { formatCOP } from '@/lib/format'
+import { montoDesdeTexto } from '@/lib/numeros'
 import { registrarMovimientoManual, trasladarEntreCuentas } from '@/app/(dashboard)/tesoreria/actions'
 import { Plus, ArrowLeftRight, X, Loader2 } from 'lucide-react'
 
@@ -24,6 +25,7 @@ export default function AccionesTesoreria({ cuentas, saldos }: Props) {
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
   const [medioPago, setMedioPago] = useState('Transferencia')
   const [referencia, setReferencia] = useState('')
+  const [tipoImpuesto, setTipoImpuesto] = useState('IVA')
 
   // Traslado
   const [origenId, setOrigenId] = useState('')
@@ -37,6 +39,7 @@ export default function AccionesTesoreria({ cuentas, saldos }: Props) {
     setMonto('')
     setConcepto('')
     setReferencia('')
+    setTipoImpuesto('IVA')
     setFecha(new Date().toISOString().slice(0, 10))
     setModal(cual)
   }
@@ -51,6 +54,7 @@ export default function AccionesTesoreria({ cuentas, saldos }: Props) {
     fd.set('concepto', concepto)
     fd.set('medio_pago', medioPago)
     fd.set('referencia', referencia)
+    if (categoria === 'PAGO_IMPUESTO') fd.set('tipo_impuesto', tipoImpuesto)
 
     startTransition(async () => {
       const res = await registrarMovimientoManual(fd)
@@ -75,7 +79,7 @@ export default function AccionesTesoreria({ cuentas, saldos }: Props) {
   }
 
   const saldoOrigen = saldos[origenId] ?? 0
-  const montoNum = Number(monto.replace(/\./g, '').replace(',', '.')) || 0
+  const montoNum = montoDesdeTexto(monto)
   const noAlcanza = montoNum > 0 && montoNum > saldoOrigen
 
   return (
@@ -190,6 +194,33 @@ export default function AccionesTesoreria({ cuentas, saldos }: Props) {
                   </select>
                 </div>
               </div>
+
+              {/* Que impuesto se esta pagando: sin esto la obligacion
+                  nunca se descuenta y el sistema la sigue exigiendo */}
+              {categoria === 'PAGO_IMPUESTO' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+                  <label className="block text-sm font-medium text-amber-900">
+                    Que impuesto estas pagando *
+                  </label>
+                  <select
+                    value={tipoImpuesto}
+                    onChange={(e) => setTipoImpuesto(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-amber-300 bg-white rounded-xl text-sm"
+                  >
+                    <option value="IVA">IVA (declaracion bimestral)</option>
+                    <option value="SIMPLE">Regimen Simple (anticipo o anual)</option>
+                    <option value="RETEFUENTE">Retefuente que le practicaste a proveedores</option>
+                    <option value="RETEICA">ReteICA que le practicaste a proveedores</option>
+                    <option value="ICA">ICA (industria y comercio)</option>
+                    <option value="OTRO">Otro impuesto</option>
+                  </select>
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    Es obligatorio: con esto el sistema descuenta la obligacion. Si no lo
+                    marcas, la plata sale del banco pero el ERP te seguira diciendo que
+                    debes ese impuesto.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Referencia</label>

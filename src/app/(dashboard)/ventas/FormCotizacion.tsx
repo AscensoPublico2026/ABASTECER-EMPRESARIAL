@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { crearCotizacion } from './actions'
 import { formatCOP } from '@/lib/format'
-import { ivaPorcentaje } from '@/lib/numeros'
+import { ivaPorcentaje, cantidadValida } from '@/lib/numeros'
 import { PlusCircle, X, Loader2, CheckCircle2, AlertCircle, Trash2, Plus } from 'lucide-react'
 import MiniFormCliente from '@/components/inline/MiniFormCliente'
 import MiniFormProducto from '@/components/inline/MiniFormProducto'
@@ -78,7 +78,7 @@ export default function FormCotizacion({ clientes: clientesIniciales, productos:
       const cant = Number(item.cantidad) || 0
       const precio = Number(item.precio_unitario.replace(/\./g, '').replace(',', '.')) || 0
       const costo = Number(item.costo_unitario.replace(/\./g, '').replace(',', '.')) || 0
-      const ivaPct = Number(item.iva_porcentaje) || 0
+      const ivaPct = ivaPorcentaje(item.iva_porcentaje)
       const sub = cant * precio
       subtotal += sub
       iva += sub * (ivaPct / 100)
@@ -93,11 +93,11 @@ export default function FormCotizacion({ clientes: clientesIniciales, productos:
     const itemsParseados = items.map((item) => ({
       producto_id: item.producto_id || null,
       descripcion: item.descripcion,
-      cantidad: Number(item.cantidad) || 1,
+      cantidad: cantidadValida(item.cantidad),
       precio_unitario: Number(item.precio_unitario.replace(/\./g, '').replace(',', '.')) || 0,
       costo_unitario: Number(item.costo_unitario.replace(/\./g, '').replace(',', '.')) || 0,
       iva_porcentaje: ivaPorcentaje(item.iva_porcentaje),
-    })).filter((i) => i.descripcion && i.precio_unitario > 0)
+    })).filter((i) => i.descripcion.trim() !== '' && i.cantidad > 0)
 
     formData.set('items', JSON.stringify(itemsParseados))
     setResultado(null)
