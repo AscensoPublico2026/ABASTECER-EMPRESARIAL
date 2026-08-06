@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { ventaDirecta } from './actions'
 import { formatCOP } from '@/lib/format'
-import { ivaPorcentaje } from '@/lib/numeros'
+import { ivaPorcentaje, cantidadValida } from '@/lib/numeros'
 import { ShoppingBag, X, Loader2, CheckCircle2, AlertCircle, Trash2, Plus, AlertTriangle } from 'lucide-react'
 
 interface Props {
@@ -59,7 +59,7 @@ export default function FormVentaDirecta({ clientes, productos }: Props) {
       const cant = Number(item.cantidad) || 0
       const precio = Number(item.precio_unitario.toString().replace(/\./g, '').replace(',', '.')) || 0
       const costo = Number(item.costo_unitario.toString().replace(/\./g, '').replace(',', '.')) || 0
-      const ivaPct = Number(item.iva_porcentaje) || 0
+      const ivaPct = ivaPorcentaje(item.iva_porcentaje)
       const sub = cant * precio
       subtotal += sub
       iva += sub * (ivaPct / 100)
@@ -81,11 +81,11 @@ export default function FormVentaDirecta({ clientes, productos }: Props) {
     const itemsParseados = items.map((item) => ({
       producto_id: item.producto_id || null,
       descripcion: item.descripcion,
-      cantidad: Number(item.cantidad) || 1,
+      cantidad: cantidadValida(item.cantidad),
       precio_unitario: Number(item.precio_unitario.toString().replace(/\./g, '').replace(',', '.')) || 0,
       costo_unitario: Number(item.costo_unitario.toString().replace(/\./g, '').replace(',', '.')) || 0,
       iva_porcentaje: ivaPorcentaje(item.iva_porcentaje),
-    })).filter((i) => i.descripcion && i.precio_unitario > 0)
+    })).filter((i) => i.descripcion.trim() !== '' && i.cantidad > 0)
     formData.set('items', JSON.stringify(itemsParseados))
     setResultado(null)
     startTransition(async () => {

@@ -10,6 +10,7 @@ import {
   cerrarSolicitudesCubiertas,
 } from '@/lib/queries/costeo'
 import { obtenerFacturaCompraDetalle } from '@/lib/queries/compras'
+import { montoDesdeTexto } from '@/lib/numeros'
 
 export interface ResultadoAccion {
   ok: boolean
@@ -38,15 +39,36 @@ const fmt = new Intl.NumberFormat('es-CO', {
 })
 
 function montoDesdeCampo(v: FormDataEntryValue | null): number {
-  const n = Number(String(v ?? '0').replace(/\./g, '').replace(',', '.'))
-  return Number.isFinite(n) && n > 0 ? Math.round(n) : 0
+  if (v === null || typeof v !== 'string') return 0
+  const n = montoDesdeTexto(v)
+  return n > 0 ? Math.round(n) : 0
 }
 
+/**
+ * Dias de credito segun la forma de pago.
+ *
+ * OJO: antes usaba forma.includes('15') etc, y eso rompia en dos formas:
+ *   "CREDITO 90 DIAS"  -> no encontraba nada -> 0 dias -> la factura
+ *                         quedaba PAGADA y creaba un egreso de caja
+ *                         que nunca ocurrio
+ *   "CREDITO 20 DIAS"  -> encontraba el '2' de 20 en ningun patron,
+ *                         o peor, un '15' dentro de "150" daba 15
+ * Ahora extrae el numero real de dias del texto.
+ */
 function diasDeFormaPago(forma: string): number {
-  if (forma.includes('15')) return 15
-  if (forma.includes('30')) return 30
-  if (forma.includes('45')) return 45
-  if (forma.includes('60')) return 60
+  const texto = String(forma ?? '').toUpperCase()
+
+  // Contado explicito
+  if (texto.includes('CONTADO') || texto.includes('EFECTIVO')) return 0
+
+  // Extraer el primer numero del texto ("CREDITO 90 DIAS" -> 90)
+  const match = texto.match(/(\d+)/)
+  if (match) {
+    const dias = Number(match[1])
+    if (Number.isFinite(dias) && dias >= 0 && dias <= 365) return dias
+  }
+
+  // Sin numero y sin decir contado: asumir contado (comportamiento previo)
   return 0
 }
 
@@ -97,23 +119,78 @@ function calcularItems(items: ItemInput[]) {
 }
 
 /** Empareja los items guardados en BD con sus asignaciones originales */
+/**
+ * Empareja los items que quedaron guardados en BD con sus asignaciones.
+ *
+ * OJO: la version anterior usaba find() por (descripcion, cantidad) sin
+ * consumir el candidato. Con dos lineas de la misma descripcion y misma
+ * cantidad pero precios distintos, AMBAS recibian las asignaciones de la
+ * primera:
+ *   Linea 1: 5u @ 10.000 -> VENTA A
+ *   Linea 2: 5u @ 18.000 -> VENTA B
+ * Resultado: las 10 unidades iban a VENTA A y VENTA B quedaba con costo 0
+ * y margen 100%. La utilidad consolidada se inflaba en 70.000.
+ *
+ * Ahora empareja incluyendo el precio y CONSUME el candidato, para que
+ * cada linea reciba lo suyo. Si algo no se puede emparejar, se reporta
+ * en vez de degradarse en silencio a "todo a stock, IVA 0".
+ */
 function emparejarAsignaciones(
   itemsGuardados: { id: string; producto_id: string | null; cantidad: number; precio_unitario: number; descripcion: string }[],
   calculados: ItemCalculado[]
-) {
-  return itemsGuardados.map((g) => {
-    const original = calculados.find(
-      (c) => c.fila.descripcion === g.descripcion && Number(c.fila.cantidad) === Number(g.cantidad)
+): { emparejados: ReturnType<typeof mapearItem>[]; sinEmparejar: number } {
+  const disponibles = [...calculados]
+  let sinEmparejar = 0
+
+  const emparejados = itemsGuardados.map((g) => {
+    // 1er intento: descripcion + cantidad + precio (el mas preciso)
+    let idx = disponibles.findIndex(
+      (c) =>
+        c.fila.descripcion === g.descripcion &&
+        Number(c.fila.cantidad) === Number(g.cantidad) &&
+        Number(c.fila.precio_unitario) === Number(g.precio_unitario)
     )
-    return {
-      id: g.id,
-      producto_id: g.producto_id,
-      cantidad: Number(g.cantidad),
-      precio_unitario: Number(g.precio_unitario),
-      iva_unitario: original?.iva_unitario ?? 0,
-      asignaciones: original?.asignaciones ?? [],
+
+    // 2do intento: descripcion + precio (por si la cantidad se redondeo
+    // al guardar, ej. 0.333 -> 0.33 en numeric(10,2))
+    if (idx === -1) {
+      idx = disponibles.findIndex(
+        (c) =>
+          c.fila.descripcion === g.descripcion &&
+          Number(c.fila.precio_unitario) === Number(g.precio_unitario)
+      )
     }
+
+    // 3er intento: solo descripcion
+    if (idx === -1) {
+      idx = disponibles.findIndex((c) => c.fila.descripcion === g.descripcion)
+    }
+
+    if (idx === -1) {
+      sinEmparejar++
+      return mapearItem(g, null)
+    }
+
+    const original = disponibles[idx]
+    disponibles.splice(idx, 1) // consumir para que no se reutilice
+    return mapearItem(g, original)
   })
+
+  return { emparejados, sinEmparejar }
+}
+
+function mapearItem(
+  g: { id: string; producto_id: string | null; cantidad: number; precio_unitario: number; descripcion: string },
+  original: ItemCalculado | null
+) {
+  return {
+    id: g.id,
+    producto_id: g.producto_id,
+    cantidad: Number(g.cantidad),
+    precio_unitario: Number(g.precio_unitario),
+    iva_unitario: original?.iva_unitario ?? 0,
+    asignaciones: original?.asignaciones ?? [],
+  }
 }
 
 /**
@@ -244,6 +321,27 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
   try {
     const supabase = createServerSupabaseClient()
 
+    // 0. Evitar duplicados: mismo proveedor + mismo numero de factura
+    // (por doble clic, reintento tras error, etc). No aplica a Documento
+    // Soporte porque ahi el numero se genera solo (DS-2026-00X).
+    if (!esDocSoporte && numero_factura) {
+      const { data: yaExiste } = await supabase
+        .from('facturas_compra')
+        .select('id, total, estado')
+        .eq('proveedor_id', proveedor_id)
+        .eq('numero_factura', numero_factura)
+        .neq('estado', 'ANULADA')
+        .limit(1)
+        .maybeSingle()
+
+      if (yaExiste) {
+        return {
+          ok: false,
+          mensaje: `Ya existe una factura ${numero_factura} de este proveedor por ${fmt.format(Number(yaExiste.total))} (estado ${yaExiste.estado}). Si es otra factura distinta con el mismo numero, revisala en la lista. Si fue un doble clic, no la registres de nuevo.`,
+        }
+      }
+    }
+
     // 1. Cabecera
     // Si es documento soporte sin numero de factura, usar placeholder temporal
     const numFacturaInicial = numero_factura || (esDocSoporte ? 'DS-PENDIENTE' : '')
@@ -269,7 +367,15 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
       .select('id')
       .single()
 
-    if (errFactura) return { ok: false, mensaje: errFactura.message }
+    if (errFactura) {
+      if (errFactura.code === '23505') {
+        return {
+          ok: false,
+          mensaje: `Ya existe una factura ${numFacturaInicial} de este proveedor. No se volvio a registrar.`,
+        }
+      }
+      return { ok: false, mensaje: errFactura.message }
+    }
 
     // 2. Items (el trigger actualiza costo_promedio y stock)
     const { data: itemsGuardados, error: errItems } = await supabase
@@ -280,7 +386,13 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
     if (errItems) return { ok: false, mensaje: errItems.message }
 
     // 3. Asignacion de costos (nucleo del modelo)
-    const paraAsignar = emparejarAsignaciones(itemsGuardados ?? [], calculados)
+    const { emparejados: paraAsignar, sinEmparejar } = emparejarAsignaciones(itemsGuardados ?? [], calculados)
+    if (sinEmparejar > 0) {
+      return {
+        ok: false,
+        mensaje: `No se pudo emparejar ${sinEmparejar} item(s) con su asignacion de costo. Revisa que no haya lineas identicas y vuelve a intentar.`,
+      }
+    }
 
     const errAsig = await crearAsignaciones(supabase, factura.id, paraAsignar)
     if (errAsig) return { ok: false, mensaje: `Factura guardada pero fallo la asignacion: ${errAsig}` }
@@ -535,7 +647,13 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
     if (errItems) return { ok: false, mensaje: errItems.message }
 
     // Reasignar costos
-    const paraAsignar = emparejarAsignaciones(itemsGuardados ?? [], calculados)
+    const { emparejados: paraAsignar, sinEmparejar } = emparejarAsignaciones(itemsGuardados ?? [], calculados)
+    if (sinEmparejar > 0) {
+      return {
+        ok: false,
+        mensaje: `No se pudo emparejar ${sinEmparejar} item(s) con su asignacion de costo. Revisa que no haya lineas identicas.`,
+      }
+    }
 
     const errAsig = await crearAsignaciones(supabase, factura_id, paraAsignar)
     if (errAsig) return { ok: false, mensaje: `Factura actualizada pero fallo la asignacion: ${errAsig}` }

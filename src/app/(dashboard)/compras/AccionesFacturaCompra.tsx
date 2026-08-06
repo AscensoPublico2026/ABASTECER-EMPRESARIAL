@@ -194,7 +194,7 @@ export default function AccionesFacturaCompra({
     for (const it of items) {
       const sub = (Number(it.cantidad) || 0) * num(it.precio_unitario)
       subtotal += sub
-      iva += sub * ((Number(it.iva_porcentaje) || 0) / 100)
+      iva += sub * (ivaPorcentaje(it.iva_porcentaje) / 100)
     }
     const total = subtotal + iva
     const totalRetenciones = tieneRetencion ? num(retefuente) + num(reteiva) + num(reteica) : 0
