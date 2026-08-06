@@ -385,6 +385,14 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
 
   if (!factura_venta_id) return { ok: false, mensaje: 'Factura no valida.' }
   if (!fecha_pago) return { ok: false, mensaje: 'Selecciona la fecha en que se recibio el pago.' }
+  // Mismo bug que en el pago de contado: sin cuenta, el cobro quedaba
+  // escrito en la factura pero la plata nunca entraba al banco.
+  if (!cuenta_id) {
+    return {
+      ok: false,
+      mensaje: 'Selecciona a que cuenta entro el dinero. Sin cuenta el cobro no queda registrado en el banco y el saldo no cuadra.',
+    }
+  }
 
   const total_retenciones = retefuente + rete_iva + rete_ica
 
@@ -459,8 +467,10 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
           : null,
       })
 
-      // Registrar la entrada de dinero en tesoreria
-      if (cuenta_id) {
+      // Registrar la entrada de dinero en tesoreria.
+      // La cuenta es obligatoria (se valida al inicio): sin ella el cobro
+      // quedaba escrito en la factura pero la plata nunca entraba al banco.
+      {
         const usuario = await obtenerNombreUsuarioActual()
         const { error: errCaja } = await supabase.from('movimientos_tesoreria').insert({
           cuenta_id,
@@ -479,11 +489,21 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
           creado_por_id: usuario.id,
           creado_por_nombre: usuario.nombre,
         })
-        avisoCaja = errCaja
-          ? ` Ojo: no se pudo registrar en caja (${errCaja.message}).`
-          : ' El dinero entro a la cuenta.'
-      } else {
-        avisoCaja = ' No se registro el ingreso en caja.'
+        if (errCaja) {
+          // Devolver la factura a EMITIDA para que se pueda reintentar.
+          // Si la dejamos COBRADA, el guard de idempotencia bloquea el
+          // reintento y la plata nunca queda en el banco.
+          await supabase
+            .from('facturas_venta')
+            .update({ estado: 'EMITIDA' })
+            .eq('id', factura_venta_id)
+
+          return {
+            ok: false,
+            mensaje: `No se pudo registrar la entrada de dinero en la cuenta (${errCaja.message}). La factura sigue como EMITIDA para que no quede plata fantasma. Corrige y vuelve a intentar.`,
+          }
+        }
+        avisoCaja = ' El dinero entro a la cuenta.'
       }
 
       // Reflejar el cobro y las retenciones en la cotizacion.
@@ -547,6 +567,20 @@ export async function registrarPagoContado(formData: FormData): Promise<Resultad
   if (!cotizacion_id) return { ok: false, mensaje: 'Cotizacion no valida.' }
   if (!fecha_pago) return { ok: false, mensaje: 'Fecha de pago obligatoria.' }
   if (!soporte_url) return { ok: false, mensaje: 'Soporte de pago obligatorio.' }
+  // La cuenta es OBLIGATORIA.
+  //
+  // BUG QUE ESTO ARREGLA: antes el insert en tesoreria estaba dentro de
+  // un `if (cuenta_id)`. Si venia vacio, el pago se guardaba en la
+  // cotizacion (monto_recibido, fecha_pago, estado) pero NUNCA entraba
+  // al banco, y la accion devolvia OK en verde. La plata quedaba
+  // registrada en la venta y era invisible en Tesoreria, en el saldo y
+  // en la trazabilidad. Un pago que no entra a una cuenta no es un pago.
+  if (!cuenta_id) {
+    return {
+      ok: false,
+      mensaje: 'Selecciona a que cuenta entro el dinero. Sin cuenta el pago no queda registrado en el banco y el saldo no cuadra.',
+    }
+  }
 
   const total_retenciones = retefuente + rete_iva + rete_ica
 
@@ -617,30 +651,51 @@ export async function registrarPagoContado(formData: FormData): Promise<Resultad
       url_archivo: soporte_url,
     })
 
-    // Registrar la entrada de dinero en tesoreria
-    let avisoCaja = ' No se registro el ingreso en caja.'
-    if (cuenta_id) {
-      const usuario = await obtenerNombreUsuarioActual()
-      const { error: errCaja } = await supabase.from('movimientos_tesoreria').insert({
-        cuenta_id,
-        fecha: fecha_pago,
-        tipo: 'INGRESO',
-        categoria: 'COBRO_CLIENTE',
-        monto: monto_recibido,
-        concepto: `Pago de cliente ${cot.numero}`,
-        cotizacion_id,
-        medio_pago: 'Transferencia',
-        soporte_url,
-        notas: total_retenciones > 0
-          ? `Retenciones: Rtefte ${retefuente} | RteIVA ${rete_iva} | RteICA ${rete_ica}`
-          : null,
-        creado_por_id: usuario.id,
-        creado_por_nombre: usuario.nombre,
-      })
-      avisoCaja = errCaja
-        ? ` Ojo: no se pudo registrar en caja (${errCaja.message}).`
-        : ' El dinero entro a la cuenta.'
+    // Registrar la entrada de dinero en tesoreria.
+    // Si esto falla NO se puede dejar la venta marcada como pagada: seria
+    // plata fantasma. Se revierte la cotizacion y se devuelve el error,
+    // asi el usuario puede reintentar (el guard de fecha_pago lo dejaria
+    // bloqueado para siempre si no revertimos).
+    const usuario = await obtenerNombreUsuarioActual()
+    const { error: errCaja } = await supabase.from('movimientos_tesoreria').insert({
+      cuenta_id,
+      fecha: fecha_pago,
+      tipo: 'INGRESO',
+      categoria: 'COBRO_CLIENTE',
+      monto: monto_recibido,
+      concepto: `Pago de cliente ${cot.numero}`,
+      cotizacion_id,
+      medio_pago: 'Transferencia',
+      soporte_url,
+      notas: total_retenciones > 0
+        ? `Retenciones: Rtefte ${retefuente} | RteIVA ${rete_iva} | RteICA ${rete_ica}`
+        : null,
+      creado_por_id: usuario.id,
+      creado_por_nombre: usuario.nombre,
+    })
+
+    if (errCaja) {
+      await supabase
+        .from('cotizaciones')
+        .update({
+          estado: cot.estado,
+          fecha_pago: null,
+          monto_recibido: 0,
+          retencion_retefuente: 0,
+          retencion_reteiva: 0,
+          retencion_reteica: 0,
+          retencion_total: 0,
+          soporte_pago_url: null,
+        })
+        .eq('id', cotizacion_id)
+
+      return {
+        ok: false,
+        mensaje: `No se pudo registrar la entrada de dinero en la cuenta (${errCaja.message}). No se marco la venta como pagada para que no quede plata fantasma. Corrige y vuelve a intentar.`,
+      }
     }
+
+    const avisoCaja = ' El dinero entro a la cuenta.'
 
     revalidatePath('/ventas')
     revalidatePath('/financiero')
