@@ -24,6 +24,7 @@ interface Props {
     forma_pago: string
     estado: string
     total: number
+    retencion_total?: number
     soporte_url: string | null
     proveedor_id?: string | null
   }
@@ -74,6 +75,10 @@ export default function AccionesFacturaCompra({
   const [formaPago, setFormaPago] = useState(factura.forma_pago)
   const [notas, setNotas] = useState('')
   const [cuentaId, setCuentaId] = useState('')
+  const [tieneRetencion, setTieneRetencion] = useState(false)
+  const [retefuente, setRetefuente] = useState('')
+  const [reteiva, setReteiva] = useState('')
+  const [reteica, setReteica] = useState('')
 
   const anulada = factura.estado === 'ANULADA'
   const pagada = factura.estado === 'PAGADA'
@@ -105,6 +110,11 @@ export default function AccionesFacturaCompra({
       setFechaFactura(detalle.fecha_factura?.slice(0, 10) ?? hoy())
       setFormaPago(detalle.forma_pago)
       setNotas(detalle.notas ?? '')
+      const hayRetencion = detalle.retencion_retefuente > 0 || detalle.retencion_reteiva > 0 || detalle.retencion_reteica > 0
+      setTieneRetencion(hayRetencion)
+      setRetefuente(detalle.retencion_retefuente > 0 ? String(detalle.retencion_retefuente) : '')
+      setReteiva(detalle.retencion_reteiva > 0 ? String(detalle.retencion_reteiva) : '')
+      setReteica(detalle.retencion_reteica > 0 ? String(detalle.retencion_reteica) : '')
       setItems(detalle.items.map((it) => ({
         producto_id: it.producto_id ?? '',
         descripcion: it.descripcion,
@@ -186,7 +196,9 @@ export default function AccionesFacturaCompra({
       subtotal += sub
       iva += sub * ((Number(it.iva_porcentaje) || 0) / 100)
     }
-    return { subtotal, iva, total: subtotal + iva }
+    const total = subtotal + iva
+    const totalRetenciones = tieneRetencion ? num(retefuente) + num(reteiva) + num(reteica) : 0
+    return { subtotal, iva, total, totalRetenciones, neto: total - totalRetenciones }
   }
 
   async function handleEditar() {
@@ -228,6 +240,9 @@ export default function AccionesFacturaCompra({
     formData.set('notas', notas)
     formData.set('items', JSON.stringify(itemsParseados))
     if (cuentaId) formData.set('cuenta_id', cuentaId)
+    formData.set('retencion_retefuente', tieneRetencion ? (retefuente || '0') : '0')
+    formData.set('retencion_reteiva', tieneRetencion ? (reteiva || '0') : '0')
+    formData.set('retencion_reteica', tieneRetencion ? (reteica || '0') : '0')
 
     setResultado(null)
     setSubiendo(true)
@@ -585,6 +600,60 @@ export default function AccionesFacturaCompra({
                   </div>
                 </div>
 
+                {/* Retenciones que el proveedor descuenta al pagarle */}
+                <div className="border border-gray-200 rounded-xl overflow-hidden">
+                  <label className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 cursor-pointer">
+                    <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={tieneRetencion}
+                        onChange={(e) => setTieneRetencion(e.target.checked)}
+                        className="rounded border-gray-300 text-purple-600"
+                      />
+                      El proveedor descuenta retencion al pagarle
+                    </span>
+                    <span className="text-xs text-gray-400">Retefuente, ReteIVA o ReteICA</span>
+                  </label>
+
+                  {tieneRetencion && (
+                    <div className="p-4 space-y-3 bg-purple-50/40">
+                      <p className="text-xs text-purple-700">
+                        Ojo: en Regimen Simple normalmente NO son agentes de retencion (Art. 911 par. 4 ET),
+                        salvo pagos laborales. Verifica si esta retencion aplicaba antes de dejarla.
+                      </p>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">Retefuente</label>
+                          <input
+                            value={retefuente}
+                            onChange={(e) => setRetefuente(e.target.value)}
+                            inputMode="numeric" placeholder="0"
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-right bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">ReteIVA</label>
+                          <input
+                            value={reteiva}
+                            onChange={(e) => setReteiva(e.target.value)}
+                            inputMode="numeric" placeholder="0"
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-right bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">ReteICA</label>
+                          <input
+                            value={reteica}
+                            onChange={(e) => setReteica(e.target.value)}
+                            inputMode="numeric" placeholder="0"
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-right bg-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Totales recalculados en vivo */}
                 <div className="bg-blue-50 rounded-xl p-4 space-y-1.5 text-sm">
                   <div className="flex justify-between text-gray-600">
@@ -599,9 +668,21 @@ export default function AccionesFacturaCompra({
                     <span>Total factura:</span>
                     <span className="tabular-nums">{formatCOP(calcularTotales().total)}</span>
                   </div>
+                  {calcularTotales().totalRetenciones > 0 && (
+                    <>
+                      <div className="flex justify-between text-purple-700">
+                        <span>(−) Retenciones:</span>
+                        <span className="tabular-nums">{formatCOP(calcularTotales().totalRetenciones)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-purple-800 text-base pt-1.5 border-t border-purple-200">
+                        <span>Neto a pagar:</span>
+                        <span className="tabular-nums">{formatCOP(calcularTotales().neto)}</span>
+                      </div>
+                    </>
+                  )}
                   {calcularTotales().total !== factura.total && (
                     <p className="text-xs text-amber-700 pt-1.5 border-t border-blue-200">
-                      Antes era {formatCOP(factura.total)}. La salida de caja se ajustara.
+                      El total de la factura antes era {formatCOP(factura.total)}. La salida de caja se ajustara.
                     </p>
                   )}
                 </div>
@@ -691,8 +772,14 @@ export default function AccionesFacturaCompra({
             <form action={handlePagar} className="p-6 space-y-4">
               <div className="bg-emerald-50 rounded-xl p-3">
                 <p className="text-sm text-emerald-800 font-medium">
-                  Se registra la salida de {formatCOP(factura.total)} de la cuenta que elijas.
+                  Se registra la salida de {formatCOP((factura.retencion_total ?? 0) > 0 ? factura.total - (factura.retencion_total ?? 0) : factura.total)} de la cuenta que elijas.
                 </p>
+                {(factura.retencion_total ?? 0) > 0 && (
+                  <p className="text-xs text-emerald-700 mt-1">
+                    Esta factura ya tiene {formatCOP(factura.retencion_total ?? 0)} de retencion registrada. Si el proveedor te va a descontar
+                    otro monto al pagarle, corrigelo en Editar antes de marcar como pagada.
+                  </p>
+                )}
               </div>
 
               <div>

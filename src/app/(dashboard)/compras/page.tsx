@@ -4,11 +4,12 @@ import {
   obtenerProveedoresParaSelect,
   obtenerCotizacionesParaAsignar,
   obtenerItemsPendientesAsignar,
+  obtenerRetencionesPracticadas,
 } from '@/lib/queries/compras'
 import { obtenerProductoParaSelect } from '@/lib/queries/productos'
 import { obtenerCuentasParaSelect } from '@/lib/queries/tesoreria'
 import { formatCOP, formatFecha } from '@/lib/format'
-import { ShoppingCart, Target } from 'lucide-react'
+import { ShoppingCart, Target, ShieldAlert } from 'lucide-react'
 import FormFacturaCompra from './FormFacturaCompra'
 import SolicitudesCompra from './SolicitudesCompra'
 import AccionesFacturaCompra from './AccionesFacturaCompra'
@@ -23,6 +24,7 @@ export default async function ComprasPage() {
   const cotizacionesAsignar = await obtenerCotizacionesParaAsignar()
   const cuentas = await obtenerCuentasParaSelect()
   const pendientesAsignar = await obtenerItemsPendientesAsignar()
+  const retenciones = await obtenerRetencionesPracticadas()
 
   // Obtener solicitudes de compra pendientes
   const supabase = createServerSupabaseClient()
@@ -159,6 +161,29 @@ export default async function ComprasPage() {
           </div>
         </div>
 
+        {/* Retenciones practicadas: pasivo con la DIAN */}
+        {retenciones.total_retenido > 0 && (
+          <div className="bg-purple-50 border border-purple-200 rounded-2xl p-5">
+            <div className="flex items-start gap-3">
+              <ShieldAlert className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="font-medium text-purple-900 text-sm">
+                  {formatCOP(retenciones.total_retenido)} retenidos a proveedores ({retenciones.num_facturas_con_retencion} factura(s))
+                </p>
+                <p className="text-purple-700 text-sm mt-0.5">
+                  Esa plata no es de la empresa: es un pasivo con la DIAN. Hay que declararla y pagarla
+                  en la declaracion de retencion en la fuente, y generarle el certificado al proveedor.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-4 text-xs text-purple-800">
+                  {retenciones.retefuente_total > 0 && <span>Retefuente: {formatCOP(retenciones.retefuente_total)}</span>}
+                  {retenciones.reteiva_total > 0 && <span>ReteIVA: {formatCOP(retenciones.reteiva_total)}</span>}
+                  {retenciones.reteica_total > 0 && <span>ReteICA: {formatCOP(retenciones.reteica_total)}</span>}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Table Section */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between gap-4">
@@ -228,6 +253,7 @@ export default async function ComprasPage() {
                               forma_pago: f.forma_pago,
                               estado: f.estado,
                               total: f.total,
+                              retencion_total: f.retencion_total,
                               soporte_url: f.soporte_url,
                               proveedor_id: f.proveedor_id,
                             }}

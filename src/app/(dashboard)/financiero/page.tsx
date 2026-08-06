@@ -107,6 +107,12 @@ export default async function FinancieroPage() {
               <p className="text-xs text-gray-500">(−) Deuda a proveedores</p>
               <p className="font-semibold text-red-600 tabular-nums">{formatCOP(p.cuentas_por_pagar)}</p>
             </div>
+            {p.retenciones_por_declarar > 0 && (
+              <div>
+                <p className="text-xs text-gray-500">(−) Retenciones a declarar</p>
+                <p className="font-semibold text-purple-600 tabular-nums">{formatCOP(p.retenciones_por_declarar)}</p>
+              </div>
+            )}
           </div>
         </div>
 
