@@ -2,6 +2,13 @@
 -- ABASTECER EMPRESARIAL SAS - Evitar facturas de compra duplicadas
 -- Migracion 030
 -- ============================================================
+-- >>> NO CORRAS ESTE ARCHIVO SUELTO <<<
+-- Si todavia hay facturas duplicadas en la base, este indice unico
+-- FALLA con "could not create unique index ... Key is duplicated".
+-- La migracion 031 anula los duplicados y despues crea este mismo
+-- indice, en el orden que si funciona.
+-- Corre supabase/EJECUTAR_TODO.sql en vez de este archivo.
+-- ============================================================
 -- CONTEXTO: se registraron facturas duplicadas (mismo proveedor,
 -- mismo numero de factura, mismo total) por doble clic / reintento
 -- tras un error. Eso duplico stock, pagos, GMF y retenciones.
