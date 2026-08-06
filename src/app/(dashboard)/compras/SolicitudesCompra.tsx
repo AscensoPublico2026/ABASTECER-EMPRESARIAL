@@ -1,8 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { formatCOP } from '@/lib/format'
-import { AlertTriangle, ChevronDown, ChevronUp, Clock, ExternalLink } from 'lucide-react'
+import {
+  AlertTriangle, ChevronDown, ChevronUp, Clock, ExternalLink,
+  Check, X, RefreshCw, Loader2,
+} from 'lucide-react'
+import {
+  marcarSolicitudComprada,
+  cancelarSolicitudCompra,
+  revisarSolicitudesPendientes,
+} from './actions'
 
 interface Solicitud {
   id: string
@@ -53,6 +61,34 @@ function prioridadIcon(p: string) {
 
 export default function SolicitudesCompra({ solicitudes, preciosPorProducto }: Props) {
   const [expandido, setExpandido] = useState<string | null>(null)
+  const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
+  const [ocupado, setOcupado] = useState<string | null>(null)
+  const [pendiente, startTransition] = useTransition()
+
+  function accion(fn: () => Promise<{ ok: boolean; mensaje: string }>, marca: string) {
+    setOcupado(marca)
+    setResultado(null)
+    startTransition(async () => {
+      const res = await fn()
+      setResultado(res)
+      setOcupado(null)
+    })
+  }
+
+  function cerrarSolicitud(id: string) {
+    if (!confirm('Marcar como comprada?\n\nSi no registras la factura de compra, la utilidad de esa venta va a salir mas alta de lo real.')) return
+    const fd = new FormData()
+    fd.set('id', id)
+    accion(() => marcarSolicitudComprada(fd), id)
+  }
+
+  function cancelarSolicitud(id: string) {
+    const motivo = prompt('Por que se cancela? (opcional)') ?? ''
+    const fd = new FormData()
+    fd.set('id', id)
+    fd.set('motivo', motivo)
+    accion(() => cancelarSolicitudCompra(fd), id)
+  }
 
   if (solicitudes.length === 0) return null
 
@@ -105,8 +141,38 @@ export default function SolicitudesCompra({ solicitudes, preciosPorProducto }: P
           <h3 className="font-semibold text-gray-800">Solicitudes de compra</h3>
           <p className="text-xs text-gray-500">Items que necesitas comprar para cumplir pedidos</p>
         </div>
-        <span className="ml-auto px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">{agrupados.length} producto{agrupados.length !== 1 ? 's' : ''}</span>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => accion(() => revisarSolicitudesPendientes(), 'revisar')}
+            disabled={pendiente}
+            title="Cierra las solicitudes cuyo producto ya esta en inventario"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 transition disabled:opacity-50"
+          >
+            {pendiente && ocupado === 'revisar'
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <RefreshCw className="w-3.5 h-3.5" />}
+            Revisar y cerrar las ya compradas
+          </button>
+          <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">{agrupados.length} producto{agrupados.length !== 1 ? 's' : ''}</span>
+        </div>
       </div>
+
+      {/* Por que sigue apareciendo algo que ya compraste */}
+      <div className="px-6 py-3 bg-blue-50/50 border-b border-blue-100">
+        <p className="text-xs text-blue-900 leading-relaxed">
+          <strong>Si ya compraste algo y sigue apareciendo aqui:</strong> es porque la factura
+          de compra entro como inventario general y no quedo asignada a esta venta. Dale a
+          <strong> Revisar y cerrar las ya compradas</strong>, o entra a la factura y asignale
+          la cotizacion. Si nunca vas a registrar esa factura, cierra la solicitud a mano con
+          el chulo verde.
+        </p>
+      </div>
+
+      {resultado && (
+        <div className={`px-6 py-3 text-sm border-b ${resultado.ok ? 'bg-green-50 text-green-800 border-green-100' : 'bg-red-50 text-red-800 border-red-100'}`}>
+          {resultado.mensaje}
+        </div>
+      )}
 
       <div className="divide-y divide-gray-100">
         {agrupados.map((grupo) => (
@@ -162,6 +228,7 @@ export default function SolicitudesCompra({ solicitudes, preciosPorProducto }: P
                         <th className="pb-2 text-center">En stock</th>
                         <th className="pb-2 text-center">Comprar</th>
                         <th className="pb-2">Entrega</th>
+                        <th className="pb-2 text-right">Ya la resolvi</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -175,6 +242,32 @@ export default function SolicitudesCompra({ solicitudes, preciosPorProducto }: P
                           <td className="py-2 text-center text-gray-500">{s.cantidad_en_stock}</td>
                           <td className="py-2 text-center font-bold text-red-600">{s.cantidad_a_comprar}</td>
                           <td className="py-2 text-xs text-gray-500">{s.fecha_necesidad ?? '—'}</td>
+                          <td className="py-2">
+                            <div className="flex items-center justify-end gap-1">
+                              {pendiente && ocupado === s.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => cerrarSolicitud(s.id)}
+                                    disabled={pendiente}
+                                    title="Ya la compre: cerrar esta solicitud"
+                                    className="p-1.5 rounded-lg text-green-600 hover:bg-green-100 transition disabled:opacity-40"
+                                  >
+                                    <Check className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => cancelarSolicitud(s.id)}
+                                    disabled={pendiente}
+                                    title="No la voy a comprar: cancelar"
+                                    className="p-1.5 rounded-lg text-gray-400 hover:bg-red-100 hover:text-red-600 transition disabled:opacity-40"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

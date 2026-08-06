@@ -74,6 +74,9 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
   const [terceroDireccion, setTerceroDireccion] = useState('')
   const [pdf, setPdf] = useState<File | null>(null)
   const [subiendo, setSubiendo] = useState(false)
+  // Confirmacion explicita de que la compra es para inventario y no para
+  // una venta concreta. Ver el bloque de aviso mas abajo.
+  const [confirmoSinAsignar, setConfirmoSinAsignar] = useState(false)
   const [pendiente, startTransition] = useTransition()
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
   const pdfRef = useRef<HTMLInputElement>(null)
@@ -108,6 +111,20 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
         asignaciones: [],
       }
     }))
+  }
+
+  /**
+   * Cotizaciones que REALMENTE piden este producto.
+   *
+   * Distinta de cotizacionesQueNecesitan, que cuando no encuentra ninguna
+   * devuelve TODAS como sugerencia para el selector. Para el aviso de
+   * "no lo asignaste" hace falta la version estricta: si devolvieramos
+   * todas, el aviso saltaria en cada compra y se volveria ruido que se
+   * ignora.
+   */
+  function ventasQuePidenEsteProducto(productoId: string): CotizacionOpcion[] {
+    if (!productoId) return []
+    return cotizaciones.filter((c) => c.items.some((i) => i.producto_id === productoId))
   }
 
   /** Cotizaciones que incluyen este producto (sugerencias de asignacion) */
@@ -190,6 +207,29 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
     return { subtotal, iva, total, totalRetenciones, neto: total - totalRetenciones }
   }
 
+  /**
+   * Items que alguna venta esta esperando y que NO se asignaron a ninguna.
+   *
+   * Este es el error que mas descuadra el ERP: si la compra no queda
+   * asignada a la venta, el costo nunca entra a esa venta (el margen sale
+   * al 100%, como si te hubiera costado cero) y la solicitud de compra se
+   * queda pendiente para siempre porque el sistema no sabe que ya la
+   * compraste.
+   */
+  const itemsQueDeberianAsignarse = items
+    .map((item, idx) => ({ item, idx }))
+    .filter(({ item }) => {
+      if (!item.descripcion.trim()) return false
+      if (!item.producto_id) return false
+      if (item.asignaciones.length > 0) return false
+      return ventasQuePidenEsteProducto(item.producto_id).length > 0
+    })
+    .map(({ item, idx }) => ({
+      numero: idx + 1,
+      descripcion: item.descripcion,
+      ventas: ventasQuePidenEsteProducto(item.producto_id),
+    }))
+
   function validar(): string | null {
     for (let i = 0; i < items.length; i++) {
       const item = items[i]
@@ -204,6 +244,15 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
         if (Number(a.cantidad) <= 0) return `Item ${i + 1}: la cantidad asignada debe ser mayor a cero.`
       }
     }
+
+    // Freno para el error que mas descuadra el ERP: registrar una compra
+    // que era para una venta y no asignarla. Cuando eso pasa, el costo no
+    // entra a la venta (margen inflado al 100%) y la solicitud de compra
+    // se queda pendiente para siempre.
+    if (itemsQueDeberianAsignarse.length > 0 && !confirmoSinAsignar) {
+      return 'Hay productos que alguna venta esta esperando y no los asignaste. Asignalos, o marca la casilla de que son para inventario.'
+    }
+
     return null
   }
 
@@ -755,6 +804,55 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
             <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
             <textarea name="notas" rows={2} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none" placeholder="Notas adicionales..." />
           </div>
+
+          {/* AVISO: hay una venta esperando esto y no lo asignaste */}
+          {itemsQueDeberianAsignarse.length > 0 && (
+            <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-900">
+                    Hay {itemsQueDeberianAsignarse.length === 1 ? 'un producto' : `${itemsQueDeberianAsignarse.length} productos`} que una venta esta esperando
+                  </p>
+                  <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                    Si no los asignas a la venta, el costo no entra a esa venta: el margen te va
+                    a salir al 100% (como si te hubiera costado cero) y la solicitud de compra
+                    se queda pendiente para siempre.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg border border-amber-200 divide-y divide-amber-100">
+                {itemsQueDeberianAsignarse.map((it) => (
+                  <div key={it.numero} className="px-3 py-2">
+                    <p className="text-xs font-medium text-gray-800">
+                      Item {it.numero}: {it.descripcion}
+                    </p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      Lo esperan: {it.ventas.map((v) => v.numero).join(', ')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-xs text-amber-900 font-medium">
+                Usa el boton &quot;Asignar a una venta&quot; en cada item de arriba.
+              </p>
+
+              <label className="flex items-start gap-2 text-xs text-amber-900 bg-white rounded-lg border border-amber-200 px-3 py-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={confirmoSinAsignar}
+                  onChange={(e) => setConfirmoSinAsignar(e.target.checked)}
+                  className="mt-0.5 rounded border-amber-400 text-amber-600"
+                />
+                <span>
+                  No, esta compra es para <strong>inventario general</strong>, no para ninguna de
+                  esas ventas. Registrala sin asignar.
+                </span>
+              </label>
+            </div>
+          )}
 
           {resultado && (
             <div className={`flex items-start gap-2 p-3 rounded-xl text-sm ${resultado.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>

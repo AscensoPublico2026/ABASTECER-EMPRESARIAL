@@ -276,22 +276,31 @@ export default function TablaVentas({ facturas, clientes, cuentas = [] }: Props)
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
                   />
                 </div>
-                {cuentasOperativas.length > 0 && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">A que cuenta entro</label>
-                    <select
-                      value={cuentaId || cuentasOperativas[0]?.id || ''}
-                      onChange={(e) => setCuentaId(e.target.value)}
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
-                    >
-                      {cuentasOperativas.map((c) => (
-                        <option key={c.id} value={c.id}>{c.nombre}</option>
-                      ))}
-                      <option value="NINGUNA">No registrar en caja</option>
-                    </select>
-                    <p className="text-xs text-green-600 mt-1">El dinero se suma a esta cuenta</p>
-                  </div>
-                )}
+                {/* Cuenta OBLIGATORIA. La opcion "No registrar en caja" era
+                    una trampa: dejaba el pago escrito en la venta pero la
+                    plata nunca entraba al banco y no se veia en ningun lado. */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">A que cuenta entro *</label>
+                  {cuentasOperativas.length > 0 ? (
+                    <>
+                      <select
+                        value={cuentaId || cuentasOperativas[0]?.id || ''}
+                        onChange={(e) => setCuentaId(e.target.value)}
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                      >
+                        {cuentasOperativas.map((c) => (
+                          <option key={c.id} value={c.id}>{c.nombre}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-green-600 mt-1">El dinero se suma a esta cuenta</p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+                      No tienes ninguna cuenta activa. Crea la cuenta en Tesoreria antes de
+                      registrar el pago, si no la plata no queda en ningun lado.
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Retenciones */}

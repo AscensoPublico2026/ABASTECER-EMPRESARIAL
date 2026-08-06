@@ -377,15 +377,23 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
                   <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de pago *</label>
                   <input name="fecha_pago" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
                 </div>
-                {cuentasOperativas.length > 0 && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">A que cuenta entro</label>
-                    <select name="cuenta_id" defaultValue={cuentasOperativas[0]?.id ?? ''} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
+                {/* La cuenta es OBLIGATORIA. Antes este select se ocultaba
+                    si no habia cuentas operativas, y tenia una opcion "No
+                    registrar en caja": el pago quedaba en la venta pero la
+                    plata nunca entraba al banco y se volvia invisible. */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">A que cuenta entro *</label>
+                  {cuentasOperativas.length > 0 ? (
+                    <select name="cuenta_id" required defaultValue={cuentasOperativas[0]?.id ?? ''} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
                       {cuentasOperativas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                      <option value="">No registrar en caja</option>
                     </select>
-                  </div>
-                )}
+                  ) : (
+                    <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+                      No tienes ninguna cuenta activa. Crea la cuenta en Tesoreria antes de
+                      registrar el pago, si no la plata no queda en ningun lado.
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Monto recibido → calcula retenciones automaticamente */}

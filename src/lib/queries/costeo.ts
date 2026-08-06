@@ -147,28 +147,108 @@ export async function cerrarSolicitudesCubiertas(supabase: Supa, facturaCompraId
     const [cotizacionId, productoId] = key.split('|')
     if (!cotizacionId || !productoId || productoId === 'null') continue
 
-    const { data: solicitud } = await supabase
+    // OJO: antes esto usaba .maybeSingle(), que TIRA ERROR si hay dos
+    // solicitudes vivas del mismo producto en la misma venta (pasa al
+    // deshacer y re-alistar). El error se tragaba y NINGUNA se cerraba,
+    // asi que la solicitud seguia apareciendo para siempre.
+    const { data: solicitudes } = await supabase
       .from('solicitudes_compra')
       .select('id, cantidad_a_comprar, estado')
       .eq('cotizacion_id', cotizacionId)
       .eq('producto_id', productoId)
       .in('estado', ['PENDIENTE', 'EN_COTIZACION'])
-      .maybeSingle()
+      .order('created_at', { ascending: true })
 
-    if (!solicitud) continue
+    let porRepartir = cantidad
 
-    // Solo cerrar si se cubrio la cantidad requerida
-    const requerida = Number(solicitud.cantidad_a_comprar ?? 0)
-    const nuevoEstado = cantidad >= requerida ? 'COMPRADO' : 'EN_COTIZACION'
+    for (const solicitud of solicitudes ?? []) {
+      const requerida = Number(solicitud.cantidad_a_comprar ?? 0)
+      const cubierta = porRepartir >= requerida
+
+      await supabase
+        .from('solicitudes_compra')
+        .update({
+          estado: cubierta ? 'COMPRADO' : 'EN_COTIZACION',
+          notas: cubierta
+            ? null
+            : `Parcial: ${porRepartir} de ${requerida} unidades compradas`,
+        })
+        .eq('id', solicitud.id)
+
+      porRepartir = Math.max(0, porRepartir - requerida)
+    }
+  }
+}
+
+
+/**
+ * Cierra las solicitudes de compra cuyo producto YA TIENE stock suficiente.
+ *
+ * POR QUE EXISTE ESTO:
+ * cerrarSolicitudesCubiertas (arriba) solo cierra la solicitud si la compra
+ * se asigno a ESA venta (destino='VENTA' con su cotizacion_id). Pero si al
+ * registrar la factura de compra no se elige la cotizacion, todo entra como
+ * destino='STOCK' y la solicitud se queda en PENDIENTE PARA SIEMPRE, aunque
+ * el producto ya este en la bodega.
+ *
+ * Eso es lo que hacia que en Compras siguieran apareciendo solicitudes de
+ * productos ya comprados, sin ninguna forma de quitarlas.
+ *
+ * Regla: si el stock disponible alcanza para lo que pedia la solicitud, la
+ * solicitud ya no tiene razon de ser. Se marca COMPRADO dejando la nota de
+ * que se cubrio con inventario.
+ *
+ * El stock se reparte entre las solicitudes mas antiguas primero, para no
+ * cerrar dos pedidos distintos con las mismas unidades.
+ */
+export async function cerrarSolicitudesCubiertasPorStock(supabase: Supa) {
+  const { data: solicitudes } = await supabase
+    .from('solicitudes_compra')
+    .select('id, producto_id, cantidad_a_comprar, cotizacion_id')
+    .in('estado', ['PENDIENTE', 'EN_COTIZACION'])
+    .order('created_at', { ascending: true })
+
+  if (!solicitudes || solicitudes.length === 0) return 0
+
+  const productoIds = Array.from(
+    new Set(solicitudes.map((s) => s.producto_id as string).filter(Boolean)),
+  )
+  if (productoIds.length === 0) return 0
+
+  const { data: productos } = await supabase
+    .from('productos')
+    .select('id, stock_actual')
+    .in('id', productoIds)
+
+  // Stock disponible por producto, que se va consumiendo solicitud por
+  // solicitud (la mas antigua primero)
+  const disponible = new Map<string, number>()
+  for (const p of productos ?? []) {
+    disponible.set(p.id as string, Number(p.stock_actual ?? 0))
+  }
+
+  let cerradas = 0
+
+  for (const s of solicitudes) {
+    const pid = s.producto_id as string
+    if (!pid) continue
+
+    const requerida = Number(s.cantidad_a_comprar ?? 0)
+    const hay = disponible.get(pid) ?? 0
+
+    if (requerida <= 0 || hay < requerida) continue
 
     await supabase
       .from('solicitudes_compra')
       .update({
-        estado: nuevoEstado,
-        notas: cantidad < requerida
-          ? `Parcial: ${cantidad} de ${requerida} unidades compradas`
-          : null,
+        estado: 'COMPRADO',
+        notas: `Cubierta con inventario disponible (${requerida} uds). Cerrada automaticamente.`,
       })
-      .eq('id', solicitud.id)
+      .eq('id', s.id)
+
+    disponible.set(pid, hay - requerida)
+    cerradas += 1
   }
+
+  return cerradas
 }
