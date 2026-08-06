@@ -7,6 +7,7 @@ export interface ResumenFacturaCompra {
   subtotal: number
   iva_total: number
   total: number
+  retencion_total: number
   forma_pago: string
   estado: string
   dias_credito: number
@@ -41,6 +42,7 @@ export async function obtenerFacturasCompra(): Promise<{
         subtotal: Number(f.subtotal ?? 0),
         iva_total: Number(f.iva_total ?? 0),
         total: Number(f.total ?? 0),
+        retencion_total: Number(f.retencion_total ?? 0),
         forma_pago: f.forma_pago ?? 'Contado',
         estado: f.estado,
         dias_credito: Number(f.dias_credito ?? 0),
@@ -143,6 +145,9 @@ export interface FacturaCompraDetalle {
   subtotal: number
   iva_total: number
   total: number
+  retencion_retefuente: number
+  retencion_reteiva: number
+  retencion_reteica: number
   items: {
     id: string
     producto_id: string | null
@@ -205,6 +210,9 @@ export async function obtenerFacturaCompraDetalle(id: string): Promise<FacturaCo
       subtotal: Number(f.subtotal ?? 0),
       iva_total: Number(f.iva_total ?? 0),
       total: Number(f.total ?? 0),
+      retencion_retefuente: Number(f.retencion_retefuente ?? 0),
+      retencion_reteiva: Number(f.retencion_reteiva ?? 0),
+      retencion_reteica: Number(f.retencion_reteica ?? 0),
       items,
     }
   } catch {
@@ -251,5 +259,43 @@ export async function obtenerItemsPendientesAsignar(): Promise<ItemPendienteAsig
     }))
   } catch {
     return []
+  }
+}
+
+
+
+// ============================================================
+// Retenciones practicadas a proveedores (pasivo con la DIAN)
+// ============================================================
+export interface RetencionesPracticadas {
+  retefuente_total: number
+  reteiva_total: number
+  reteica_total: number
+  total_retenido: number
+  num_facturas_con_retencion: number
+}
+
+const RETENCIONES_VACIAS: RetencionesPracticadas = {
+  retefuente_total: 0,
+  reteiva_total: 0,
+  reteica_total: 0,
+  total_retenido: 0,
+  num_facturas_con_retencion: 0,
+}
+
+export async function obtenerRetencionesPracticadas(): Promise<RetencionesPracticadas> {
+  try {
+    const supabase = createServerSupabaseClient()
+    const { data } = await supabase.from('retenciones_practicadas').select('*').maybeSingle()
+    if (!data) return RETENCIONES_VACIAS
+    return {
+      retefuente_total: Number(data.retefuente_total ?? 0),
+      reteiva_total: Number(data.reteiva_total ?? 0),
+      reteica_total: Number(data.reteica_total ?? 0),
+      total_retenido: Number(data.total_retenido ?? 0),
+      num_facturas_con_retencion: Number(data.num_facturas_con_retencion ?? 0),
+    }
+  } catch {
+    return RETENCIONES_VACIAS
   }
 }

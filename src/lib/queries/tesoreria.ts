@@ -67,6 +67,7 @@ export interface PosicionFinanciera {
   simple_por_pagar: number
   impuestos_por_pagar: number
   cuentas_por_pagar: number
+  retenciones_por_declarar: number
   total_comprometido: number
   impuestos_sin_apartar: number
   disponible_real: number
@@ -94,7 +95,7 @@ export interface PosicionFinanciera {
 const POSICION_VACIA: PosicionFinanciera = {
   saldo_operativo: 0, saldo_reservas: 0, saldo_total: 0,
   iva_por_pagar: 0, simple_por_pagar: 0, impuestos_por_pagar: 0,
-  cuentas_por_pagar: 0, total_comprometido: 0, impuestos_sin_apartar: 0, disponible_real: 0,
+  cuentas_por_pagar: 0, retenciones_por_declarar: 0, total_comprometido: 0, impuestos_sin_apartar: 0, disponible_real: 0,
   cuentas_por_cobrar: 0, disponible_proyectado: 0,
   ventas_subtotal_acum: 0, costo_real_acum: 0, utilidad_bruta_acum: 0,
   utilidad_neta_acum: 0, margen_bruto_pct: 0, gastos_operativos: 0,
@@ -125,6 +126,7 @@ export async function obtenerPosicionFinanciera(): Promise<{
         simple_por_pagar: num(data.simple_por_pagar),
         impuestos_por_pagar: num(data.impuestos_por_pagar),
         cuentas_por_pagar: num(data.cuentas_por_pagar),
+        retenciones_por_declarar: num(data.retenciones_por_declarar),
         total_comprometido: num(data.total_comprometido),
         impuestos_sin_apartar: num(data.impuestos_sin_apartar),
         disponible_real: num(data.disponible_real),

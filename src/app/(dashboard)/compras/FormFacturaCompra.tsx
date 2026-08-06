@@ -63,6 +63,10 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
   const [items, setItems] = useState<ItemLocal[]>([{ ...ITEM_VACIO }])
   const [formaPago, setFormaPago] = useState('Contado')
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('FACTURA')
+  const [tieneRetencion, setTieneRetencion] = useState(false)
+  const [retefuente, setRetefuente] = useState('')
+  const [reteiva, setReteiva] = useState('')
+  const [reteica, setReteica] = useState('')
   const [terceroNombre, setTerceroNombre] = useState('')
   const [terceroDocumento, setTerceroDocumento] = useState('')
   const [terceroTipoDoc, setTerceroTipoDoc] = useState('CC')
@@ -181,7 +185,9 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
       subtotal += sub
       iva += sub * ((Number(item.iva_porcentaje) || 0) / 100)
     })
-    return { subtotal, iva, total: subtotal + iva }
+    const total = subtotal + iva
+    const totalRetenciones = tieneRetencion ? num(retefuente) + num(reteiva) + num(reteica) : 0
+    return { subtotal, iva, total, totalRetenciones, neto: total - totalRetenciones }
   }
 
   function validar(): string | null {
@@ -228,6 +234,11 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
 
     formData.set('items', JSON.stringify(itemsParseados))
     formData.set('tipo_comprobante', tipoComprobante)
+    if (tieneRetencion) {
+      formData.set('retencion_retefuente', retefuente || '0')
+      formData.set('retencion_reteiva', reteiva || '0')
+      formData.set('retencion_reteica', reteica || '0')
+    }
     if (esDocSoporte) {
       formData.set('tercero_nombre', terceroNombre)
       formData.set('tercero_documento', terceroDocumento)
@@ -271,6 +282,10 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
             setTerceroTipoDoc('CC')
             setTerceroTelefono('')
             setTerceroDireccion('')
+            setTieneRetencion(false)
+            setRetefuente('')
+            setReteiva('')
+            setReteica('')
           }, 2000)
         }
       })
@@ -663,11 +678,76 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
             </div>
           </div>
 
+          {/* Retenciones que el proveedor descuenta al pagarle */}
+          <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <label className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 cursor-pointer">
+              <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={tieneRetencion}
+                  onChange={(e) => setTieneRetencion(e.target.checked)}
+                  className="rounded border-gray-300 text-purple-600"
+                />
+                El proveedor descuenta retencion al pagarle
+              </span>
+              <span className="text-xs text-gray-400">Retefuente, ReteIVA o ReteICA</span>
+            </label>
+
+            {tieneRetencion && (
+              <div className="p-4 space-y-3 bg-purple-50/40">
+                <p className="text-xs text-purple-700">
+                  Ojo: en Regimen Simple normalmente NO son agentes de retencion (Art. 911 par. 4 ET),
+                  salvo pagos laborales. Verifica si esta retencion aplicaba antes de dejarla.
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Retefuente</label>
+                    <input
+                      value={retefuente}
+                      onChange={(e) => setRetefuente(e.target.value)}
+                      inputMode="numeric" placeholder="0"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-right bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">ReteIVA</label>
+                    <input
+                      value={reteiva}
+                      onChange={(e) => setReteiva(e.target.value)}
+                      inputMode="numeric" placeholder="0"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-right bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">ReteICA</label>
+                    <input
+                      value={reteica}
+                      onChange={(e) => setReteica(e.target.value)}
+                      inputMode="numeric" placeholder="0"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-right bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Totales */}
           <div className="bg-blue-50 rounded-xl p-4 space-y-1.5 text-sm">
             <div className="flex justify-between text-gray-600"><span>Subtotal:</span><span className="tabular-nums">{formatCOP(totales.subtotal)}</span></div>
             <div className="flex justify-between text-gray-600"><span>IVA total:</span><span className="tabular-nums">{formatCOP(totales.iva)}</span></div>
             <div className="flex justify-between font-bold text-gray-800 text-base pt-1.5 border-t border-blue-200"><span>Total factura:</span><span className="tabular-nums">{formatCOP(totales.total)}</span></div>
+            {totales.totalRetenciones > 0 && (
+              <>
+                <div className="flex justify-between text-purple-700"><span>(−) Retenciones:</span><span className="tabular-nums">{formatCOP(totales.totalRetenciones)}</span></div>
+                <div className="flex justify-between font-bold text-purple-800 text-base pt-1.5 border-t border-purple-200">
+                  <span>Neto a pagar:</span><span className="tabular-nums">{formatCOP(totales.neto)}</span>
+                </div>
+                <p className="text-xs text-purple-600 pt-1">
+                  Esto es lo que sale realmente de la cuenta. Las retenciones son un pasivo con la DIAN, no un ahorro.
+                </p>
+              </>
+            )}
           </div>
 
           {/* Notas */}

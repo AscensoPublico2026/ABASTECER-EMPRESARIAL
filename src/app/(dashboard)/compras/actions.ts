@@ -37,6 +37,11 @@ const fmt = new Intl.NumberFormat('es-CO', {
   minimumFractionDigits: 0,
 })
 
+function montoDesdeCampo(v: FormDataEntryValue | null): number {
+  const n = Number(String(v ?? '0').replace(/\./g, '').replace(',', '.'))
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : 0
+}
+
 function diasDeFormaPago(forma: string): number {
   if (forma.includes('15')) return 15
   if (forma.includes('30')) return 30
@@ -182,6 +187,11 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
   const cuenta_id = String(formData.get('cuenta_id') ?? '').trim()
   const tipo_comprobante = String(formData.get('tipo_comprobante') ?? 'FACTURA').trim()
 
+  // Retenciones que el proveedor descuenta al pagarle (pasivo con la DIAN)
+  const retencion_retefuente = montoDesdeCampo(formData.get('retencion_retefuente'))
+  const retencion_reteiva = montoDesdeCampo(formData.get('retencion_reteiva'))
+  const retencion_reteica = montoDesdeCampo(formData.get('retencion_reteica'))
+
   // Datos del tercero (solo para Documento Soporte)
   const tercero_nombre = String(formData.get('tercero_nombre') ?? '').trim()
   const tercero_documento = String(formData.get('tercero_documento') ?? '').trim()
@@ -206,6 +216,12 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
 
   const { calculados, subtotal, iva_total, total } = calcularItems(items)
   const dias_credito = diasDeFormaPago(forma_pago)
+  const totalRetenido = retencion_retefuente + retencion_reteiva + retencion_reteica
+  const totalNeto = total - totalRetenido
+
+  if (totalRetenido > total) {
+    return { ok: false, mensaje: 'Las retenciones no pueden ser mayores al total de la factura.' }
+  }
 
   // Si la compra es de contado, la factura queda PAGADA: el dinero YA salio.
   // Sin cuenta no podriamos descontarlo y el saldo quedaria inflado.
@@ -241,6 +257,9 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
         subtotal: Math.round(subtotal),
         iva_total: Math.round(iva_total),
         total,
+        retencion_retefuente,
+        retencion_reteiva,
+        retencion_reteica,
         forma_pago,
         dias_credito,
         estado,
@@ -320,6 +339,10 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
     }
 
     // 7. Movimiento de tesoreria si se pago de contado
+    // OJO: sale por el NETO (total - retenciones), porque eso es lo que
+    // realmente se descuenta de la cuenta bancaria. Las retenciones no
+    // son plata de la empresa: quedan como pasivo pendiente de declarar
+    // a la DIAN (ver vista retenciones_practicadas), no como un ahorro.
     let avisoCaja = ''
     if (estado === 'PAGADA' && cuenta_id) {
       const usuario = await obtenerNombreUsuarioActual()
@@ -328,7 +351,7 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
         fecha: fecha_factura || new Date().toISOString().slice(0, 10),
         tipo: 'EGRESO',
         categoria: 'PAGO_PROVEEDOR',
-        monto: total,
+        monto: totalNeto,
         concepto: `Compra ${numFacturaFinal}`,
         factura_compra_id: factura.id,
         cotizacion_id: cotizacionesAfectadas[0] ?? null,
@@ -340,7 +363,9 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
       })
       avisoCaja = errCaja
         ? ` Ojo: no se pudo descontar de la cuenta (${errCaja.message}).`
-        : ` Se descontaron ${fmt.format(total)} de la cuenta.`
+        : totalRetenido > 0
+          ? ` Se descontaron ${fmt.format(totalNeto)} de la cuenta (neto tras retener ${fmt.format(totalRetenido)}). Esa retencion es un pasivo con la DIAN, no un ahorro: declarala y pagala en su momento.`
+          : ` Se descontaron ${fmt.format(totalNeto)} de la cuenta.`
     } else if (estado === 'REGISTRADA') {
       avisoCaja = ' Es a credito: no salio dinero todavia, registra el pago cuando le pagues al proveedor.'
     }
@@ -385,6 +410,10 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
   const soporte_nombre = String(formData.get('soporte_nombre') ?? '').trim()
   const cuenta_id = String(formData.get('cuenta_id') ?? '').trim()
 
+  const retencion_retefuente = montoDesdeCampo(formData.get('retencion_retefuente'))
+  const retencion_reteiva = montoDesdeCampo(formData.get('retencion_reteiva'))
+  const retencion_reteica = montoDesdeCampo(formData.get('retencion_reteica'))
+
   if (!factura_id) return { ok: false, mensaje: 'Factura no valida.' }
   if (!proveedor_id) return { ok: false, mensaje: 'Selecciona un proveedor.' }
   if (!numero_factura) return { ok: false, mensaje: 'Ingresa el numero de factura.' }
@@ -399,6 +428,12 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
 
   const { calculados, subtotal, iva_total, total } = calcularItems(items)
   const dias_credito = diasDeFormaPago(forma_pago)
+  const totalRetenido = retencion_retefuente + retencion_reteiva + retencion_reteica
+  const totalNeto = total - totalRetenido
+
+  if (totalRetenido > total) {
+    return { ok: false, mensaje: 'Las retenciones no pueden ser mayores al total de la factura.' }
+  }
 
   let fecha_vencimiento: string | null = null
   if (dias_credito > 0 && fecha_factura) {
@@ -478,6 +513,9 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
         subtotal: Math.round(subtotal),
         iva_total: Math.round(iva_total),
         total,
+        retencion_retefuente,
+        retencion_reteiva,
+        retencion_reteica,
         forma_pago,
         dias_credito,
         estado: nuevoEstado,
@@ -547,7 +585,7 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
           fecha: fecha_factura || new Date().toISOString().slice(0, 10),
           tipo: 'EGRESO',
           categoria: 'PAGO_PROVEEDOR',
-          monto: total,
+          monto: totalNeto,
           concepto: `Compra ${numero_factura}`,
           factura_compra_id: factura_id,
           cotizacion_id: cotizacionesNuevas[0] ?? null,
@@ -560,9 +598,12 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
         const montoViejo = Number(movAnterior?.monto ?? 0)
         avisoCaja = errCaja
           ? ` Ojo: no se pudo actualizar la salida de caja (${errCaja.message}).`
-          : montoViejo > 0 && montoViejo !== total
-            ? ` La salida de caja se ajusto de ${fmt.format(montoViejo)} a ${fmt.format(total)}.`
-            : ` Salida de caja de ${fmt.format(total)} registrada.`
+          : montoViejo > 0 && montoViejo !== totalNeto
+            ? ` La salida de caja se ajusto de ${fmt.format(montoViejo)} a ${fmt.format(totalNeto)}.`
+            : ` Salida de caja de ${fmt.format(totalNeto)} registrada.`
+        if (totalRetenido > 0) {
+          avisoCaja += ` (Neto tras retener ${fmt.format(totalRetenido)}, pasivo pendiente con la DIAN.)`
+        }
       } else {
         avisoCaja = ' Ojo: la factura quedo PAGADA pero no hay cuenta para descontar el dinero.'
       }
@@ -761,6 +802,12 @@ export async function pagarFacturaCompra(formData: FormData): Promise<ResultadoA
   const referencia = String(formData.get('referencia') ?? '').trim()
   const soporte_url = String(formData.get('soporte_url') ?? '').trim()
 
+  // Si al pagar (a credito) el proveedor tambien retiene, se puede
+  // ajustar aqui. Por defecto usa lo que ya tenga la factura.
+  const retencionManual = formData.has('retencion_total_pago')
+    ? montoDesdeCampo(formData.get('retencion_total_pago'))
+    : null
+
   if (!factura_id) return { ok: false, mensaje: 'Factura no valida.' }
   if (!cuenta_id) return { ok: false, mensaje: 'Selecciona la cuenta de donde sale el dinero.' }
   if (!fecha_pago) return { ok: false, mensaje: 'Ingresa la fecha de pago.' }
@@ -770,7 +817,7 @@ export async function pagarFacturaCompra(formData: FormData): Promise<ResultadoA
 
     const { data: factura } = await supabase
       .from('facturas_compra')
-      .select('numero_factura, total, estado')
+      .select('numero_factura, total, retencion_total, estado')
       .eq('id', factura_id)
       .single()
 
@@ -778,7 +825,16 @@ export async function pagarFacturaCompra(formData: FormData): Promise<ResultadoA
     if (factura.estado === 'PAGADA') return { ok: false, mensaje: 'La factura ya esta pagada.' }
     if (factura.estado === 'ANULADA') return { ok: false, mensaje: 'La factura esta anulada.' }
 
-    await supabase.from('facturas_compra').update({ estado: 'PAGADA' }).eq('id', factura_id)
+    const total = Number(factura.total)
+    const retencion = retencionManual ?? Number(factura.retencion_total ?? 0)
+    const neto = Math.max(total - retencion, 0)
+
+    if (retencion > 0 && retencionManual !== null) {
+      // Si se ajusto manualmente, guardar el nuevo total_neto en la factura
+      await supabase.from('facturas_compra').update({ estado: 'PAGADA', retencion_total: retencion }).eq('id', factura_id)
+    } else {
+      await supabase.from('facturas_compra').update({ estado: 'PAGADA' }).eq('id', factura_id)
+    }
 
     const { data: asig } = await supabase
       .from('asignacion_costos')
@@ -794,7 +850,7 @@ export async function pagarFacturaCompra(formData: FormData): Promise<ResultadoA
       fecha: fecha_pago,
       tipo: 'EGRESO',
       categoria: 'PAGO_PROVEEDOR',
-      monto: Number(factura.total),
+      monto: neto,
       concepto: `Pago factura ${factura.numero_factura}`,
       factura_compra_id: factura_id,
       cotizacion_id: asig?.cotizacion_id ?? null,
@@ -809,9 +865,13 @@ export async function pagarFacturaCompra(formData: FormData): Promise<ResultadoA
     revalidatePath('/financiero')
     revalidatePath('/panel')
 
+    const avisoRetencion = retencion > 0
+      ? ` (Neto tras retener ${fmt.format(retencion)}, pasivo pendiente con la DIAN.)`
+      : ''
+
     return {
       ok: true,
-      mensaje: `Pago registrado: ${fmt.format(Number(factura.total))} a ${factura.numero_factura}.`,
+      mensaje: `Pago registrado: ${fmt.format(neto)} a ${factura.numero_factura}.${avisoRetencion}`,
     }
   } catch (e) {
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al pagar.' }
