@@ -8,6 +8,7 @@ import {
   recalcularCotizacionesDeFactura,
   recalcularCostoCotizacion,
   cerrarSolicitudesCubiertas,
+  cerrarSolicitudesCubiertasPorStock,
 } from '@/lib/queries/costeo'
 import { obtenerFacturaCompraDetalle } from '@/lib/queries/compras'
 import { montoDesdeTexto } from '@/lib/numeros'
@@ -399,6 +400,10 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
 
     // 4. Cerrar solicitudes de compra cubiertas (solo las de la venta asignada)
     await cerrarSolicitudesCubiertas(supabase, factura.id)
+    // Y las que ya quedaron cubiertas por inventario, aunque esta compra
+    // haya entrado como STOCK sin asignarse a la venta. Sin esto la
+    // solicitud se quedaba PENDIENTE para siempre.
+    await cerrarSolicitudesCubiertasPorStock(supabase)
 
     // 5. Recalcular costo real de las cotizaciones afectadas
     const cotizacionesAfectadas = await recalcularCotizacionesDeFactura(supabase, factura.id)
@@ -659,6 +664,7 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
     if (errAsig) return { ok: false, mensaje: `Factura actualizada pero fallo la asignacion: ${errAsig}` }
 
     await cerrarSolicitudesCubiertas(supabase, factura_id)
+    await cerrarSolicitudesCubiertasPorStock(supabase)
 
     // Recalcular: las de antes y las de ahora
     const cotizacionesNuevas = await recalcularCotizacionesDeFactura(supabase, factura_id)
@@ -898,6 +904,7 @@ export async function asignarCostosCompra(formData: FormData): Promise<Resultado
       await recalcularCostoCotizacion(supabase, cotizacion_id)
       await cerrarSolicitudesCubiertas(supabase, item.factura_compra_id as string)
     }
+    await cerrarSolicitudesCubiertasPorStock(supabase)
 
     revalidatePath('/compras')
     revalidatePath('/ventas')
@@ -1082,4 +1089,131 @@ export async function editarDatosFacturaCompra(formData: FormData): Promise<Resu
 export async function cargarFacturaParaEditar(factura_id: string) {
   if (!factura_id) return null
   return obtenerFacturaCompraDetalle(factura_id)
+}
+
+
+
+// ============================================================
+// SOLICITUDES DE COMPRA: CERRAR A MANO
+// ============================================================
+// El cierre automatico depende de que la compra se asigne a la venta
+// (o de que haya stock suficiente). Pero hay casos legitimos donde eso
+// nunca va a pasar:
+//   - se compro el producto en efectivo y no se registro la factura
+//   - el cliente cambio de producto
+//   - la solicitud se genero por error (producto duplicado en catalogo)
+//   - se decidio no comprar
+//
+// Sin una salida manual, esas solicitudes se quedaban en pantalla PARA
+// SIEMPRE, sin ninguna forma de sacarlas. Estas dos acciones son esa
+// salida.
+// ============================================================
+
+/** Marca la solicitud como ya comprada, sin pasar por la factura. */
+export async function marcarSolicitudComprada(formData: FormData): Promise<ResultadoAccion> {
+  const id = String(formData.get('id') ?? '').trim()
+  if (!id) return { ok: false, mensaje: 'Solicitud no valida.' }
+
+  try {
+    const supabase = createServerSupabaseClient()
+    const usuario = await obtenerNombreUsuarioActual()
+
+    const { data: sol } = await supabase
+      .from('solicitudes_compra')
+      .select('id, estado, cantidad_a_comprar, productos(nombre)')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (!sol) return { ok: false, mensaje: 'La solicitud ya no existe.' }
+    if (sol.estado === 'COMPRADO') {
+      return { ok: true, mensaje: 'Esa solicitud ya estaba cerrada.' }
+    }
+
+    const prod = sol.productos as { nombre?: string } | null
+
+    const { error } = await supabase
+      .from('solicitudes_compra')
+      .update({
+        estado: 'COMPRADO',
+        notas: `Cerrada manualmente por ${usuario.nombre}. No se cruzo con una factura de compra, asi que el costo de esta venta puede quedar incompleto.`,
+      })
+      .eq('id', id)
+
+    if (error) return { ok: false, mensaje: error.message }
+
+    revalidatePath('/compras')
+    revalidatePath('/ventas')
+    return {
+      ok: true,
+      mensaje: `${prod?.nombre ?? 'Solicitud'} marcada como comprada. Recuerda: si no registras la factura de compra, la utilidad de esa venta va a salir mas alta de lo real.`,
+    }
+  } catch (e) {
+    return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al cerrar la solicitud.' }
+  }
+}
+
+/** Cancela la solicitud: ya no se va a comprar. */
+export async function cancelarSolicitudCompra(formData: FormData): Promise<ResultadoAccion> {
+  const id = String(formData.get('id') ?? '').trim()
+  const motivo = String(formData.get('motivo') ?? '').trim()
+  if (!id) return { ok: false, mensaje: 'Solicitud no valida.' }
+
+  try {
+    const supabase = createServerSupabaseClient()
+    const usuario = await obtenerNombreUsuarioActual()
+
+    const { data: sol } = await supabase
+      .from('solicitudes_compra')
+      .select('id, estado, productos(nombre)')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (!sol) return { ok: false, mensaje: 'La solicitud ya no existe.' }
+    if (sol.estado === 'CANCELADO') {
+      return { ok: true, mensaje: 'Esa solicitud ya estaba cancelada.' }
+    }
+
+    const prod = sol.productos as { nombre?: string } | null
+
+    const { error } = await supabase
+      .from('solicitudes_compra')
+      .update({
+        estado: 'CANCELADO',
+        notas: `Cancelada por ${usuario.nombre}${motivo ? `: ${motivo}` : '.'}`,
+      })
+      .eq('id', id)
+
+    if (error) return { ok: false, mensaje: error.message }
+
+    revalidatePath('/compras')
+    revalidatePath('/ventas')
+    return { ok: true, mensaje: `Solicitud de ${prod?.nombre ?? 'producto'} cancelada.` }
+  } catch (e) {
+    return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al cancelar la solicitud.' }
+  }
+}
+
+/**
+ * Barre TODAS las solicitudes abiertas y cierra las que ya tienen stock.
+ * Se puede llamar desde el boton "Revisar solicitudes" de la pantalla de
+ * Compras, para limpiar de una vez las que quedaron colgadas de compras
+ * viejas que entraron como STOCK.
+ */
+export async function revisarSolicitudesPendientes(): Promise<ResultadoAccion> {
+  try {
+    const supabase = createServerSupabaseClient()
+    const cerradas = await cerrarSolicitudesCubiertasPorStock(supabase)
+
+    revalidatePath('/compras')
+    revalidatePath('/ventas')
+
+    return {
+      ok: true,
+      mensaje: cerradas > 0
+        ? `${cerradas} solicitud${cerradas !== 1 ? 'es' : ''} cerrada${cerradas !== 1 ? 's' : ''}: el producto ya estaba en inventario.`
+        : 'Ninguna solicitud se pudo cerrar: los productos que faltan todavia no estan en inventario. Si ya los compraste, registra la factura de compra o cierrala a mano.',
+    }
+  } catch (e) {
+    return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al revisar.' }
+  }
 }

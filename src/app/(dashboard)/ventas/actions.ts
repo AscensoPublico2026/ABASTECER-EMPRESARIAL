@@ -709,16 +709,24 @@ async function generarSolicitudesCompra(supabase: ReturnType<typeof createServer
     const cantidadAComprar = Math.max(0, cantidadRequerida - stockActual)
 
     if (cantidadAComprar > 0) {
-      // Verificar si ya existe una solicitud pendiente para este producto+cotizacion
-      const { data: existente } = await supabase
+      // Verificar si ya existe una solicitud para este producto+cotizacion.
+      //
+      // OJO: antes esto solo buscaba estado='PENDIENTE' con .single(). Si la
+      // solicitud ya estaba COMPRADO o EN_COTIZACION, creaba OTRA nueva en
+      // PENDIENTE. Al deshacer y volver a alistar una venta se acumulaban
+      // solicitudes duplicadas de algo ya comprado, y ademas dos solicitudes
+      // vivas rompian el cierre automatico.
+      //
+      // Ahora se ignora cualquier solicitud que no este CANCELADA.
+      const { data: existentes } = await supabase
         .from('solicitudes_compra')
         .select('id')
         .eq('producto_id', item.producto_id)
         .eq('cotizacion_id', cotizacionId)
-        .eq('estado', 'PENDIENTE')
-        .single()
+        .in('estado', ['PENDIENTE', 'EN_COTIZACION', 'COMPRADO'])
+        .limit(1)
 
-      if (!existente) {
+      if (!existentes || existentes.length === 0) {
         await supabase.from('solicitudes_compra').insert({
           producto_id: item.producto_id,
           cotizacion_id: cotizacionId,
