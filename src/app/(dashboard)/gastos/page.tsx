@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { obtenerCotizacionesParaAsignar } from '@/lib/queries/compras'
 import { obtenerCuentasParaSelect } from '@/lib/queries/tesoreria'
 import { formatCOP, formatFecha } from '@/lib/format'
-import { Wallet, FileWarning, ShieldCheck, Target, FileText } from 'lucide-react'
+import { Wallet, FileWarning, ShieldCheck, Target, FileText, Boxes } from 'lucide-react'
 import FormGasto from './FormGasto'
 import AccionesGasto from './AccionesGasto'
 
@@ -18,6 +18,8 @@ const CATEGORIAS: Record<string, string> = {
   TECNOLOGIA: 'Tecnologia',
   LEGAL: 'Legal',
   BANCARIO: 'Bancario',
+  ACTIVO_FIJO: 'Activo fijo',
+  MANTENIMIENTO_ACTIVO: 'Mantenimiento activo',
   OTROS: 'Otros',
 }
 
@@ -27,7 +29,7 @@ export default async function GastosPage() {
   // Nota: no se puede embeber documentos_soporte porque hay dos llaves foraneas
   // entre gastos y documentos_soporte (gasto_id y documento_soporte_id).
   // PostgREST no sabe cual usar, asi que se consulta aparte.
-  const [{ data, error }, cotizaciones, cuentas, provRes] = await Promise.all([
+  const [{ data, error }, cotizaciones, cuentas, provRes, activosRes] = await Promise.all([
     supabase
       .from('gastos')
       .select('*, cotizaciones(numero)')
@@ -42,6 +44,11 @@ export default async function GastosPage() {
       .select('id, razon_social, nit, tipo_documento, contacto_telefono, direccion, ciudad')
       .eq('estado', 'ACTIVO')
       .order('razon_social'),
+    // Activos fijos ya registrados, para poderle cargar un mantenimiento
+    supabase
+      .from('activos_fijos')
+      .select('id, activo, fecha_compra, costo_total, estado_garantia, garantia_hasta, valor_en_libros, gasto_mantenimiento')
+      .order('fecha_compra', { ascending: false }),
   ])
 
   const proveedores = (provRes.data ?? []).map((p) => ({
@@ -55,6 +62,25 @@ export default async function GastosPage() {
   }))
 
   const gastos = data ?? []
+
+  /**
+   * ACTIVOS FIJOS.
+   *
+   * Si la vista todavia no existe (migracion 037 sin correr), activosRes
+   * trae error y se deja la lista vacia en vez de tumbar la pagina.
+   */
+  const activosFijos = (activosRes.data ?? []).map((a) => ({
+    id: String(a.id),
+    activo: String(a.activo ?? ''),
+    fecha_compra: String(a.fecha_compra ?? ''),
+    costo_total: Number(a.costo_total ?? 0),
+    estado_garantia: String(a.estado_garantia ?? ''),
+    garantia_hasta: (a.garantia_hasta as string | null) ?? null,
+    valor_en_libros: Number(a.valor_en_libros ?? 0),
+    gasto_mantenimiento: Number(a.gasto_mantenimiento ?? 0),
+  }))
+  const totalActivos = activosFijos.reduce((s, a) => s + a.costo_total, 0)
+  const totalEnLibros = activosFijos.reduce((s, a) => s + a.valor_en_libros, 0)
 
   // Documentos soporte de estos gastos, indexados por gasto_id
   const soportesPorGasto = new Map<string, { id: string; numero: string }>()
@@ -74,7 +100,13 @@ export default async function GastosPage() {
   const totalCostoVenta = gastos
     .filter((g) => g.es_costo_venta)
     .reduce((s, g) => s + Number(g.monto ?? 0), 0)
-  const totalOperativo = totalGastos - totalCostoVenta
+  // El activo fijo NO es gasto operativo: es inversion. Se muestra aparte
+  // para que el gasto operativo del negocio no salga inflado por la compra
+  // de una impresora. Igual que hace la vista posicion_financiera.
+  const totalActivoEnGastos = gastos
+    .filter((g) => g.categoria === 'ACTIVO_FIJO')
+    .reduce((s, g) => s + Number(g.monto ?? 0), 0)
+  const totalOperativo = totalGastos - totalCostoVenta - totalActivoEnGastos
   const noDeducibles = gastos.filter((g) => !g.deducible)
   const totalNoDeducible = noDeducibles.reduce((s, g) => s + Number(g.monto ?? 0), 0)
 
@@ -98,7 +130,9 @@ export default async function GastosPage() {
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <p className="text-sm text-gray-500">Gasto operativo</p>
             <p className="text-2xl font-bold text-purple-600 mt-1 tabular-nums">{formatCOP(totalOperativo)}</p>
-            <p className="text-xs text-gray-400 mt-0.5">Estructura del negocio</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Estructura del negocio{totalActivoEnGastos > 0 ? ', sin los activos fijos' : ''}
+            </p>
           </div>
           <div className={`bg-white rounded-2xl p-6 shadow-sm border ${totalNoDeducible > 0 ? 'border-amber-200' : 'border-gray-100'}`}>
             <p className="text-sm text-gray-500">No deducible</p>
@@ -108,6 +142,74 @@ export default async function GastosPage() {
             <p className="text-xs text-gray-400 mt-0.5">{noDeducibles.length} sin soporte valido</p>
           </div>
         </div>
+
+        {/* ===== ACTIVOS FIJOS =====
+            Lo que la empresa compro y sigue teniendo: la impresora, los
+            equipos. La plata salio del banco (esta en tesoreria) pero NO es
+            gasto del mes, es inversion. Aqui se ve cuantos hay, cuanto
+            costaron, cuanto valen hoy y si siguen en garantia. */}
+        {activosFijos.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Boxes className="w-5 h-5 text-indigo-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h2 className="font-semibold text-gray-800">Activos fijos</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {activosFijos.length} activo(s). La plata ya salio del banco, pero esto no es
+                    gasto del mes: es una inversion que la empresa sigue teniendo.
+                  </p>
+                </div>
+              </div>
+              <div className="text-right whitespace-nowrap">
+                <p className="text-xs text-gray-500">Costaron</p>
+                <p className="text-xl font-bold text-indigo-600 tabular-nums">{formatCOP(totalActivos)}</p>
+                <p className="text-xs text-gray-400 mt-0.5">Valen hoy {formatCOP(totalEnLibros)}</p>
+              </div>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                <tr>
+                  <th className="px-6 py-2.5 text-left font-medium">Activo</th>
+                  <th className="px-6 py-2.5 text-left font-medium">Comprado</th>
+                  <th className="px-6 py-2.5 text-right font-medium">Costo</th>
+                  <th className="px-6 py-2.5 text-right font-medium">Vale hoy</th>
+                  <th className="px-6 py-2.5 text-left font-medium">Garantia</th>
+                  <th className="px-6 py-2.5 text-right font-medium">Mantenimiento</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {activosFijos.map((a) => (
+                  <tr key={a.id}>
+                    <td className="px-6 py-3 font-medium text-gray-800">{a.activo}</td>
+                    <td className="px-6 py-3 text-gray-500">{a.fecha_compra ? formatFecha(a.fecha_compra) : '—'}</td>
+                    <td className="px-6 py-3 text-right tabular-nums text-gray-800">{formatCOP(a.costo_total)}</td>
+                    <td className="px-6 py-3 text-right tabular-nums text-gray-600">{formatCOP(a.valor_en_libros)}</td>
+                    <td className="px-6 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        a.estado_garantia === 'EN GARANTIA'
+                          ? 'bg-green-50 text-green-700'
+                          : a.estado_garantia === 'GARANTIA VENCIDA'
+                            ? 'bg-gray-100 text-gray-600'
+                            : 'bg-amber-50 text-amber-700'
+                      }`}>
+                        {a.estado_garantia}
+                      </span>
+                      {a.garantia_hasta && (
+                        <span className="block text-xs text-gray-400 mt-0.5">
+                          Hasta {formatFecha(a.garantia_hasta)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-3 text-right tabular-nums text-gray-600">
+                      {a.gasto_mantenimiento > 0 ? formatCOP(a.gasto_mantenimiento) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Alerta de gastos sin soporte */}
         {noDeducibles.length > 0 && (
@@ -133,7 +235,12 @@ export default async function GastosPage() {
                 Costos de venta, gastos operativos y su estado tributario
               </p>
             </div>
-            <FormGasto cotizaciones={cotizaciones} cuentas={cuentas} proveedores={proveedores} />
+            <FormGasto
+              cotizaciones={cotizaciones}
+              cuentas={cuentas}
+              proveedores={proveedores}
+              activos={activosFijos.map((a) => ({ id: a.id, activo: a.activo, fecha_compra: a.fecha_compra }))}
+            />
           </div>
 
           {error && <div className="px-6 py-4 bg-red-50 text-red-700 text-sm">Error: {error.message}</div>}

@@ -43,6 +43,26 @@ export async function registrarGasto(formData: FormData): Promise<ResultadoAccio
   const proveedor_id = String(formData.get('proveedor_id') ?? '').trim()
 
   /**
+   * ACTIVO FIJO.
+   *
+   * La impresora sale del banco igual que cualquier gasto, y por eso hay
+   * que registrarla o el saldo del ERP no cuadra con el extracto. Pero NO
+   * es un gasto del periodo: la empresa cambio plata por una cosa que
+   * sigue valiendo. La vista posicion_financiera ya la excluye de
+   * gastos_operativos y la reporta aparte como inversion.
+   *
+   * MANTENIMIENTO_ACTIVO si es gasto del periodo, pero queda amarrado al
+   * activo para saber cuanto ha costado mantener ese equipo.
+   */
+  const esActivoFijo = categoria === 'ACTIVO_FIJO'
+  const esMantenimiento = categoria === 'MANTENIMIENTO_ACTIVO'
+  const activo_nombre = String(formData.get('activo_nombre') ?? '').trim()
+  const activo_serie = String(formData.get('activo_serie') ?? '').trim()
+  const activo_garantia_meses = Number(String(formData.get('activo_garantia_meses') ?? '')) || null
+  const activo_vida_util_meses = Number(String(formData.get('activo_vida_util_meses') ?? '')) || null
+  const activo_padre_id = String(formData.get('activo_padre_id') ?? '').trim()
+
+  /**
    * REPARTO DEL GASTO ENTRE VARIAS VENTAS.
    *
    * Caso real: un flete de 45.000 entrego 3 pedidos. El documento soporte
@@ -85,6 +105,12 @@ export async function registrarGasto(formData: FormData): Promise<ResultadoAccio
   if (iva_incluido > valor) return { ok: false, mensaje: 'El IVA no puede ser mayor al monto total.' }
   if (es_costo_venta && reparto.length === 0) {
     return { ok: false, mensaje: 'Si es costo de una venta, elige al menos una venta y ponle el monto que le corresponde.' }
+  }
+  if (esActivoFijo && es_costo_venta) {
+    return { ok: false, mensaje: 'Un activo fijo no puede ser costo de una venta: no se consumio para cumplir un pedido, se quedo en la empresa.' }
+  }
+  if (esMantenimiento && !activo_padre_id) {
+    return { ok: false, mensaje: 'Elige a que activo le hiciste el mantenimiento, para que quede el historial de ese equipo.' }
   }
   // No se puede repartir mas de lo que costo el gasto
   if (es_costo_venta && totalRepartido - valor > 1) {
@@ -130,6 +156,13 @@ export async function registrarGasto(formData: FormData): Promise<ResultadoAccio
         forma_pago: formData.get('forma_pago') || 'Efectivo',
         soporte_url: soporte_url || null,
         notas: formData.get('notas') || null,
+        // Datos del activo. Si no es activo ni mantenimiento van en null.
+        activo_nombre: esActivoFijo ? (activo_nombre || concepto) : null,
+        activo_serie: esActivoFijo ? (activo_serie || null) : null,
+        activo_garantia_meses: esActivoFijo ? activo_garantia_meses : null,
+        activo_vida_util_meses: esActivoFijo ? activo_vida_util_meses : null,
+        activo_estado: esActivoFijo ? 'EN_USO' : null,
+        activo_padre_id: esMantenimiento ? (activo_padre_id || null) : null,
       })
       .select('id')
       .single()
@@ -223,8 +256,17 @@ export async function registrarGasto(formData: FormData): Promise<ResultadoAccio
     revalidatePath('/financiero')
     revalidatePath('/ventas')
     revalidatePath('/panel')
+    // La plata salio de una cuenta: tesoreria e indicadores cambian
+    revalidatePath('/tesoreria')
+    revalidatePath('/indicadores')
 
-    const partes = ['Gasto registrado.']
+    const partes = [esActivoFijo ? 'Activo fijo registrado.' : 'Gasto registrado.']
+    if (esActivoFijo) {
+      partes.push(`Salieron ${fmtCop(valor)} de la cuenta y quedo en el listado de activos fijos. NO se cuenta como gasto del mes: es una inversion.`)
+    }
+    if (esMantenimiento) {
+      partes.push('Cargado al historial de mantenimiento de ese activo.')
+    }
     if (numeroDS) partes.push(`Documento soporte ${numeroDS} generado.`)
     if (!deducible) partes.push('Sin soporte: NO es deducible de impuestos.')
     if (es_costo_venta && reparto.length === 1) {

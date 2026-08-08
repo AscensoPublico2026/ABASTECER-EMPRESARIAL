@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatCOP } from '@/lib/format'
 import {
   PlusCircle, X, Loader2, CheckCircle2, AlertCircle, Upload, FileCheck,
-  Target, FileWarning, ShieldCheck,
+  Target, FileWarning, ShieldCheck, Boxes,
 } from 'lucide-react'
 
 interface CotizacionOpcion {
@@ -26,10 +26,18 @@ export interface ProveedorOpcion {
   ciudad: string | null
 }
 
+/** Un activo fijo ya registrado, para poderle cargar un mantenimiento */
+export interface ActivoOpcion {
+  id: string
+  activo: string
+  fecha_compra: string
+}
+
 interface Props {
   cotizaciones: CotizacionOpcion[]
   cuentas: { id: string; nombre: string; es_reserva: boolean }[]
   proveedores: ProveedorOpcion[]
+  activos?: ActivoOpcion[]
 }
 
 type TipoSoporte = 'FACTURA' | 'DOCUMENTO_SOPORTE' | 'NINGUNO'
@@ -44,7 +52,7 @@ function num(v: string) {
   return Number(v.replace(/\./g, '').replace(',', '.')) || 0
 }
 
-export default function FormGasto({ cotizaciones, cuentas, proveedores }: Props) {
+export default function FormGasto({ cotizaciones, cuentas, proveedores, activos = [] }: Props) {
   const [abierto, setAbierto] = useState(false)
   const [pendiente, startTransition] = useTransition()
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
@@ -56,6 +64,28 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores }: Props)
   const [tipoSoporte, setTipoSoporte] = useState<TipoSoporte>('FACTURA')
   const [monto, setMonto] = useState('')
   const [ivaIncluido, setIvaIncluido] = useState('')
+
+  /**
+   * CATEGORIA. Dejo de ser un select suelto porque ahora cambia el
+   * comportamiento del formulario:
+   *
+   * ACTIVO_FIJO: la impresora, el computador, la estanteria. La plata SI
+   * sale del banco (por eso hay que registrarla o el saldo no cuadra con
+   * el extracto), pero NO es un gasto del periodo: la empresa cambio plata
+   * por una cosa que sigue valiendo. Si se contara como gasto, el
+   * resultado operativo del mes saldria hundido por una inversion.
+   *
+   * MANTENIMIENTO_ACTIVO: el arreglo o el repuesto de un activo. Ese SI es
+   * gasto del periodo, y se le amarra al activo para saber cuanto ha
+   * costado mantener esa impresora.
+   */
+  const [categoria, setCategoria] = useState('TRANSPORTE')
+  const esActivoFijo = categoria === 'ACTIVO_FIJO'
+  const esMantenimiento = categoria === 'MANTENIMIENTO_ACTIVO'
+  const [activo, setActivo] = useState({
+    nombre: '', serie: '', garantia_meses: '', vida_util_meses: '',
+  })
+  const [activoPadreId, setActivoPadreId] = useState('')
 
   // Reparto del gasto entre varias ventas
   const [reparto, setReparto] = useState<LineaReparto[]>([{ cotizacion_id: '', monto: '' }])
@@ -150,6 +180,9 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores }: Props)
     setTipoSoporte('FACTURA')
     setMonto('')
     setIvaIncluido('')
+    setCategoria('TRANSPORTE')
+    setActivo({ nombre: '', serie: '', garantia_meses: '', vida_util_meses: '' })
+    setActivoPadreId('')
     setReparto([{ cotizacion_id: '', monto: '' }])
     setProveedorId('')
     setCreandoTercero(false)
@@ -168,9 +201,24 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores }: Props)
 
     formData.set('monto', String(montoNum))
     formData.set('iva_incluido', String(ivaNum))
-    formData.set('es_costo_venta', esCostoVenta ? 'true' : 'false')
+    // Un activo fijo nunca es costo de una venta: no se consumio para
+    // cumplir un pedido, se quedo en la empresa.
+    formData.set('es_costo_venta', esCostoVenta && !esActivoFijo ? 'true' : 'false')
     formData.set('tipo_soporte', tipoSoporte)
     formData.set('proveedor_id', proveedorId)
+    formData.set('categoria', categoria)
+
+    // Datos del activo (solo si aplica)
+    formData.set('activo_nombre', esActivoFijo ? activo.nombre : '')
+    formData.set('activo_serie', esActivoFijo ? activo.serie : '')
+    formData.set('activo_garantia_meses', esActivoFijo ? activo.garantia_meses : '')
+    formData.set('activo_vida_util_meses', esActivoFijo ? activo.vida_util_meses : '')
+    formData.set('activo_padre_id', esMantenimiento ? activoPadreId : '')
+
+    if (esMantenimiento && !activoPadreId) {
+      setResultado({ ok: false, mensaje: 'Elige a que activo le hiciste el mantenimiento, para que quede el historial de ese equipo.' })
+      return
+    }
 
     // El reparto viaja como JSON: puede ser 1 venta o varias
     const repartoLimpio = reparto
@@ -279,7 +327,11 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores }: Props)
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
-              <select name="categoria" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
+              <select
+                value={categoria}
+                onChange={(e) => setCategoria(e.target.value)}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
+              >
                 <option value="TRANSPORTE">Transporte</option>
                 <option value="CONSTITUCION">Constitucion</option>
                 <option value="IMPUESTOS">Impuestos</option>
@@ -288,10 +340,105 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores }: Props)
                 <option value="TECNOLOGIA">Tecnologia</option>
                 <option value="LEGAL">Legal</option>
                 <option value="BANCARIO">Bancario</option>
+                <option value="ACTIVO_FIJO">Activo fijo (impresora, equipo)</option>
+                <option value="MANTENIMIENTO_ACTIVO">Mantenimiento de un activo</option>
                 <option value="OTROS">Otros</option>
               </select>
             </div>
           </div>
+
+          {/* ===== ACTIVO FIJO =====
+              La plata sale del banco igual, pero no es gasto del periodo:
+              es cambiar plata por una cosa que sigue valiendo. Por eso se
+              reporta aparte y no hunde el resultado operativo del mes. */}
+          {esActivoFijo && (
+            <div className="border border-indigo-200 bg-indigo-50 rounded-xl p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <Boxes className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-indigo-800">
+                  <b>Es una inversion, no un gasto del mes.</b> La plata sale del banco
+                  (por eso queda registrada y el saldo cuadra con el extracto), pero no se
+                  resta del resultado operativo: la empresa cambio plata por algo que sigue
+                  valiendo. Va a quedar en el listado de activos fijos.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Nombre del activo</label>
+                  <input
+                    value={activo.nombre}
+                    onChange={(e) => setActivo({ ...activo, nombre: e.target.value })}
+                    placeholder="IMPRESORA EPSON L3250"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Serie o placa</label>
+                  <input
+                    value={activo.serie}
+                    onChange={(e) => setActivo({ ...activo, serie: e.target.value })}
+                    placeholder="Opcional"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Garantia (meses)</label>
+                  <input
+                    value={activo.garantia_meses}
+                    onChange={(e) => setActivo({ ...activo, garantia_meses: e.target.value })}
+                    type="number" min="0" placeholder="24"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-0.5">2 anios = 24. El ERP calcula hasta que fecha.</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Vida util (meses)</label>
+                  <input
+                    value={activo.vida_util_meses}
+                    onChange={(e) => setActivo({ ...activo, vida_util_meses: e.target.value })}
+                    type="number" min="0" placeholder="60"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-0.5">Solo para saber cuanto vale hoy. No baja el impuesto.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ===== MANTENIMIENTO DE UN ACTIVO =====
+              Este SI es gasto del periodo, pero se amarra al equipo para
+              saber cuanto ha costado mantener esa impresora. */}
+          {esMantenimiento && (
+            <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 space-y-2">
+              <label className="block text-xs font-medium text-gray-700">
+                A que activo le hiciste el mantenimiento *
+              </label>
+              {activos.length === 0 ? (
+                <p className="text-xs text-amber-800">
+                  Todavia no hay activos fijos registrados. Registra primero la compra del
+                  equipo con la categoria <b>Activo fijo</b> y despues le cargas el mantenimiento.
+                </p>
+              ) : (
+                <>
+                  <select
+                    value={activoPadreId}
+                    onChange={(e) => setActivoPadreId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                  >
+                    <option value="">-- Seleccionar activo --</option>
+                    {activos.map((a) => (
+                      <option key={a.id} value={a.id}>{a.activo}</option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-amber-800">
+                    El mantenimiento si es gasto del mes. Se le suma al historial del equipo
+                    para saber cuanto llevas gastado en el.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
 
           {montoNum > 0 && (
             <div className="bg-gray-50 rounded-xl px-4 py-2.5 text-xs text-gray-600 flex justify-between">
@@ -300,7 +447,10 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores }: Props)
             </div>
           )}
 
-          {/* ===== ES COSTO DE UNA VENTA ===== */}
+          {/* ===== ES COSTO DE UNA VENTA =====
+              No se muestra para activos fijos: la impresora no se consumio
+              para cumplir un pedido, se quedo en la empresa. */}
+          {!esActivoFijo && (
           <div className="border border-gray-200 rounded-xl p-4 space-y-3">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
@@ -424,6 +574,7 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores }: Props)
               </div>
             )}
           </div>
+          )}
 
           {/* ===== SOPORTE ===== */}
           <div>
