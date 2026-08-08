@@ -15,18 +15,36 @@ interface CotizacionOpcion {
   cliente_nombre: string
 }
 
+/** Un tercero que ya existe, para no volver a digitar sus datos */
+export interface ProveedorOpcion {
+  id: string
+  razon_social: string
+  nit: string | null
+  tipo_documento: string | null
+  contacto_telefono: string | null
+  direccion: string | null
+  ciudad: string | null
+}
+
 interface Props {
   cotizaciones: CotizacionOpcion[]
   cuentas: { id: string; nombre: string; es_reserva: boolean }[]
+  proveedores: ProveedorOpcion[]
 }
 
 type TipoSoporte = 'FACTURA' | 'DOCUMENTO_SOPORTE' | 'NINGUNO'
+
+/** Una linea del reparto: a que venta y por cuanto */
+interface LineaReparto {
+  cotizacion_id: string
+  monto: string
+}
 
 function num(v: string) {
   return Number(v.replace(/\./g, '').replace(',', '.')) || 0
 }
 
-export default function FormGasto({ cotizaciones, cuentas }: Props) {
+export default function FormGasto({ cotizaciones, cuentas, proveedores }: Props) {
   const [abierto, setAbierto] = useState(false)
   const [pendiente, startTransition] = useTransition()
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
@@ -39,11 +57,53 @@ export default function FormGasto({ cotizaciones, cuentas }: Props) {
   const [monto, setMonto] = useState('')
   const [ivaIncluido, setIvaIncluido] = useState('')
 
+  // Reparto del gasto entre varias ventas
+  const [reparto, setReparto] = useState<LineaReparto[]>([{ cotizacion_id: '', monto: '' }])
+
+  // Proveedor: si el tercero ya existe, sus datos llenan el documento soporte
+  const [proveedorId, setProveedorId] = useState('')
+
   const cuentasOperativas = cuentas.filter((c) => !c.es_reserva)
   const montoNum = num(monto)
   const ivaNum = num(ivaIncluido)
   const base = Math.max(0, montoNum - ivaNum)
   const ocupado = pendiente || subiendo
+
+  const totalRepartido = reparto.reduce((s, r) => s + (r.cotizacion_id ? num(r.monto) : 0), 0)
+  const sinRepartir = montoNum - totalRepartido
+  const proveedorElegido = proveedores.find((p) => p.id === proveedorId)
+
+  function agregarReparto() {
+    setReparto([...reparto, { cotizacion_id: '', monto: '' }])
+  }
+
+  function quitarReparto(idx: number) {
+    setReparto(reparto.length === 1 ? reparto : reparto.filter((_, i) => i !== idx))
+  }
+
+  function actualizarReparto(idx: number, campo: keyof LineaReparto, valor: string) {
+    setReparto(reparto.map((r, i) => (i === idx ? { ...r, [campo]: valor } : r)))
+  }
+
+  /**
+   * Divide el gasto en partes iguales entre las ventas elegidas.
+   * El sobrante de la division se le suma a la primera, para que la suma
+   * de las partes de EXACTAMENTE el monto del gasto y no queden pesos
+   * sueltos sin asignar.
+   */
+  function repartirIgual() {
+    const conVenta = reparto.filter((r) => r.cotizacion_id)
+    if (conVenta.length === 0 || montoNum <= 0) return
+    const parte = Math.floor(montoNum / conVenta.length)
+    const sobrante = montoNum - parte * conVenta.length
+    let primera = true
+    setReparto(reparto.map((r) => {
+      if (!r.cotizacion_id) return r
+      const valor = primera ? parte + sobrante : parte
+      primera = false
+      return { ...r, monto: String(valor) }
+    }))
+  }
 
   function cerrar() {
     setAbierto(false)
@@ -53,6 +113,8 @@ export default function FormGasto({ cotizaciones, cuentas }: Props) {
     setTipoSoporte('FACTURA')
     setMonto('')
     setIvaIncluido('')
+    setReparto([{ cotizacion_id: '', monto: '' }])
+    setProveedorId('')
   }
 
   async function handleSubmit(formData: FormData) {
@@ -65,6 +127,28 @@ export default function FormGasto({ cotizaciones, cuentas }: Props) {
     formData.set('iva_incluido', String(ivaNum))
     formData.set('es_costo_venta', esCostoVenta ? 'true' : 'false')
     formData.set('tipo_soporte', tipoSoporte)
+    formData.set('proveedor_id', proveedorId)
+
+    // El reparto viaja como JSON: puede ser 1 venta o varias
+    const repartoLimpio = reparto
+      .filter((r) => r.cotizacion_id && num(r.monto) > 0)
+      .map((r) => ({ cotizacion_id: r.cotizacion_id, monto: num(r.monto) }))
+
+    if (esCostoVenta) {
+      if (repartoLimpio.length === 0) {
+        setResultado({ ok: false, mensaje: 'Elige al menos una venta y ponle el monto que le corresponde.' })
+        return
+      }
+      const suma = repartoLimpio.reduce((s, r) => s + r.monto, 0)
+      if (suma - montoNum > 1) {
+        setResultado({
+          ok: false,
+          mensaje: `Estas repartiendo ${formatCOP(suma)} pero el gasto es de ${formatCOP(montoNum)}. No puedes repartir mas de lo que costo.`,
+        })
+        return
+      }
+    }
+    formData.set('reparto', JSON.stringify(repartoLimpio))
 
     setResultado(null)
     setSubiendo(true)
@@ -194,17 +278,103 @@ export default function FormGasto({ cotizaciones, cuentas }: Props) {
               </div>
             </label>
 
+            {/* REPARTO ENTRE VARIAS VENTAS.
+                Caso real: un flete de 45.000 que entrego 3 pedidos. El
+                documento soporte se emite UNA sola vez por los 45.000
+                (que es lo correcto ante la DIAN) y el costo se divide
+                entre las 3 ventas. Antes solo se podia elegir UNA venta y
+                tocaba inventar tres gastos. */}
             {esCostoVenta && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Venta a la que pertenece *</label>
-                <select name="cotizacion_id" required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
-                  <option value="">Seleccionar venta</option>
-                  {cotizaciones.map((c) => (
-                    <option key={c.id} value={c.id}>{c.numero} · {c.cliente_nombre}</option>
-                  ))}
-                </select>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-gray-700">
+                    A que ventas le corresponde este costo *
+                  </label>
+                  {reparto.length > 1 && montoNum > 0 && (
+                    <button
+                      type="button"
+                      onClick={repartirIgual}
+                      className="text-xs text-blue-600 hover:underline font-medium"
+                    >
+                      Repartir en partes iguales
+                    </button>
+                  )}
+                </div>
+
+                {reparto.map((r, i) => (
+                  <div key={i} className="flex gap-2 items-start">
+                    <select
+                      value={r.cotizacion_id}
+                      onChange={(e) => actualizarReparto(i, 'cotizacion_id', e.target.value)}
+                      className="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
+                    >
+                      <option value="">Seleccionar venta</option>
+                      {cotizaciones
+                        .filter((c) => c.id === r.cotizacion_id || !reparto.some((x) => x.cotizacion_id === c.id))
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>{c.numero} · {c.cliente_nombre}</option>
+                        ))}
+                    </select>
+                    <input
+                      value={r.monto}
+                      onChange={(e) => actualizarReparto(i, 'monto', e.target.value)}
+                      inputMode="numeric"
+                      placeholder="Monto"
+                      className="w-32 px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-right tabular-nums"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => quitarReparto(i)}
+                      disabled={reparto.length === 1}
+                      className="p-2.5 text-gray-400 hover:text-red-500 disabled:opacity-30"
+                      title="Quitar esta venta"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={agregarReparto}
+                  disabled={reparto.length >= cotizaciones.length}
+                  className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline font-medium disabled:opacity-40"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" /> Agregar otra venta
+                </button>
+
+                {/* Control del reparto: que no quede plata sin asignar ni de mas */}
+                {montoNum > 0 && (
+                  <div className={`rounded-xl px-3 py-2.5 text-xs ${
+                    Math.abs(sinRepartir) < 1 ? 'bg-green-50 text-green-800'
+                    : sinRepartir > 0 ? 'bg-amber-50 text-amber-800'
+                    : 'bg-red-50 text-red-800'
+                  }`}>
+                    <div className="flex justify-between">
+                      <span>Gasto total</span>
+                      <span className="tabular-nums font-medium">{formatCOP(montoNum)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Repartido entre {reparto.filter((r) => r.cotizacion_id).length} venta(s)</span>
+                      <span className="tabular-nums font-medium">{formatCOP(totalRepartido)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-current/20 mt-1 pt-1 font-semibold">
+                      <span>
+                        {Math.abs(sinRepartir) < 1 ? 'Cuadra' : sinRepartir > 0 ? 'Falta repartir' : 'Te pasaste'}
+                      </span>
+                      <span className="tabular-nums">{formatCOP(Math.abs(sinRepartir))}</span>
+                    </div>
+                    {sinRepartir > 0 && (
+                      <p className="mt-1.5 leading-relaxed">
+                        Lo que quede sin repartir no entra a ninguna venta, asi que la utilidad
+                        de esas ventas va a salir mas alta de lo real.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {cotizaciones.length === 0 && (
-                  <p className="text-xs text-amber-600 mt-1">
+                  <p className="text-xs text-amber-600">
                     No hay ventas disponibles. Debe estar aprobada o mas adelante en el flujo.
                   </p>
                 )}
@@ -261,14 +431,57 @@ export default function FormGasto({ cotizaciones, cuentas }: Props) {
               <p className="text-xs text-blue-800 font-medium">
                 Datos de la persona a la que le pagaste
               </p>
+
+              {/* TRAER LOS DATOS DEL TERCERO SI YA EXISTE.
+                  Antes habia que digitar nombre, cedula, telefono y
+                  direccion cada vez, incluso para el transportador de
+                  siempre. Si ya esta creado como proveedor, esos datos ya
+                  estan guardados: aqui se traen solos. */}
+              {proveedores.length > 0 && (
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">
+                    Ya lo tienes registrado? Elige y se llenan los datos
+                  </label>
+                  <select
+                    value={proveedorId}
+                    onChange={(e) => setProveedorId(e.target.value)}
+                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                  >
+                    <option value="">Escribir los datos a mano</option>
+                    {proveedores.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.razon_social}{p.nit ? ` · ${p.nit}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {proveedorElegido && (
+                    <p className="text-xs text-blue-700 mt-1">
+                      Datos traidos de {proveedorElegido.razon_social}. Los puedes corregir abajo.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs text-gray-600 mb-1">Nombre completo *</label>
-                <input name="tercero_nombre" required className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white" placeholder="Nombre del transportador" />
+                <input
+                  name="tercero_nombre"
+                  required
+                  key={`nom-${proveedorId}`}
+                  defaultValue={proveedorElegido?.razon_social ?? ''}
+                  className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                  placeholder="Nombre del transportador"
+                />
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Tipo doc</label>
-                  <select name="tercero_tipo_documento" className="w-full px-2 py-2 border border-blue-200 rounded-lg text-sm bg-white">
+                  <select
+                    name="tercero_tipo_documento"
+                    key={`tipo-${proveedorId}`}
+                    defaultValue={proveedorElegido?.tipo_documento ?? 'CC'}
+                    className="w-full px-2 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                  >
                     <option value="CC">CC</option>
                     <option value="CE">CE</option>
                     <option value="NIT">NIT</option>
@@ -278,17 +491,35 @@ export default function FormGasto({ cotizaciones, cuentas }: Props) {
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs text-gray-600 mb-1">Numero *</label>
-                  <input name="tercero_documento" required inputMode="numeric" className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white" placeholder="1234567890" />
+                  <input
+                    name="tercero_documento"
+                    required
+                    inputMode="numeric"
+                    key={`doc-${proveedorId}`}
+                    defaultValue={proveedorElegido?.nit ?? ''}
+                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                    placeholder="1234567890"
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Telefono</label>
-                  <input name="tercero_telefono" className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white" />
+                  <input
+                    name="tercero_telefono"
+                    key={`tel-${proveedorId}`}
+                    defaultValue={proveedorElegido?.contacto_telefono ?? ''}
+                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Direccion</label>
-                  <input name="tercero_direccion" className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white" />
+                  <input
+                    name="tercero_direccion"
+                    key={`dir-${proveedorId}`}
+                    defaultValue={proveedorElegido?.direccion ?? ''}
+                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                  />
                 </div>
               </div>
               <p className="text-xs text-blue-700">

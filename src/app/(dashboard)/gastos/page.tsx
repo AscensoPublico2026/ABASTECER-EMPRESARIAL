@@ -27,7 +27,7 @@ export default async function GastosPage() {
   // Nota: no se puede embeber documentos_soporte porque hay dos llaves foraneas
   // entre gastos y documentos_soporte (gasto_id y documento_soporte_id).
   // PostgREST no sabe cual usar, asi que se consulta aparte.
-  const [{ data, error }, cotizaciones, cuentas] = await Promise.all([
+  const [{ data, error }, cotizaciones, cuentas, provRes] = await Promise.all([
     supabase
       .from('gastos')
       .select('*, cotizaciones(numero)')
@@ -35,7 +35,24 @@ export default async function GastosPage() {
       .limit(100),
     obtenerCotizacionesParaAsignar(),
     obtenerCuentasParaSelect(),
+    // Terceros ya registrados, para llenar solos los datos del documento
+    // soporte y no tener que digitar nombre y cedula cada vez
+    supabase
+      .from('proveedores')
+      .select('id, razon_social, nit, tipo_documento, contacto_telefono, direccion, ciudad')
+      .eq('estado', 'ACTIVO')
+      .order('razon_social'),
   ])
+
+  const proveedores = (provRes.data ?? []).map((p) => ({
+    id: String(p.id),
+    razon_social: String(p.razon_social ?? ''),
+    nit: (p.nit as string | null) ?? null,
+    tipo_documento: (p.tipo_documento as string | null) ?? null,
+    contacto_telefono: (p.contacto_telefono as string | null) ?? null,
+    direccion: (p.direccion as string | null) ?? null,
+    ciudad: (p.ciudad as string | null) ?? null,
+  }))
 
   const gastos = data ?? []
 
@@ -116,7 +133,7 @@ export default async function GastosPage() {
                 Costos de venta, gastos operativos y su estado tributario
               </p>
             </div>
-            <FormGasto cotizaciones={cotizaciones} cuentas={cuentas} />
+            <FormGasto cotizaciones={cotizaciones} cuentas={cuentas} proveedores={proveedores} />
           </div>
 
           {error && <div className="px-6 py-4 bg-red-50 text-red-700 text-sm">Error: {error.message}</div>}

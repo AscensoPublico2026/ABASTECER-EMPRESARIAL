@@ -40,7 +40,34 @@ export async function registrarGasto(formData: FormData): Promise<ResultadoAccio
   const iva_incluido = monto(formData.get('iva_incluido'))
   const fecha = String(formData.get('fecha') ?? '').trim() || new Date().toISOString().slice(0, 10)
   const categoria = String(formData.get('categoria') ?? 'OTROS').trim()
-  const cotizacion_id = String(formData.get('cotizacion_id') ?? '').trim()
+  const proveedor_id = String(formData.get('proveedor_id') ?? '').trim()
+
+  /**
+   * REPARTO DEL GASTO ENTRE VARIAS VENTAS.
+   *
+   * Caso real: un flete de 45.000 entrego 3 pedidos. El documento soporte
+   * se emite UNA sola vez por los 45.000 (que es lo correcto ante la DIAN)
+   * y el costo se divide entre las 3 ventas.
+   *
+   * Antes gastos.cotizacion_id era UNA sola venta, asi que para repartir
+   * tocaba crear tres gastos de 15.000: tres documentos donde hubo uno.
+   *
+   * cotizacion_id se sigue guardando con la PRIMERA venta del reparto, por
+   * compatibilidad con lo que ya lee ese campo.
+   */
+  let reparto: { cotizacion_id: string; monto: number }[] = []
+  try {
+    const parsed = JSON.parse(String(formData.get('reparto') ?? '[]'))
+    if (Array.isArray(parsed)) {
+      reparto = parsed
+        .filter((r) => r && typeof r.cotizacion_id === 'string' && Number(r.monto) > 0)
+        .map((r) => ({ cotizacion_id: String(r.cotizacion_id), monto: Number(r.monto) }))
+    }
+  } catch {
+    reparto = []
+  }
+  const totalRepartido = reparto.reduce((s, r) => s + r.monto, 0)
+  const cotizacion_id = reparto[0]?.cotizacion_id ?? ''
   const es_costo_venta = formData.get('es_costo_venta') === 'on' || formData.get('es_costo_venta') === 'true'
   const tipo_soporte = String(formData.get('tipo_soporte') ?? 'NINGUNO').trim()
   const soporte_url = String(formData.get('soporte_url') ?? '').trim()
@@ -56,8 +83,15 @@ export async function registrarGasto(formData: FormData): Promise<ResultadoAccio
   if (!concepto) return { ok: false, mensaje: 'El concepto es obligatorio.' }
   if (valor <= 0) return { ok: false, mensaje: 'El monto debe ser mayor a cero.' }
   if (iva_incluido > valor) return { ok: false, mensaje: 'El IVA no puede ser mayor al monto total.' }
-  if (es_costo_venta && !cotizacion_id) {
-    return { ok: false, mensaje: 'Si es costo de una venta, selecciona la cotizacion.' }
+  if (es_costo_venta && reparto.length === 0) {
+    return { ok: false, mensaje: 'Si es costo de una venta, elige al menos una venta y ponle el monto que le corresponde.' }
+  }
+  // No se puede repartir mas de lo que costo el gasto
+  if (es_costo_venta && totalRepartido - valor > 1) {
+    return {
+      ok: false,
+      mensaje: `Estas repartiendo ${fmtCop(totalRepartido)} entre las ventas pero el gasto es de ${fmtCop(valor)}. No puedes repartir mas de lo que costo.`,
+    }
   }
   if (tipo_soporte === 'DOCUMENTO_SOPORTE' && (!tercero_nombre || !tercero_documento)) {
     return { ok: false, mensaje: 'Para el documento soporte necesitas el nombre y el documento del tercero.' }
@@ -86,6 +120,7 @@ export async function registrarGasto(formData: FormData): Promise<ResultadoAccio
         fecha,
         categoria,
         cotizacion_id: cotizacion_id || null,
+        proveedor_id: proveedor_id || null,
         es_costo_venta,
         tiene_soporte,
         deducible,
@@ -161,10 +196,27 @@ export async function registrarGasto(formData: FormData): Promise<ResultadoAccio
       })
     }
 
-    // Si es costo de venta, recalcular la utilidad de esa cotizacion
-    if (es_costo_venta && cotizacion_id) {
-      await recalcularCostoCotizacion(supabase, cotizacion_id)
-      revalidatePath(`/ventas/${cotizacion_id}`)
+    // Guardar el reparto: una fila por venta.
+    // Si esto falla, el gasto ya quedo creado pero sin llegar a ninguna
+    // venta, asi que hay que avisarlo y no dejarlo pasar en silencio.
+    let avisoReparto = ''
+    if (es_costo_venta && reparto.length > 0) {
+      const { error: errReparto } = await supabase.from('gasto_reparto').insert(
+        reparto.map((r) => ({
+          gasto_id: gasto.id,
+          cotizacion_id: r.cotizacion_id,
+          monto: r.monto,
+        })),
+      )
+      if (errReparto) {
+        avisoReparto = ` OJO: el gasto quedo registrado pero NO se pudo repartir entre las ventas (${errReparto.message}). Ese costo no esta entrando a ninguna venta.`
+      } else {
+        // Recalcular la utilidad de TODAS las ventas afectadas
+        for (const r of reparto) {
+          await recalcularCostoCotizacion(supabase, r.cotizacion_id)
+          revalidatePath(`/ventas/${r.cotizacion_id}`)
+        }
+      }
     }
 
     revalidatePath('/gastos')
@@ -175,7 +227,16 @@ export async function registrarGasto(formData: FormData): Promise<ResultadoAccio
     const partes = ['Gasto registrado.']
     if (numeroDS) partes.push(`Documento soporte ${numeroDS} generado.`)
     if (!deducible) partes.push('Sin soporte: NO es deducible de impuestos.')
-    if (es_costo_venta) partes.push('Imputado al costo de la venta.')
+    if (es_costo_venta && reparto.length === 1) {
+      partes.push('Imputado al costo de la venta.')
+    } else if (es_costo_venta && reparto.length > 1) {
+      partes.push(`Costo repartido entre ${reparto.length} ventas.`)
+      const sinRepartir = valor - totalRepartido
+      if (sinRepartir > 1) {
+        partes.push(`Quedaron ${fmtCop(sinRepartir)} sin repartir: ese costo no entra a ninguna venta.`)
+      }
+    }
+    if (avisoReparto) partes.push(avisoReparto)
 
     return { ok: true, mensaje: partes.join(' ') }
   } catch (e) {
