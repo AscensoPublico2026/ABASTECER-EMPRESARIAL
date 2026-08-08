@@ -17,8 +17,22 @@ export async function agregarPrecioProveedor(formData: FormData): Promise<Result
   const tiempo_entrega = String(formData.get('tiempo_entrega') ?? '').trim()
   const referencia_proveedor = String(formData.get('referencia_proveedor') ?? '').trim()
   const fecha_cotizacion = String(formData.get('fecha_cotizacion') ?? '').trim()
-  const disponible = formData.has('disponible')
   const notas = String(formData.get('notas') ?? '').trim()
+
+  // COSTO = me lo venden a mi (define mi margen).
+  // MERCADO = asi lo vende al cliente final (define si soy competitivo).
+  const tipoRaw = String(formData.get('tipo') ?? 'COSTO').trim().toUpperCase()
+  const tipo = tipoRaw === 'MERCADO' ? 'MERCADO' : 'COSTO'
+
+  // BUG QUE ESTO ARREGLA: antes se leia con formData.has('disponible'),
+  // pero el formulario NO tiene ese campo, asi que TODO precio se
+  // guardaba como NO disponible. En el listado eso manda al proveedor al
+  // final del ranking y lo marca "sin existencias" sin razon.
+  // Un precio recien cotizado se asume disponible salvo que digan lo
+  // contrario; para marcarlo agotado esta la edicion del precio.
+  const disponible = formData.has('disponible')
+    ? formData.get('disponible') !== 'false'
+    : true
 
   if (!producto_id) return { ok: false, mensaje: 'Producto no valido.' }
   if (!proveedor_id) return { ok: false, mensaje: 'Selecciona un proveedor.' }
@@ -30,6 +44,7 @@ export async function agregarPrecioProveedor(formData: FormData): Promise<Result
       producto_id,
       proveedor_id,
       precio,
+      tipo,
       iva_incluido,
       tiempo_entrega: tiempo_entrega || null,
       referencia_proveedor: referencia_proveedor || null,

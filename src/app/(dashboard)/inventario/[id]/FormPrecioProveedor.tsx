@@ -19,6 +19,7 @@ export default function FormPrecioProveedor({ productoId, proveedores }: Props) 
   const [nuevoContacto, setNuevoContacto] = useState('')
   const [nuevoTelefono, setNuevoTelefono] = useState('')
   const [proveedorSeleccionado, setProveedorSeleccionado] = useState('')
+  const [tipoPrecio, setTipoPrecio] = useState<'COSTO' | 'MERCADO'>('COSTO')
 
   async function handleCrearProveedor() {
     if (!nuevoNombre.trim()) return
@@ -44,6 +45,7 @@ export default function FormPrecioProveedor({ productoId, proveedores }: Props) 
   function handleSubmit(formData: FormData) {
     formData.set('producto_id', productoId)
     formData.set('proveedor_id', proveedorSeleccionado)
+    formData.set('tipo', tipoPrecio)
     setResultado(null)
     startTransition(async () => {
       const res = await agregarPrecioProveedor(formData)
@@ -104,6 +106,50 @@ export default function FormPrecioProveedor({ productoId, proveedores }: Props) 
                 {listaProveedores.map((p) => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
               </select>
             )}
+          </div>
+
+          {/* QUE CLASE DE PRECIO ES.
+              Los dos hacen fuerzas contrarias y hay que guardarlos aparte:
+              el de costo define el piso (mi margen) y el de mercado define
+              el techo (si soy competitivo). Un mismo tercero puede darte
+              los dos, preguntando desde numeros distintos. */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Que precio es este *</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setTipoPrecio('COSTO')}
+                className={`px-3 py-2.5 rounded-xl text-sm font-medium border-2 text-left transition ${
+                  tipoPrecio === 'COSTO'
+                    ? 'border-green-400 bg-green-50 text-green-800'
+                    : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                }`}
+              >
+                Me lo venden a mi
+                <span className="block text-xs font-normal opacity-80 mt-0.5">
+                  Precio de distribuidor. Es mi costo.
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTipoPrecio('MERCADO')}
+                className={`px-3 py-2.5 rounded-xl text-sm font-medium border-2 text-left transition ${
+                  tipoPrecio === 'MERCADO'
+                    ? 'border-purple-400 bg-purple-50 text-purple-800'
+                    : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                }`}
+              >
+                Asi lo vende al cliente
+                <span className="block text-xs font-normal opacity-80 mt-0.5">
+                  Precio de la competencia. Es mi techo.
+                </span>
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+              {tipoPrecio === 'COSTO'
+                ? 'Se usa para calcular tu margen y elegir a quien comprarle.'
+                : 'Se usa para saber si tu precio de venta es competitivo. No cuenta como costo.'}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
