@@ -71,16 +71,26 @@ export async function recalcularCostoCotizacion(supabase: Supa, cotizacionId: st
   }
 
   // ---- 3. Costos sin factura imputados a la venta (flete, mano de obra) ----
-  const { data: gastos } = await supabase
-    .from('gastos')
-    .select('monto, iva_incluido')
+  // LEE DE gasto_reparto, no del campo gastos.cotizacion_id: un gasto
+  // puede estar repartido entre varias ventas y solo le corresponde la
+  // parte que le asignaron a ESTA venta. Leer del campo viejo (que apunta
+  // a la primera) dejaba el costo completo en una sola y cero en las demas.
+  const { data: repartoGastos } = await supabase
+    .from('gasto_reparto')
+    .select('monto, gastos(monto, iva_incluido)')
     .eq('cotizacion_id', cotizacionId)
-    .eq('es_costo_venta', true)
 
-  const costoGastos = (gastos ?? []).reduce(
-    (s, g) => s + (Number(g.monto ?? 0) - Number(g.iva_incluido ?? 0)),
-    0
-  )
+  const costoGastos = (repartoGastos ?? []).reduce((s, gr) => {
+    const g = gr.gastos as { monto?: number; iva_incluido?: number } | null
+    if (!g) return s
+    // El IVA se prorratea: si a esta venta le toca el 33% del gasto,
+    // le corresponde el 33% del IVA, no el 100%.
+    const montoGasto = Number(g.monto ?? 0)
+    const ivaGasto = Number(g.iva_incluido ?? 0)
+    const montoReparto = Number(gr.monto ?? 0)
+    const ivaProporcional = montoGasto > 0 ? (ivaGasto * montoReparto / montoGasto) : 0
+    return s + (montoReparto - ivaProporcional)
+  }, 0)
 
   // ---- 4. Totales de la cotizacion ----
   const { data: cot } = await supabase

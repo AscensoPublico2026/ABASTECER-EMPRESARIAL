@@ -139,11 +139,32 @@ export async function obtenerDocumentosDeVenta(cotizacionId: string): Promise<Do
     }
 
     // ---------- Documentos soporte ----------
-    // Pueden estar atados a la cotizacion directamente, o a una de las
-    // facturas de compra que se asignaron a esta venta.
-    const filtroDs = facturaIds.length > 0
-      ? `cotizacion_id.eq.${cotizacionId},factura_compra_id.in.(${facturaIds.join(',')})`
-      : `cotizacion_id.eq.${cotizacionId}`
+    // Pueden venir de 3 caminos:
+    //   a) vinculados a la cotizacion directamente (campo viejo)
+    //   b) vinculados a una factura de compra asignada a esta venta
+    //   c) vinculados a un gasto que se repartio a esta venta (via gasto_reparto)
+    //
+    // Antes faltaba el (c), asi que un documento soporte de un flete
+    // repartido entre varias ventas NO aparecia en el centro de documentos
+    // de las ventas a las que le asignaron parte del costo.
+
+    // Primero: los gastos repartidos a esta venta, para sacar sus DS
+    const { data: repartoGastos } = await supabase
+      .from('gasto_reparto')
+      .select('gastos(id)')
+      .eq('cotizacion_id', cotizacionId)
+
+    const gastoIds = Array.from(
+      new Set((repartoGastos ?? [])
+        .map((gr) => (gr.gastos as { id?: string } | null)?.id)
+        .filter(Boolean) as string[]),
+    )
+
+    const filtroDs = [
+      `cotizacion_id.eq.${cotizacionId}`,
+      facturaIds.length > 0 ? `factura_compra_id.in.(${facturaIds.join(',')})` : null,
+      gastoIds.length > 0 ? `gasto_id.in.(${gastoIds.join(',')})` : null,
+    ].filter(Boolean).join(',')
 
     const { data: docsSoporte } = await supabase
       .from('documentos_soporte')

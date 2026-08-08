@@ -262,6 +262,22 @@ export async function eliminarGasto(formData: FormData): Promise<ResultadoAccion
 
     if (!gasto) return { ok: false, mensaje: 'Gasto no encontrado.' }
 
+    // Antes de borrar el gasto, capturar las ventas que se afectan.
+    // gasto_reparto cae por el ON DELETE CASCADE del gasto, pero
+    // necesitamos los IDs para recalcular TODAS las ventas impactadas,
+    // no solo la del campo viejo cotizacion_id.
+    const { data: repartoAntes } = await supabase
+      .from('gasto_reparto')
+      .select('cotizacion_id')
+      .eq('gasto_id', gasto_id)
+
+    const ventasAfectadas = Array.from(
+      new Set([
+        ...(repartoAntes ?? []).map((r) => r.cotizacion_id as string),
+        gasto.cotizacion_id ? String(gasto.cotizacion_id) : '',
+      ].filter(Boolean)),
+    )
+
     await supabase.from('movimientos_tesoreria').delete().eq('gasto_id', gasto_id)
     await supabase.from('documentos_soporte').delete().eq('gasto_id', gasto_id)
     await supabase.from('documentos').delete().eq('entidad_tipo', 'GASTO').eq('entidad_id', gasto_id)
@@ -269,9 +285,10 @@ export async function eliminarGasto(formData: FormData): Promise<ResultadoAccion
     const { error } = await supabase.from('gastos').delete().eq('id', gasto_id)
     if (error) return { ok: false, mensaje: error.message }
 
-    if (gasto.es_costo_venta && gasto.cotizacion_id) {
-      await recalcularCostoCotizacion(supabase, gasto.cotizacion_id as string)
-      revalidatePath(`/ventas/${gasto.cotizacion_id}`)
+    // Recalcular TODAS las ventas que tenian parte de este costo
+    for (const cid of ventasAfectadas) {
+      await recalcularCostoCotizacion(supabase, cid)
+      revalidatePath(`/ventas/${cid}`)
     }
 
     revalidatePath('/gastos')
