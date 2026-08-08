@@ -9,8 +9,9 @@ import {
   obtenerEstadoReserva,
   obtenerPosicionFinanciera,
   obtenerGmfPorPeriodo,
+  obtenerDescuadresGmf,
 } from '@/lib/queries/tesoreria'
-import { formatCOP } from '@/lib/format'
+import { formatCOP, formatFecha } from '@/lib/format'
 import { Landmark, PiggyBank, Wallet, TrendingUp, AlertCircle } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -22,6 +23,21 @@ export default async function TesoreriaPage() {
   const { datos: reserva } = await obtenerEstadoReserva()
   const { datos: posicion } = await obtenerPosicionFinanciera()
   const gmfPeriodos = await obtenerGmfPorPeriodo()
+
+  /**
+   * AUDITORIA DEL SALDO CONTRA EL BANCO.
+   *
+   * El 4x1000 es el unico dato del libro que calcula el banco y no nosotros.
+   * Si el GMF cobrado no corresponde al monto guardado, uno de los dos esta
+   * mal, y como el banco no se equivoca con su propio cobro, casi siempre es
+   * el monto el que quedo incompleto.
+   *
+   * Asi se descubrio la impresora: el movimiento decia 654.881 pero el GMF
+   * de 2.819 solo se explica con un egreso de ~704.750. Habia 49.869 que
+   * salieron del banco y no estaban registrados, y nada lo avisaba.
+   */
+  const descuadres = await obtenerDescuadresGmf()
+  const totalSinRegistrar = descuadres.reduce((s, d) => s + Math.abs(d.plata_sin_registrar), 0)
 
   const operativas = cuentasSaldo.filter((c) => !c.es_reserva)
   const reservas = cuentasSaldo.filter((c) => c.es_reserva)
@@ -168,6 +184,74 @@ export default async function TesoreriaPage() {
                 El banco cobra 4 pesos por cada mil que sale. Cada salida genera su cobro automaticamente.
                 Si en alguna transaccion el banco NO lo cobro, filtra por &quot;4x1000 (GMF)&quot; en el libro
                 de abajo y borralo con el icono de basura.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ===== DESCUADRE CONTRA EL BANCO =====
+            El 4x1000 delata cuando el monto guardado no es el que salio. */}
+        {descuadres.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border-2 border-red-300 overflow-hidden">
+            <div className="px-6 py-5 border-b border-red-100 bg-red-50">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-red-900">
+                    El saldo no cuadra con el banco: falta registrar {formatCOP(totalSinRegistrar)}
+                  </h3>
+                  <p className="text-sm text-red-800 mt-1 leading-relaxed">
+                    El 4x1000 lo calcula el banco sobre la plata que de verdad salio. En
+                    {descuadres.length === 1 ? ' este movimiento' : ` estos ${descuadres.length} movimientos`} el
+                    4x1000 cobrado no corresponde al monto que quedo guardado, asi que el monto
+                    esta incompleto. Revisa la factura y corrige el valor.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                  <tr>
+                    <th className="px-6 py-2.5 text-left font-medium">Movimiento</th>
+                    <th className="px-4 py-2.5 text-right font-medium">Registramos</th>
+                    <th className="px-4 py-2.5 text-right font-medium">4x1000 cobrado</th>
+                    <th className="px-4 py-2.5 text-right font-medium">Vio el banco</th>
+                    <th className="px-6 py-2.5 text-right font-medium">Falta registrar</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {descuadres.map((d) => (
+                    <tr key={d.movimiento_id}>
+                      <td className="px-6 py-3">
+                        <span className="font-medium text-gray-800">{d.concepto}</span>
+                        <span className="block text-xs text-gray-500">
+                          {d.fecha ? formatFecha(d.fecha) : ''}{d.cuenta ? ` · ${d.cuenta}` : ''}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{formatCOP(d.monto_registrado)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-500">
+                        {formatCOP(d.gmf_cobrado)}
+                        <span className="block text-xs text-gray-400">
+                          deberia ser {formatCOP(d.gmf_que_corresponde)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">
+                        {formatCOP(d.monto_que_vio_el_banco)}
+                      </td>
+                      <td className="px-6 py-3 text-right tabular-nums font-bold text-red-700">
+                        {formatCOP(d.plata_sin_registrar)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-6 py-4 bg-red-50/60 border-t border-red-100">
+              <p className="text-xs text-red-800 leading-relaxed">
+                Corrige el monto desde el modulo donde se creo (Gastos o Compras). Al guardarlo,
+                el 4x1000 se recalcula solo y esta alerta desaparece. Si el banco de verdad no
+                cobro ese 4x1000, borra la fila del GMF en el libro de abajo.
               </p>
             </div>
           </div>

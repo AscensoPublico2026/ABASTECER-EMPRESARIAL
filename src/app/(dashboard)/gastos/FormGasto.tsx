@@ -62,7 +62,7 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores, activos 
 
   const [esCostoVenta, setEsCostoVenta] = useState(false)
   const [tipoSoporte, setTipoSoporte] = useState<TipoSoporte>('FACTURA')
-  const [monto, setMonto] = useState('')
+  const [valorBase, setValorBase] = useState('')
   const [ivaIncluido, setIvaIncluido] = useState('')
 
   /**
@@ -131,9 +131,39 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores, activos 
   }
 
   const cuentasOperativas = cuentas.filter((c) => !c.es_reserva)
-  const montoNum = num(monto)
+  /**
+   * SE PIDE LA BASE Y EL IVA, Y EL ERP CALCULA EL TOTAL.
+   *
+   * ANTES se pedia "Monto total" (con el IVA ya dentro) mas "IVA incluido".
+   * Eso es al reves de como esta escrita cualquier factura, que trae
+   * subtotal, IVA y total. El usuario tenia la factura de la impresora en la
+   * mano, escribio el SUBTOTAL en el campo que decia "Monto total", y el ERP
+   * registro en el banco menos plata de la que realmente salio.
+   *
+   * Y no habia forma de darse cuenta: el formulario nunca mostraba el total
+   * que iba a salir de la cuenta.
+   *
+   * Ahora se pide como esta en la factura y el total se calcula y se muestra
+   * en grande, porque ESE es el numero que va a salir del banco.
+   */
+  const baseNum = num(valorBase)
   const ivaNum = num(ivaIncluido)
-  const base = Math.max(0, montoNum - ivaNum)
+  const montoNum = baseNum + ivaNum
+  const base = baseNum
+
+  /**
+   * Control de coherencia del IVA. En Colombia las tarifas son 0%, 5% y 19%.
+   * Si el IVA digitado no da ninguna de esas, casi siempre es un error de
+   * digitacion y hay que avisarlo antes de guardar.
+   */
+  const ivaPctReal = baseNum > 0 ? (ivaNum / baseNum) * 100 : 0
+  const ivaRaro = baseNum > 0 && ivaNum > 0
+    && ![0, 5, 19].some((t) => Math.abs(ivaPctReal - t) < 0.6)
+
+  /** Pone el IVA que corresponde a la tarifa, calculado sobre la base */
+  function aplicarIva(pct: number) {
+    setIvaIncluido(String(Math.round(baseNum * pct / 100)))
+  }
   const ocupado = pendiente || subiendo
 
   const totalRepartido = reparto.reduce((s, r) => s + (r.cotizacion_id ? num(r.monto) : 0), 0)
@@ -178,7 +208,7 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores, activos 
     setSoportePdf(null)
     setEsCostoVenta(false)
     setTipoSoporte('FACTURA')
-    setMonto('')
+    setValorBase('')
     setIvaIncluido('')
     setCategoria('TRANSPORTE')
     setActivo({ nombre: '', serie: '', garantia_meses: '', vida_util_meses: '' })
@@ -194,8 +224,10 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores, activos 
   }
 
   async function handleSubmit(formData: FormData) {
-    if (ivaNum > montoNum) {
-      setResultado({ ok: false, mensaje: 'El IVA no puede ser mayor al monto total.' })
+    // El monto que se guarda es base + IVA, asi que el IVA nunca puede ser
+    // mayor que el total. Lo que si hay que validar es que haya una base.
+    if (baseNum <= 0) {
+      setResultado({ ok: false, mensaje: 'Escribe el valor antes de IVA (el subtotal de la factura).' })
       return
     }
 
@@ -306,17 +338,18 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores, activos 
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Monto total *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Valor antes de IVA *</label>
               <input
-                value={monto}
-                onChange={(e) => setMonto(e.target.value)}
+                value={valorBase}
+                onChange={(e) => setValorBase(e.target.value)}
                 required inputMode="numeric"
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-right"
-                placeholder="60000"
+                placeholder="654881"
               />
+              <p className="text-[11px] text-gray-500 mt-0.5">El subtotal de la factura</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">IVA incluido</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">IVA</label>
               <input
                 value={ivaIncluido}
                 onChange={(e) => setIvaIncluido(e.target.value)}
@@ -324,6 +357,21 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores, activos 
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-right"
                 placeholder="0"
               />
+              {/* Botones de tarifa: el IVA se calcula sobre la base para que
+                  no haya que sacarlo con calculadora ni digitarlo mal. */}
+              <div className="flex gap-1 mt-1">
+                {[0, 5, 19].map((pct) => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => aplicarIva(pct)}
+                    disabled={baseNum <= 0}
+                    className="flex-1 text-[11px] py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
@@ -440,10 +488,40 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores, activos 
             </div>
           )}
 
+          {/* EL TOTAL QUE SALE DE LA CUENTA, EN GRANDE.
+              Este es el numero que el banco va a descontar. Antes no se
+              mostraba en ninguna parte, y por eso se registro la impresora
+              por menos de lo que realmente se pago. */}
           {montoNum > 0 && (
-            <div className="bg-gray-50 rounded-xl px-4 py-2.5 text-xs text-gray-600 flex justify-between">
-              <span>Base sin IVA: <strong className="text-gray-800">{formatCOP(base)}</strong></span>
-              {ivaNum > 0 && <span>IVA descontable: <strong className="text-blue-700">{formatCOP(ivaNum)}</strong></span>}
+            <div className="border-2 border-gray-900 rounded-xl overflow-hidden">
+              <div className="px-4 py-2 bg-gray-50 text-xs text-gray-600 flex justify-between">
+                <span>Valor antes de IVA: <strong className="text-gray-800">{formatCOP(base)}</strong></span>
+                <span>
+                  IVA{ivaNum > 0 ? ` (${ivaPctReal.toFixed(1)}%)` : ''}:{' '}
+                  <strong className="text-blue-700">{formatCOP(ivaNum)}</strong>
+                </span>
+              </div>
+              <div className="px-4 py-3 bg-gray-900 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-white">SALE DE LA CUENTA</p>
+                  <p className="text-[11px] text-gray-300">
+                    Base + IVA. Es lo que el banco te va a descontar.
+                  </p>
+                </div>
+                <p className="text-xl font-bold text-white tabular-nums">{formatCOP(montoNum)}</p>
+              </div>
+            </div>
+          )}
+
+          {/* El IVA no da ninguna tarifa colombiana: casi seguro esta mal digitado */}
+          {ivaRaro && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800">
+                Ese IVA es el <b>{ivaPctReal.toFixed(1)}%</b> del valor base, y en Colombia las
+                tarifas son 0%, 5% o 19%. Revisa la factura: si te equivocas aqui, el banco
+                queda descuadrado. Usa los botones de tarifa para calcularlo.
+              </p>
             </div>
           )}
 

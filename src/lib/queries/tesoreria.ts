@@ -371,3 +371,57 @@ export async function obtenerGmfPorPeriodo(): Promise<GmfPeriodo[]> {
     return []
   }
 }
+
+
+// ============================================================
+// DESCUADRES CONTRA EL BANCO (el 4x1000 como testigo)
+// ============================================================
+/**
+ * El 4x1000 es el unico dato del libro que calcula el BANCO y no nosotros.
+ * Si el GMF cobrado no corresponde al monto guardado del egreso, uno de los
+ * dos esta mal; y como el banco no se equivoca con su propio cobro, casi
+ * siempre es el monto el que quedo incompleto.
+ *
+ * De aqui salio el caso de la impresora: el movimiento decia 654.881 pero un
+ * GMF de 2.819 solo se explica con un egreso de ~704.750. Eran 49.869 que
+ * salieron de la cuenta y no estaban registrados, y nada lo avisaba.
+ *
+ * Si la vista no existe todavia (migracion 038 sin correr) devuelve vacio en
+ * vez de tumbar la pagina.
+ */
+export interface DescuadreGmf {
+  movimiento_id: string
+  fecha: string | null
+  concepto: string
+  cuenta: string | null
+  monto_registrado: number
+  gmf_cobrado: number
+  gmf_que_corresponde: number
+  monto_que_vio_el_banco: number
+  plata_sin_registrar: number
+}
+
+export async function obtenerDescuadresGmf(): Promise<DescuadreGmf[]> {
+  try {
+    const supabase = createServerSupabaseClient()
+    const { data, error } = await supabase
+      .from('gmf_descuadre')
+      .select('movimiento_id, fecha, concepto, cuenta, monto_registrado, gmf_cobrado, gmf_que_corresponde, monto_que_vio_el_banco, plata_sin_registrar')
+
+    if (error || !data) return []
+
+    return data.map((d) => ({
+      movimiento_id: String(d.movimiento_id),
+      fecha: (d.fecha as string | null) ?? null,
+      concepto: String(d.concepto ?? ''),
+      cuenta: (d.cuenta as string | null) ?? null,
+      monto_registrado: Number(d.monto_registrado ?? 0),
+      gmf_cobrado: Number(d.gmf_cobrado ?? 0),
+      gmf_que_corresponde: Number(d.gmf_que_corresponde ?? 0),
+      monto_que_vio_el_banco: Number(d.monto_que_vio_el_banco ?? 0),
+      plata_sin_registrar: Number(d.plata_sin_registrar ?? 0),
+    }))
+  } catch {
+    return []
+  }
+}
