@@ -174,26 +174,21 @@ export async function obtenerDocumentosDeVenta(cotizacionId: string): Promise<Do
       .order('fecha', { ascending: true })
 
     for (const ds of docsSoporte ?? []) {
-      // Si el DS viene de un gasto repartido, buscar cuanto le toca a ESTA
-      // venta. Si no tiene reparto (esta atado directo a la cotizacion o a
-      // una factura de compra), se muestra el total del DS.
+      // Si el DS viene de un gasto, buscar cuanto le toca a ESTA venta
+      // del reparto. Si no tiene reparto, se muestra el total.
       let montoParaEstaVenta = Number(ds.subtotal ?? 0)
+
       if (ds.gasto_id) {
-        const matchReparto = repartoGastos?.find((gr) => {
-          const g = gr.gastos as { id?: string } | null
-          return g?.id === ds.gasto_id
-        })
-        if (matchReparto) {
-          // Hay reparto: se busca cuanto le asignaron a esta venta
-          const { data: miParte } = await supabase
-            .from('gasto_reparto')
-            .select('monto')
-            .eq('gasto_id', ds.gasto_id as string)
-            .eq('cotizacion_id', cotizacionId)
-            .maybeSingle()
-          if (miParte) {
-            montoParaEstaVenta = Number(miParte.monto ?? 0)
-          }
+        // Consulta directa: cuanto le asignaron a ESTA venta de ESTE gasto
+        const { data: miParte } = await supabase
+          .from('gasto_reparto')
+          .select('monto')
+          .eq('gasto_id', ds.gasto_id as string)
+          .eq('cotizacion_id', cotizacionId)
+          .maybeSingle()
+
+        if (miParte) {
+          montoParaEstaVenta = Number(miParte.monto ?? 0)
         }
       }
 
