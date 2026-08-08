@@ -48,7 +48,7 @@ export default function AccionesGasto({ gasto, cotizaciones = [], cuentas = [] }
   const [fecha, setFecha] = useState('')
   const [categoria, setCategoria] = useState('OTROS')
   const [esCostoVenta, setEsCostoVenta] = useState(false)
-  const [cotizacionId, setCotizacionId] = useState('')
+  const [reparto, setReparto] = useState<{ cotizacion_id: string; monto: string }[]>([])
   const [cuentaId, setCuentaId] = useState('')
   const [notas, setNotas] = useState('')
 
@@ -80,7 +80,15 @@ export default function AccionesGasto({ gasto, cotizaciones = [], cuentas = [] }
       setFecha(d.fecha)
       setCategoria(d.categoria)
       setEsCostoVenta(d.es_costo_venta)
-      setCotizacionId(d.cotizacion_id ?? '')
+      // Cargar el reparto que ya existe
+      if (d.reparto && d.reparto.length > 0) {
+        setReparto(d.reparto.map((r) => ({ cotizacion_id: r.cotizacion_id, monto: String(r.monto) })))
+      } else if (d.cotizacion_id) {
+        // Compatibilidad: si no hay reparto pero si cotizacion_id vieja, mostrarla
+        setReparto([{ cotizacion_id: d.cotizacion_id, monto: String(d.monto) }])
+      } else {
+        setReparto([{ cotizacion_id: '', monto: '' }])
+      }
       setCuentaId(d.cuenta_id ?? cuentasOperativas[0]?.id ?? '')
       setNotas(d.notas ?? '')
     } catch (e) {
@@ -101,7 +109,12 @@ export default function AccionesGasto({ gasto, cotizaciones = [], cuentas = [] }
     fd.set('notas', notas)
     if (esCostoVenta) {
       fd.set('es_costo_venta', 'true')
-      fd.set('cotizacion_id', cotizacionId)
+      // Enviar el reparto como JSON, igual que en registrarGasto
+      const repartoLimpio = reparto
+        .filter((r) => r.cotizacion_id && limpiarNum(r.monto) > 0)
+        .map((r) => ({ cotizacion_id: r.cotizacion_id, monto: limpiarNum(r.monto) }))
+      fd.set('reparto', JSON.stringify(repartoLimpio))
+      fd.set('cotizacion_id', repartoLimpio[0]?.cotizacion_id ?? '')
     }
 
     setResultado(null)
@@ -285,7 +298,7 @@ export default function AccionesGasto({ gasto, cotizaciones = [], cuentas = [] }
                   </div>
                 )}
 
-                {/* Costo de venta */}
+                {/* Costo de venta con REPARTO MULTIPLE */}
                 {cotizaciones.length > 0 && (
                   <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-4 space-y-3">
                     <label className="flex items-start gap-2.5 cursor-pointer">
@@ -304,23 +317,75 @@ export default function AccionesGasto({ gasto, cotizaciones = [], cuentas = [] }
                     </label>
 
                     {esCostoVenta && (
-                      <div>
-                        <label className="block text-xs font-medium text-blue-800 mb-1">
-                          <Target className="w-3 h-3 inline mr-1" />
-                          A que venta
-                        </label>
-                        <select
-                          value={cotizacionId}
-                          onChange={(e) => setCotizacionId(e.target.value)}
-                          className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-medium text-blue-800">
+                            <Target className="w-3 h-3 inline mr-1" />
+                            A que ventas
+                          </label>
+                          {reparto.length > 1 && montoNum > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const conVenta = reparto.filter((r) => r.cotizacion_id)
+                                if (conVenta.length === 0 || montoNum <= 0) return
+                                const parte = Math.floor(montoNum / conVenta.length)
+                                const sobrante = montoNum - parte * conVenta.length
+                                let primera = true
+                                setReparto(reparto.map((r) => {
+                                  if (!r.cotizacion_id) return r
+                                  const v = primera ? parte + sobrante : parte
+                                  primera = false
+                                  return { ...r, monto: String(v) }
+                                }))
+                              }}
+                              className="text-xs text-blue-600 hover:underline font-medium"
+                            >
+                              Repartir igual
+                            </button>
+                          )}
+                        </div>
+
+                        {reparto.map((r, i) => (
+                          <div key={i} className="flex gap-2 items-start">
+                            <select
+                              value={r.cotizacion_id}
+                              onChange={(e) => setReparto(reparto.map((x, j) => j === i ? { ...x, cotizacion_id: e.target.value } : x))}
+                              className="flex-1 px-2 py-2 border border-blue-200 rounded-lg text-xs bg-white"
+                            >
+                              <option value="">Seleccionar venta</option>
+                              {cotizaciones
+                                .filter((c) => c.id === r.cotizacion_id || !reparto.some((x) => x.cotizacion_id === c.id))
+                                .map((c) => (
+                                  <option key={c.id} value={c.id}>{c.numero}{c.cliente_nombre ? ` · ${c.cliente_nombre}` : ''}</option>
+                                ))}
+                            </select>
+                            <input
+                              value={r.monto}
+                              onChange={(e) => setReparto(reparto.map((x, j) => j === i ? { ...x, monto: e.target.value } : x))}
+                              inputMode="numeric"
+                              placeholder="Monto"
+                              className="w-24 px-2 py-2 border border-blue-200 rounded-lg text-xs text-right bg-white tabular-nums"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setReparto(reparto.length === 1 ? reparto : reparto.filter((_, j) => j !== i))}
+                              disabled={reparto.length === 1}
+                              className="p-2 text-gray-400 hover:text-red-500 disabled:opacity-30"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+
+                        <button
+                          type="button"
+                          onClick={() => setReparto([...reparto, { cotizacion_id: '', monto: '' }])}
+                          disabled={reparto.length >= cotizaciones.length}
+                          className="flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium disabled:opacity-40"
                         >
-                          <option value="">-- Seleccionar venta --</option>
-                          {cotizaciones.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.numero}{c.cliente_nombre ? ` · ${c.cliente_nombre}` : ''}
-                            </option>
-                          ))}
-                        </select>
+                          + Agregar otra venta
+                        </button>
                       </div>
                     )}
                   </div>
