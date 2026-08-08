@@ -64,7 +64,7 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
     }
   }
 
-  // Agrupar: emparejar cada compra/gasto con su salida de caja y su GMF
+  // Agrupar: emparejar cada compra/gasto con su salida de caja
   function ordenarTrazabilidad(): EventoConEtapa[] {
     const cotizacion = trazabilidad.filter((e) => e.documento_tipo === 'COTIZACION')
     const compras = trazabilidad.filter((e) => e.documento_tipo === 'FACTURA_COMPRA')
@@ -73,12 +73,13 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
     const facturasVenta = trazabilidad.filter((e) => e.documento_tipo === 'FACTURA_VENTA')
     const cobros = trazabilidad.filter((e) => e.documento_tipo === 'INGRESO_CAJA')
 
-    // El GMF va aparte: su concepto contiene el numero del documento
-    // ("GMF (4x1000) Compra FCJA1119") y si no lo separamos se emparejaria
-    // como si fuera el pago.
-    const todasSalidas = trazabilidad.filter((e) => e.documento_tipo === 'EGRESO_CAJA')
-    const gmfs = todasSalidas.filter((e) => e.estado === 'GMF')
-    const salidas = todasSalidas.filter((e) => e.estado !== 'GMF')
+    // Los movimientos de 4x1000 se excluyen de la historia de la venta.
+    // Son cobros del banco por mover la plata, no parte de la operacion
+    // comercial, y llenaban la lista de filas que no aportan a entender
+    // la venta. Estan completos en el Libro de Tesoreria.
+    const salidas = trazabilidad.filter(
+      (e) => e.documento_tipo === 'EGRESO_CAJA' && e.estado !== 'GMF',
+    )
 
     const resultado: EventoConEtapa[] = []
 
@@ -99,9 +100,8 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
     if (docsCosto.length > 0) {
       resultado.push(separador('2. Compras y costos'))
 
-      // Cada salida y cada GMF se consumen una sola vez
+      // Cada salida se consume una sola vez
       const salidasDisponibles = [...salidas]
-      const gmfsDisponibles = [...gmfs]
 
       for (const doc of docsCosto) {
         resultado.push(doc)
@@ -118,20 +118,10 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
           resultado.push(salidasDisponibles[idxPago])
           salidasDisponibles.splice(idxPago, 1)
         }
-
-        // El 4x1000 que genero ese pago
-        const idxGmf = gmfsDisponibles.findIndex((g) =>
-          (g.documento_numero ?? '').toUpperCase().includes(numeroUp)
-        )
-        if (idxGmf !== -1) {
-          resultado.push(gmfsDisponibles[idxGmf])
-          gmfsDisponibles.splice(idxGmf, 1)
-        }
       }
 
-      // Salidas y GMF que no se pudieron emparejar
+      // Salidas que no se pudieron emparejar con su documento
       for (const p of salidasDisponibles) resultado.push(p)
-      for (const g of gmfsDisponibles) resultado.push(g)
     }
 
     // 3. Entrega
@@ -245,24 +235,12 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
         </div>
       </div>
 
-      {/* ============ 4x1000 INFORMATIVO ============ */}
-      {a.gmf_venta > 0 && (
-        <div className="flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4">
-          <Landmark className="w-5 h-5 text-slate-500 mt-0.5 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm text-slate-800">
-              El banco cobro <strong>{formatCOP(a.gmf_venta)}</strong> de 4x1000 por mover la plata de esta venta
-              <span className="text-slate-500"> ({a.num_gmf} transaccion{a.num_gmf !== 1 ? 'es' : ''})</span>
-            </p>
-            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-              No se descuenta del margen bruto porque es un gasto financiero, no un costo de la mercancia:
-              depende de cuantas transferencias hiciste, no de la venta. Si lo descuentas, quedan{' '}
-              <strong className="tabular-nums">{formatCOP(a.utilidad_neta_con_gmf)}</strong>.
-              El acumulado de todas las ventas se ve en el Centro Financiero.
-            </p>
-          </div>
-        </div>
-      )}
+      {/* El bloque informativo del 4x1000 se quito de este informe.
+          El 4x1000 no lo causa la venta sino cuantas transferencias se
+          hicieron para pagarla, asi que ensuciaba la comparacion de
+          rentabilidad entre ventas. Se sigue calculando y sigue afectando
+          el saldo en Tesoreria, y se ve como gasto operativo en el Centro
+          Financiero. */}
 
       {/* ============ TOTAL A SEPARAR (ARRIBA) ============ */}
       <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex items-center justify-between">
