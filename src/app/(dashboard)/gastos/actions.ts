@@ -184,7 +184,11 @@ export async function registrarGasto(formData: FormData): Promise<ResultadoAccio
           concepto,
           cantidad: 1,
           valor_unitario: valor,
-          cotizacion_id: cotizacion_id || null,
+          // Solo se amarra a una venta si el gasto va a UNA sola. Si se
+          // reparte entre varias, la pertenencia se lee de gasto_reparto:
+          // dejarlo apuntando a una sola hacia que el documento apareciera
+          // en una venta y desapareciera de las otras.
+          cotizacion_id: reparto.length === 1 ? reparto[0].cotizacion_id : null,
           gasto_id: gasto.id,
           creado_por_id: usuario.id,
           creado_por_nombre: usuario.nombre,
@@ -622,6 +626,36 @@ export async function editarGasto(formData: FormData): Promise<ResultadoAccion> 
     } else if (montoAnterior !== valor) {
       avisoCaja = ` La salida de caja se ajusto de ${fmtCop(montoAnterior)} a ${fmtCop(valor)}.`
     }
+
+    /**
+     * 2.b SINCRONIZAR EL DOCUMENTO SOPORTE.
+     *
+     * ERROR QUE ESTO ARREGLA: editarGasto cambiaba el monto, la fecha y el
+     * concepto del gasto pero no tocaba su documento soporte. Quedaba un
+     * documento ante la DIAN declarando una cifra y el gasto diciendo otra.
+     *
+     * Y el cotizacion_id del DS se quedaba clavado en la venta original,
+     * asi que el documento seguia apareciendo en una venta a la que ya no
+     * pertenecia (fue el caso del DS-2026-002 en la COT-2026-013).
+     *
+     * La regla: ese campo solo tiene sentido si el gasto va a UNA venta.
+     * Si se reparte entre varias, queda en null y la pertenencia se lee de
+     * gasto_reparto, que es la verdad.
+     */
+    const cotizacionDelDs = es_costo_venta && reparto.length === 1
+      ? reparto[0].cotizacion_id
+      : null
+
+    await supabase
+      .from('documentos_soporte')
+      .update({
+        cantidad: 1,
+        valor_unitario: valor,   // el trigger recalcula el subtotal
+        fecha,
+        concepto,
+        cotizacion_id: cotizacionDelDs,
+      })
+      .eq('gasto_id', gasto_id)
 
     // 3. Borrar el reparto anterior y crear el nuevo.
     // Las ventas anteriores Y las nuevas se recalculan.

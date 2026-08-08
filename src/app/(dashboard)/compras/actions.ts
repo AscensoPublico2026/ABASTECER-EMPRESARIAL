@@ -434,7 +434,20 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
           tercero_telefono: tercero_telefono || null,
           tercero_direccion: tercero_direccion || null,
           concepto: calculados.map((c) => c.fila.descripcion).join(', '),
-          cantidad: calculados.length,
+          /**
+           * cantidad = 1 y valor_unitario = el total de la compra.
+           *
+           * ERROR QUE ESTO ARREGLA: antes se mandaba
+           * cantidad = numero de lineas de la factura y valor_unitario = total.
+           * El trigger de documentos_soporte calcula
+           * subtotal = cantidad * valor_unitario, asi que una compra de 3
+           * lineas por 500.000 generaba un documento soporte por 1.500.000.
+           *
+           * Un documento soporte es un documento ante la DIAN: estaba
+           * declarando el triple de lo que se pago. Las descripciones de las
+           * lineas ya van en el concepto.
+           */
+          cantidad: 1,
           valor_unitario: total,
           factura_compra_id: factura.id,
           creado_por_id: usuario.id,

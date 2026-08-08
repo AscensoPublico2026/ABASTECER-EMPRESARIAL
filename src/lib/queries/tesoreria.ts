@@ -425,3 +425,57 @@ export async function obtenerDescuadresGmf(): Promise<DescuadreGmf[]> {
     return []
   }
 }
+
+
+// ============================================================
+// AUDITORIA DE INTEGRIDAD DEL CIRCUITO DEL DINERO
+// ============================================================
+/**
+ * Lee la vista auditoria_integridad (migracion 039), que junta en un solo
+ * lugar todo lo que este descuadrado: el banco contra el 4x1000, costos de
+ * compra que no aterrizan en ningun producto, gastos sin repartir,
+ * documentos soporte que declaran una cifra distinta a la real, facturas
+ * marcadas pagadas sin salida de plata, y cotizaciones cuyo total no cuadra
+ * con sus items.
+ *
+ * POR QUE EXISTE: el dueno estaba encontrando los errores uno por uno,
+ * revisando con calculadora. Eso lo tiene que hacer el sistema.
+ *
+ * Si la vista no existe todavia devuelve vacio en vez de tumbar la pagina.
+ */
+export interface HallazgoAuditoria {
+  area: string
+  gravedad: string
+  problema: string
+  detalle: string
+  diferencia: number
+  referencia: string
+}
+
+export async function obtenerAuditoriaIntegridad(): Promise<HallazgoAuditoria[]> {
+  try {
+    const supabase = createServerSupabaseClient()
+    const { data, error } = await supabase
+      .from('auditoria_integridad')
+      .select('area, gravedad, problema, detalle, diferencia, referencia')
+
+    if (error || !data) return []
+
+    return data
+      .map((h) => ({
+        area: String(h.area ?? ''),
+        gravedad: String(h.gravedad ?? ''),
+        problema: String(h.problema ?? ''),
+        detalle: String(h.detalle ?? ''),
+        diferencia: Number(h.diferencia ?? 0),
+        referencia: String(h.referencia ?? ''),
+      }))
+      // Lo grave primero, y dentro de eso lo de mayor plata
+      .sort((a, b) => {
+        if (a.gravedad !== b.gravedad) return a.gravedad === 'GRAVE' ? -1 : 1
+        return Math.abs(b.diferencia) - Math.abs(a.diferencia)
+      })
+  } catch {
+    return []
+  }
+}
