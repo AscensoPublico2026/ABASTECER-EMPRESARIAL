@@ -7,6 +7,7 @@ import {
 import { formatCOP, formatFecha } from '@/lib/format'
 import ResumenPlata from '@/components/ventas/ResumenPlata'
 import BotonImprimir from '../BotonImprimir'
+import { construirTimeline, textoEstadoPago } from '@/lib/ventas/timelineVenta'
 import { ArrowLeft } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -50,10 +51,10 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
 
   const items = await obtenerAnalisisItems(id)
 
-  // Los cobros de 4x1000 no van en el informe de la venta: no los causa la
-  // venta sino cuantas transferencias se hicieron para pagarla. Siguen
-  // completos en el Libro de Tesoreria, que es donde afectan el saldo.
-  const trazabilidad = (await obtenerTrazabilidad(id)).filter((e) => e.estado !== 'GMF')
+  // construirTimeline empareja cada factura de compra con su pago, colapsa
+  // en una sola fila lo que se pago el mismo dia, y excluye los 4x1000.
+  const timeline = construirTimeline(await obtenerTrazabilidad(id))
+  const hayPorPagar = timeline.some((f) => f.estadoPago === 'SIN_PAGAR')
 
   const cliente = cot.clientes as { razon_social?: string; nit?: string } | null
 
@@ -211,29 +212,55 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
 
         {/* Documentos de la venta */}
         <div className="break-inside-avoid">
-          <h2 className="font-bold text-gray-900 text-sm mb-2">Documentos y movimientos de esta venta</h2>
+          <h2 className="font-bold text-gray-900 text-sm mb-2">Historia de esta venta</h2>
           <table className="w-full text-xs border border-gray-300">
             <thead>
               <tr className="bg-gray-100">
                 <th className="px-2 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300">Fecha</th>
                 <th className="px-2 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300">Documento</th>
                 <th className="px-2 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300">Numero</th>
+                <th className="px-2 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300">Estado</th>
                 <th className="px-2 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">Valor</th>
               </tr>
             </thead>
             <tbody>
-              {trazabilidad.map((e, i) => (
-                <tr key={i} className="border-b border-gray-200 last:border-0">
-                  <td className="px-2 py-1.5 text-gray-600">{e.documento_fecha ? formatFecha(e.documento_fecha) : '—'}</td>
-                  <td className="px-2 py-1.5 text-gray-800">{ETIQUETA[e.documento_tipo] ?? e.documento_tipo}</td>
-                  <td className="px-2 py-1.5 text-gray-600 font-mono">{e.documento_numero ?? '—'}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums text-gray-800">
-                    {e.valor !== null ? formatCOP(e.valor) : '—'}
-                  </td>
-                </tr>
-              ))}
+              {timeline.map((fila, i) => {
+                if (fila.esEtapa) {
+                  return (
+                    <tr key={`e-${i}`} className="bg-gray-50">
+                      <td colSpan={5} className="px-2 py-1.5 font-semibold text-gray-700 uppercase text-[10px] tracking-wide border-t border-gray-300">
+                        {fila.etiquetaEtapa}
+                      </td>
+                    </tr>
+                  )
+                }
+                const e = fila.evento!
+                const estado = textoEstadoPago(fila)
+                const porPagar = fila.estadoPago === 'SIN_PAGAR'
+                return (
+                  <tr key={`f-${i}`} className="border-b border-gray-200 last:border-0">
+                    <td className="px-2 py-1.5 text-gray-600 whitespace-nowrap">
+                      {e.documento_fecha ? formatFecha(e.documento_fecha) : '—'}
+                    </td>
+                    <td className="px-2 py-1.5 text-gray-800">{ETIQUETA[e.documento_tipo] ?? e.documento_tipo}</td>
+                    <td className="px-2 py-1.5 text-gray-600 font-mono">{e.documento_numero ?? '—'}</td>
+                    <td className={`px-2 py-1.5 ${porPagar ? 'text-red-700 font-semibold' : 'text-gray-500'}`}>
+                      {estado ?? ''}
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums text-gray-800 whitespace-nowrap">
+                      {e.valor !== null ? formatCOP(e.valor) : '—'}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
+          {hayPorPagar && (
+            <p className="text-xs text-red-700 mt-1.5 font-medium">
+              Hay compras de esta venta que todavia NO se han pagado. Son cuentas por pagar
+              vivas: la plata todavia no ha salido del banco.
+            </p>
+          )}
         </div>
 
         {/* Avisos de calidad del dato */}
