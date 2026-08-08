@@ -11,6 +11,7 @@ import {
   construirTimeline, textoEstadoPago, hayComprasPorPagar, hayPagosEnOtraVenta,
 } from '@/lib/ventas/timelineVenta'
 import { ArrowLeft } from 'lucide-react'
+import { calcularTotalesVenta } from '@/lib/ventas/totalesVenta'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +53,14 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
   if (!analisis) notFound()
 
   const items = await obtenerAnalisisItems(id)
+
+  // Los totales de la tabla de productos salen del mismo calculo que usa el
+  // panel en pantalla, para que el informe impreso y la pantalla no puedan
+  // dar numeros distintos.
+  const {
+    sumaCostoItems, sumaVentaItems, sumaUtilidadItems, margenItems,
+    costoQueNoAterriza, hayCostoHuerfano, descuadreCosto,
+  } = calcularTotalesVenta(analisis, items)
 
   // construirTimeline empareja cada factura de compra con su pago, colapsa
   // en una sola fila lo que se pago el mismo dia, y excluye los 4x1000.
@@ -157,9 +166,54 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
                 </tr>
               ))}
             </tbody>
+            {/* El total tiene que sumar las filas de arriba. Antes mostraba
+                costo_real, que incluye los gastos de la venta, y la tabla no
+                cuadraba con sus propias filas: el flete aparecia en el total
+                sin ningun renglon que lo explicara. Este informe se imprime y
+                se archiva: si no cuadra con calculadora, no sirve. */}
             <tfoot>
-              <tr className="bg-gray-100 font-bold">
-                <td className="px-2 py-2 text-gray-900" colSpan={2}>TOTAL</td>
+              <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300">
+                <td className="px-2 py-2 text-gray-800" colSpan={2}>Subtotal productos</td>
+                <td className="px-2 py-2 text-right tabular-nums text-gray-800">{formatCOP(sumaCostoItems)}</td>
+                <td className="px-2 py-2 text-right tabular-nums text-gray-800">{formatCOP(sumaVentaItems)}</td>
+                <td className="px-2 py-2 text-right tabular-nums text-gray-800">{formatCOP(sumaUtilidadItems)}</td>
+                <td className="px-2 py-2 text-right tabular-nums text-gray-800">{margenItems.toFixed(1)}%</td>
+              </tr>
+
+              {hayCostoHuerfano && (
+                <tr className="border-t border-gray-300">
+                  <td className="px-2 py-2 text-gray-800" colSpan={2}>
+                    Costo de compra sin producto asignado
+                    <span className="block font-normal text-gray-600">
+                      Una compra de esta venta apunta a un producto que no esta en la
+                      cotizacion. Los margenes de arriba salen inflados.
+                    </span>
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums text-gray-900">{formatCOP(costoQueNoAterriza)}</td>
+                  <td className="px-2 py-2"></td>
+                  <td className="px-2 py-2 text-right tabular-nums text-gray-900">- {formatCOP(costoQueNoAterriza)}</td>
+                  <td className="px-2 py-2"></td>
+                </tr>
+              )}
+
+              {analisis.costo_gastos > 0 && (
+                <tr className="border-t border-gray-300">
+                  <td className="px-2 py-2 text-gray-800" colSpan={2}>
+                    Gastos de esta venta
+                    <span className="block font-normal text-gray-600">
+                      Fletes o mano de obra. No son de un producto puntual. Si el gasto se
+                      repartio entre varias ventas, aqui va solo la parte de esta.
+                    </span>
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums text-gray-900">{formatCOP(analisis.costo_gastos)}</td>
+                  <td className="px-2 py-2"></td>
+                  <td className="px-2 py-2 text-right tabular-nums text-gray-900">- {formatCOP(analisis.costo_gastos)}</td>
+                  <td className="px-2 py-2"></td>
+                </tr>
+              )}
+
+              <tr className="bg-gray-100 font-bold border-t-2 border-gray-400">
+                <td className="px-2 py-2 text-gray-900" colSpan={2}>TOTAL DE LA VENTA</td>
                 <td className="px-2 py-2 text-right tabular-nums text-gray-900">{formatCOP(analisis.costo_real)}</td>
                 <td className="px-2 py-2 text-right tabular-nums text-gray-900">{formatCOP(analisis.venta_subtotal)}</td>
                 <td className="px-2 py-2 text-right tabular-nums text-gray-900">{formatCOP(analisis.utilidad_bruta)}</td>
@@ -282,13 +336,28 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
         </div>
 
         {/* Avisos de calidad del dato */}
-        {(!analisis.tiene_costo_asignado || analisis.num_gastos_sin_soporte > 0) && (
+        {(!analisis.tiene_costo_asignado || analisis.num_gastos_sin_soporte > 0
+          || hayCostoHuerfano || descuadreCosto > 1) && (
           <div className="border-2 border-red-600 p-3 text-xs space-y-1.5 evitar-corte">
             <p className="font-bold text-red-800">Atencion: este informe puede estar incompleto</p>
             {!analisis.tiene_costo_asignado && (
               <p className="text-red-700">
                 Esta venta no tiene ninguna compra asignada. La ganancia que ves es la venta
                 completa sin descontar lo que te costo la mercancia: NO es real.
+              </p>
+            )}
+            {hayCostoHuerfano && (
+              <p className="text-red-700">
+                Hay {formatCOP(costoQueNoAterriza)} de costo de compra que no quedo en ningun
+                producto de la cotizacion. Una factura de compra esta asignada a un producto
+                que no se vendio en esta venta, asi que los margenes por producto salen
+                inflados.
+              </p>
+            )}
+            {descuadreCosto > 1 && (
+              <p className="text-red-700">
+                Descuadre de {formatCOP(descuadreCosto)}: la suma de los productos mas los
+                gastos no da el costo total. No archives este informe hasta revisarlo.
               </p>
             )}
             {analisis.num_gastos_sin_soporte > 0 && (

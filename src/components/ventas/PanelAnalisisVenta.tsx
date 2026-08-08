@@ -8,6 +8,7 @@ import ResumenPlata from './ResumenPlata'
 import {
   construirTimeline, textoEstadoPago, hayComprasPorPagar, hayPagosEnOtraVenta,
 } from '@/lib/ventas/timelineVenta'
+import { calcularTotalesVenta } from '@/lib/ventas/totalesVenta'
 
 interface Props {
   analisis: AnalisisVenta
@@ -54,6 +55,16 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
   // (construirTimeline) para que el panel en pantalla y el informe
   // imprimible cuenten exactamente lo mismo.
   const timeline = construirTimeline(trazabilidad)
+
+  /**
+   * Los totales de la tabla de productos se calculan en calcularTotalesVenta
+   * para que esta pantalla y el informe imprimible no puedan dar numeros
+   * distintos. Ahi esta explicado el error que habia.
+   */
+  const {
+    sumaCostoItems, sumaVentaItems, sumaUtilidadItems, margenItems,
+    costoQueNoAterriza, hayCostoHuerfano, descuadreCosto,
+  } = calcularTotalesVenta(a, items)
 
 
   return (
@@ -112,8 +123,13 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
             <span className="text-xs text-gray-500 uppercase tracking-wide">Nos costo</span>
           </div>
           <p className="text-xl font-bold text-gray-800 tabular-nums">{formatCOP(a.costo_real)}</p>
+          {/* El desglose va con los VALORES, no con el conteo de facturas.
+              Antes decia "1 factura(s) + 15.000 gastos" y era imposible
+              saber cuanto de los 1.306.000 era mercancia. */}
           <p className="text-xs text-gray-400 mt-0.5">
-            {a.num_facturas_compra} factura(s){a.costo_gastos > 0 ? ` + ${formatCOP(a.costo_gastos)} gastos` : ''}
+            {a.costo_gastos > 0
+              ? `${formatCOP(a.costo_compras)} mercancia + ${formatCOP(a.costo_gastos)} gastos`
+              : `${a.num_facturas_compra} factura(s) de compra`}
           </p>
         </div>
 
@@ -294,9 +310,22 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
         <div className="px-5 py-4 border-b border-gray-100">
           <h3 className="font-semibold text-gray-800 text-sm">Rentabilidad por producto</h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            Precio de compra real contra precio de venta
+            Precio de compra real contra precio de venta. El total de abajo suma estas filas
+            mas los gastos de la venta, que van en su propio renglon.
           </p>
         </div>
+
+        {/* Si ni asi cuadra, es un bug: no se puede confiar en la tabla y
+            hay que decirlo antes de que el usuario tome una decision. */}
+        {descuadreCosto > 1 && (
+          <div className="px-5 py-3 bg-red-100 border-b-2 border-red-400">
+            <p className="text-xs text-red-900">
+              <strong>Descuadre de {formatCOP(descuadreCosto)} en el costo de esta venta.</strong>{' '}
+              La suma de los productos mas los gastos no da el costo total.
+              No tomes decisiones con esta tabla hasta revisarlo.
+            </p>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -345,11 +374,84 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
               })}
             </tbody>
             <tfoot>
-              <tr className="bg-green-50 font-medium">
-                <td className="px-5 py-3 text-gray-800">TOTAL</td>
+              {/* 1. SUBTOTAL: suma exacta de las filas de arriba.
+                     Se puede verificar con calculadora. */}
+              <tr className="bg-gray-50 font-medium border-t-2 border-gray-200">
+                <td className="px-5 py-2.5 text-gray-800">
+                  Subtotal productos
+                  <span className="block text-xs font-normal text-gray-500">
+                    La suma de las {items.length} fila{items.length !== 1 ? 's' : ''} de arriba
+                  </span>
+                </td>
+                <td className="px-3 py-2.5"></td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-gray-700">{formatCOP(sumaCostoItems)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-gray-700">{formatCOP(sumaVentaItems)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-green-700">{formatCOP(sumaUtilidadItems)}</td>
+                <td className="px-5 py-2.5 text-right tabular-nums text-green-700">{margenItems.toFixed(1)}%</td>
+              </tr>
+
+              {/* 2. COSTO DE COMPRA QUE NO ATERRIZO EN NINGUN PRODUCTO.
+                     Es el caso del kit comprado y vendido por separado. */}
+              {hayCostoHuerfano && (
+                <tr className="bg-red-50">
+                  <td className="px-5 py-2.5 text-red-800 font-medium" colSpan={2}>
+                    Costo de compra que no quedo en ningun producto
+                    <span className="block text-xs font-normal text-red-700">
+                      Hay una compra asignada a esta venta cuyo producto no esta en la
+                      cotizacion. Los margenes de arriba salen inflados. Revisa la factura
+                      de compra y asignala al producto que si vendiste.
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-red-800 font-medium">
+                    {formatCOP(costoQueNoAterriza)}
+                  </td>
+                  <td className="px-3 py-2.5"></td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-red-800 font-medium">
+                    - {formatCOP(costoQueNoAterriza)}
+                  </td>
+                  <td className="px-5 py-2.5"></td>
+                </tr>
+              )}
+
+              {/* 3. LOS GASTOS DE LA VENTA, EN SU PROPIO RENGLON.
+                     Antes estaban escondidos dentro del TOTAL y por eso la
+                     tabla no cuadraba con sus filas. */}
+              {a.costo_gastos > 0 && (
+                <tr className="bg-orange-50">
+                  <td className="px-5 py-2.5 text-orange-900 font-medium" colSpan={2}>
+                    Gastos de esta venta
+                    <span className="block text-xs font-normal text-orange-800">
+                      Fletes, domicilios o mano de obra. No son de un producto puntual: son de
+                      la venta completa. Si un gasto se repartio entre varias ventas, aqui solo
+                      va la parte de esta.
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-orange-900 font-medium">
+                    {formatCOP(a.costo_gastos)}
+                  </td>
+                  <td className="px-3 py-2.5"></td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-orange-900 font-medium">
+                    - {formatCOP(a.costo_gastos)}
+                  </td>
+                  <td className="px-5 py-2.5"></td>
+                </tr>
+              )}
+
+              {/* 4. TOTAL DE LA VENTA. Ahora si es la suma de lo de arriba. */}
+              <tr className="bg-green-50 font-semibold border-t-2 border-green-200">
+                <td className="px-5 py-3 text-gray-900">
+                  TOTAL DE LA VENTA
+                  {a.costo_gastos > 0 && (
+                    <span className="block text-xs font-normal text-gray-600">
+                      {formatCOP(sumaCostoItems)} de productos
+                      {hayCostoHuerfano ? ` + ${formatCOP(costoQueNoAterriza)} sin asignar` : ''}
+                      {' '}+ {formatCOP(a.costo_gastos)} de gastos = {formatCOP(a.costo_real)}
+                    </span>
+                  )}
+                </td>
                 <td className="px-3 py-3"></td>
-                <td className="px-3 py-3 text-right tabular-nums text-gray-700">{formatCOP(a.costo_real)}</td>
-                <td className="px-3 py-3 text-right tabular-nums text-gray-700">{formatCOP(a.venta_subtotal)}</td>
+                <td className="px-3 py-3 text-right tabular-nums text-gray-900">{formatCOP(a.costo_real)}</td>
+                <td className="px-3 py-3 text-right tabular-nums text-gray-900">{formatCOP(a.venta_subtotal)}</td>
                 <td className="px-3 py-3 text-right tabular-nums text-green-700">{formatCOP(a.utilidad_bruta)}</td>
                 <td className="px-5 py-3 text-right tabular-nums text-green-700">{a.margen_bruto_pct.toFixed(1)}%</td>
               </tr>
