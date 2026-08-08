@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useRef } from 'react'
-import { registrarGasto } from './actions'
+import { registrarGasto, crearTerceroParaSoporte } from './actions'
 import { createClient } from '@/lib/supabase/client'
 import { formatCOP } from '@/lib/format'
 import {
@@ -62,6 +62,43 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores }: Props)
 
   // Proveedor: si el tercero ya existe, sus datos llenan el documento soporte
   const [proveedorId, setProveedorId] = useState('')
+  const [listaProveedores, setListaProveedores] = useState(proveedores)
+  const [creandoTercero, setCreandoTercero] = useState(false)
+  const [errorTercero, setErrorTercero] = useState<string | null>(null)
+  const [nuevoTercero, setNuevoTercero] = useState({
+    razon_social: '', tipo_documento: 'CC', documento: '',
+    telefono: '', direccion: '', ciudad: '',
+  })
+
+  /** Crea el tercero y lo deja seleccionado, sin perder el gasto que se venia llenando */
+  function handleCrearTercero() {
+    setErrorTercero(null)
+    const fd = new FormData()
+    fd.set('razon_social', nuevoTercero.razon_social.trim())
+    fd.set('tipo_documento', nuevoTercero.tipo_documento)
+    fd.set('documento', nuevoTercero.documento.trim())
+    fd.set('telefono', nuevoTercero.telefono.trim())
+    fd.set('direccion', nuevoTercero.direccion.trim())
+    fd.set('ciudad', nuevoTercero.ciudad.trim())
+
+    startTransition(async () => {
+      const res = await crearTerceroParaSoporte(fd)
+      if (res.ok && res.tercero) {
+        // Si ya existia con ese documento, no se duplica: viene el existente
+        setListaProveedores((prev) =>
+          prev.some((p) => p.id === res.tercero!.id) ? prev : [...prev, res.tercero!],
+        )
+        setProveedorId(res.tercero.id)
+        setCreandoTercero(false)
+        setNuevoTercero({
+          razon_social: '', tipo_documento: 'CC', documento: '',
+          telefono: '', direccion: '', ciudad: '',
+        })
+      } else {
+        setErrorTercero(res.mensaje)
+      }
+    })
+  }
 
   const cuentasOperativas = cuentas.filter((c) => !c.es_reserva)
   const montoNum = num(monto)
@@ -71,7 +108,7 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores }: Props)
 
   const totalRepartido = reparto.reduce((s, r) => s + (r.cotizacion_id ? num(r.monto) : 0), 0)
   const sinRepartir = montoNum - totalRepartido
-  const proveedorElegido = proveedores.find((p) => p.id === proveedorId)
+  const proveedorElegido = listaProveedores.find((p) => p.id === proveedorId)
 
   function agregarReparto() {
     setReparto([...reparto, { cotizacion_id: '', monto: '' }])
@@ -115,6 +152,12 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores }: Props)
     setIvaIncluido('')
     setReparto([{ cotizacion_id: '', monto: '' }])
     setProveedorId('')
+    setCreandoTercero(false)
+    setErrorTercero(null)
+    setNuevoTercero({
+      razon_social: '', tipo_documento: 'CC', documento: '',
+      telefono: '', direccion: '', ciudad: '',
+    })
   }
 
   async function handleSubmit(formData: FormData) {
@@ -437,30 +480,117 @@ export default function FormGasto({ cotizaciones, cuentas, proveedores }: Props)
                   direccion cada vez, incluso para el transportador de
                   siempre. Si ya esta creado como proveedor, esos datos ya
                   estan guardados: aqui se traen solos. */}
-              {proveedores.length > 0 && (
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">
-                    Ya lo tienes registrado? Elige y se llenan los datos
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs text-gray-600">
+                    {creandoTercero ? 'Crear el tercero' : 'Elige el tercero y se llenan los datos'}
                   </label>
-                  <select
-                    value={proveedorId}
-                    onChange={(e) => setProveedorId(e.target.value)}
-                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                  <button
+                    type="button"
+                    onClick={() => { setCreandoTercero(!creandoTercero); setErrorTercero(null) }}
+                    className="text-xs text-blue-600 hover:underline font-medium flex items-center gap-1"
                   >
-                    <option value="">Escribir los datos a mano</option>
-                    {proveedores.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.razon_social}{p.nit ? ` · ${p.nit}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  {proveedorElegido && (
-                    <p className="text-xs text-blue-700 mt-1">
-                      Datos traidos de {proveedorElegido.razon_social}. Los puedes corregir abajo.
-                    </p>
-                  )}
+                    {creandoTercero ? (
+                      <>Volver a la lista</>
+                    ) : (
+                      <><PlusCircle className="w-3 h-3" /> No existe, crearlo</>
+                    )}
+                  </button>
                 </div>
-              )}
+
+                {creandoTercero ? (
+                  /* Crear el tercero sin abandonar el gasto.
+                     Antes tocaba irse a Proveedores, crearlo, y empezar el
+                     gasto de nuevo desde cero. */
+                  <div className="space-y-2 bg-white rounded-lg p-3 border border-blue-200">
+                    <input
+                      value={nuevoTercero.razon_social}
+                      onChange={(e) => setNuevoTercero({ ...nuevoTercero, razon_social: e.target.value })}
+                      placeholder="Nombre completo del tercero *"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    />
+                    <div className="grid grid-cols-3 gap-2">
+                      <select
+                        value={nuevoTercero.tipo_documento}
+                        onChange={(e) => setNuevoTercero({ ...nuevoTercero, tipo_documento: e.target.value })}
+                        className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm"
+                      >
+                        <option value="CC">CC</option>
+                        <option value="CE">CE</option>
+                        <option value="NIT">NIT</option>
+                        <option value="PASAPORTE">Pasaporte</option>
+                        <option value="PEP">PEP</option>
+                      </select>
+                      <input
+                        value={nuevoTercero.documento}
+                        onChange={(e) => setNuevoTercero({ ...nuevoTercero, documento: e.target.value })}
+                        inputMode="numeric"
+                        placeholder="Numero *"
+                        className="col-span-2 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        value={nuevoTercero.telefono}
+                        onChange={(e) => setNuevoTercero({ ...nuevoTercero, telefono: e.target.value })}
+                        placeholder="Telefono"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                      />
+                      <input
+                        value={nuevoTercero.ciudad}
+                        onChange={(e) => setNuevoTercero({ ...nuevoTercero, ciudad: e.target.value })}
+                        placeholder="Ciudad"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                      />
+                    </div>
+                    <input
+                      value={nuevoTercero.direccion}
+                      onChange={(e) => setNuevoTercero({ ...nuevoTercero, direccion: e.target.value })}
+                      placeholder="Direccion"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    />
+                    {errorTercero && (
+                      <p className="text-xs text-red-600">{errorTercero}</p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleCrearTercero}
+                      disabled={!nuevoTercero.razon_social.trim() || !nuevoTercero.documento.trim() || ocupado}
+                      className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {ocupado ? 'Creando...' : 'Crear y usar en este documento soporte'}
+                    </button>
+                    <p className="text-xs text-gray-500 leading-relaxed">
+                      Queda guardado como proveedor, asi que la proxima vez solo lo eliges.
+                      Si ya existe alguien con ese documento, se selecciona en vez de duplicarlo.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      value={proveedorId}
+                      onChange={(e) => setProveedorId(e.target.value)}
+                      className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                    >
+                      <option value="">Escribir los datos a mano</option>
+                      {listaProveedores.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.razon_social}{p.nit ? ` · ${p.nit}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {proveedorElegido ? (
+                      <p className="text-xs text-blue-700 mt-1">
+                        Datos traidos de {proveedorElegido.razon_social}. Los puedes corregir abajo.
+                      </p>
+                    ) : listaProveedores.length === 0 ? (
+                      <p className="text-xs text-amber-700 mt-1">
+                        Todavia no tienes terceros registrados. Usa &quot;No existe, crearlo&quot;.
+                      </p>
+                    ) : null}
+                  </>
+                )}
+              </div>
 
               <div>
                 <label className="block text-xs text-gray-600 mb-1">Nombre completo *</label>

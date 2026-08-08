@@ -559,3 +559,117 @@ export async function editarGasto(formData: FormData): Promise<ResultadoAccion> 
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al editar.' }
   }
 }
+
+
+
+// ============================================================
+// CREAR EL TERCERO SIN SALIR DEL FORMULARIO DE GASTO
+// ============================================================
+// Para el documento soporte hacen falta nombre, tipo y numero de
+// documento del tercero. Si ese tercero no existe todavia, antes tocaba
+// abandonar el gasto, irse a Proveedores, crearlo, y volver a empezar.
+//
+// Esta accion lo crea desde el mismo formulario y devuelve el registro
+// completo, para que el formulario lo agregue a su lista, lo seleccione y
+// llene los campos del documento soporte de una sola vez.
+//
+// Se guarda como proveedor porque es lo que es: alguien a quien le
+// compramos. Que sea persona natural no obligada a facturar no lo hace
+// una entidad distinta, solo cambia el soporte que se emite.
+export interface TerceroCreado {
+  id: string
+  razon_social: string
+  nit: string | null
+  tipo_documento: string | null
+  contacto_telefono: string | null
+  direccion: string | null
+  ciudad: string | null
+}
+
+const TIPOS_DOC_VALIDOS = ['CC', 'CE', 'NIT', 'PASAPORTE', 'PEP'] as const
+
+export async function crearTerceroParaSoporte(formData: FormData): Promise<{
+  ok: boolean
+  mensaje: string
+  tercero?: TerceroCreado
+}> {
+  const razon_social = String(formData.get('razon_social') ?? '').trim()
+  const documento = String(formData.get('documento') ?? '').trim()
+  const tipoRaw = String(formData.get('tipo_documento') ?? 'CC').trim().toUpperCase()
+  const telefono = String(formData.get('telefono') ?? '').trim()
+  const direccion = String(formData.get('direccion') ?? '').trim()
+  const ciudad = String(formData.get('ciudad') ?? '').trim()
+
+  if (!razon_social) return { ok: false, mensaje: 'El nombre del tercero es obligatorio.' }
+  if (!documento) return { ok: false, mensaje: 'El numero de documento es obligatorio para el documento soporte.' }
+
+  const tipo_documento = (TIPOS_DOC_VALIDOS as readonly string[]).includes(tipoRaw) ? tipoRaw : 'CC'
+
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // No crear dos veces el mismo tercero. Se busca por documento, que es
+    // lo unico que de verdad lo identifica: el nombre se escribe distinto
+    // cada vez (con tildes, abreviado, en mayusculas).
+    const { data: existente } = await supabase
+      .from('proveedores')
+      .select('id, razon_social, nit, tipo_documento, contacto_telefono, direccion, ciudad')
+      .eq('nit', documento)
+      .limit(1)
+      .maybeSingle()
+
+    if (existente) {
+      return {
+        ok: true,
+        mensaje: `${existente.razon_social} ya estaba registrado con ese documento. Se selecciono.`,
+        tercero: {
+          id: String(existente.id),
+          razon_social: String(existente.razon_social ?? ''),
+          nit: (existente.nit as string | null) ?? null,
+          tipo_documento: (existente.tipo_documento as string | null) ?? null,
+          contacto_telefono: (existente.contacto_telefono as string | null) ?? null,
+          direccion: (existente.direccion as string | null) ?? null,
+          ciudad: (existente.ciudad as string | null) ?? null,
+        },
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('proveedores')
+      .insert({
+        razon_social,
+        nit: documento,
+        tipo_documento,
+        contacto_telefono: telefono || null,
+        direccion: direccion || null,
+        ciudad: ciudad || null,
+        estado: 'ACTIVO',
+        notas: tipo_documento === 'CC' || tipo_documento === 'CE'
+          ? 'Persona natural. Creado desde un gasto con documento soporte.'
+          : 'Creado desde un gasto con documento soporte.',
+      })
+      .select('id, razon_social, nit, tipo_documento, contacto_telefono, direccion, ciudad')
+      .single()
+
+    if (error) return { ok: false, mensaje: error.message }
+
+    revalidatePath('/gastos')
+    revalidatePath('/proveedores')
+
+    return {
+      ok: true,
+      mensaje: `${razon_social} creado y seleccionado.`,
+      tercero: {
+        id: String(data.id),
+        razon_social: String(data.razon_social ?? ''),
+        nit: (data.nit as string | null) ?? null,
+        tipo_documento: (data.tipo_documento as string | null) ?? null,
+        contacto_telefono: (data.contacto_telefono as string | null) ?? null,
+        direccion: (data.direccion as string | null) ?? null,
+        ciudad: (data.ciudad as string | null) ?? null,
+      },
+    }
+  } catch (e) {
+    return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al crear el tercero.' }
+  }
+}
