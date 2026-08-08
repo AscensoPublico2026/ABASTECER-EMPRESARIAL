@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatCOP } from '@/lib/format'
 import { ivaPorcentaje } from '@/lib/numeros'
 import {
-  Pencil, Ban, DollarSign, FileText, Loader2, X,
+  Pencil, Ban, DollarSign, FileText, FileDown, Loader2, X,
   AlertCircle, CheckCircle2, Upload, FileCheck, Trash2, Plus, Target, Package,
 } from 'lucide-react'
 
@@ -26,6 +26,8 @@ interface Props {
     total: number
     retencion_total?: number
     soporte_url: string | null
+    /** Si la compra se registro como documento soporte, el id del DS generado */
+    documento_soporte_id?: string | null
     proveedor_id?: string | null
   }
   proveedores: { id: string; razon_social: string }[]
@@ -302,10 +304,27 @@ export default function AccionesFacturaCompra({
           href={factura.soporte_url}
           target="_blank"
           rel="noopener noreferrer"
-          title="Ver factura del proveedor"
+          title="Ver el PDF de la factura del proveedor"
           className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition"
         >
           <FileText className="w-3.5 h-3.5" />
+        </a>
+      )}
+
+      {/* Documento soporte generado por el ERP.
+          Antes no habia forma de abrirlo desde la compra: el icono de
+          arriba solo aparece cuando hay un PDF subido, y el documento
+          soporte no se sube, lo genera el sistema. Por eso las compras
+          con DS se veian sin ninguna opcion para verlo o imprimirlo. */}
+      {factura.documento_soporte_id && (
+        <a
+          href={`/gastos/documento-soporte/${factura.documento_soporte_id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Abrir el documento soporte para imprimir o guardar en PDF"
+          className="p-1.5 text-blue-500 hover:text-blue-700 rounded-lg hover:bg-blue-50 transition"
+        >
+          <FileDown className="w-3.5 h-3.5" />
         </a>
       )}
 
