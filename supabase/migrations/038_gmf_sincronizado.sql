@@ -204,7 +204,7 @@ where g.monto > 0
   )
 order by g.fecha desc;
 
-comment on view public.gastos_iva_sospechoso as
+comment on view public.gastos_iva_sospechoso is
   'Gastos cuyo IVA no corresponde a ninguna tarifa colombiana (0, 5 o 19%). Casi siempre significa que se digito el subtotal en el campo del total, y entonces el movimiento del banco quedo por menos plata de la que salio.';
 
 
