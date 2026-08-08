@@ -7,7 +7,9 @@ import {
 import { formatCOP, formatFecha } from '@/lib/format'
 import ResumenPlata from '@/components/ventas/ResumenPlata'
 import BotonImprimir from '../BotonImprimir'
-import { construirTimeline, textoEstadoPago } from '@/lib/ventas/timelineVenta'
+import {
+  construirTimeline, textoEstadoPago, hayComprasPorPagar, hayPagosEnOtraVenta,
+} from '@/lib/ventas/timelineVenta'
 import { ArrowLeft } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -54,7 +56,8 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
   // construirTimeline empareja cada factura de compra con su pago, colapsa
   // en una sola fila lo que se pago el mismo dia, y excluye los 4x1000.
   const timeline = construirTimeline(await obtenerTrazabilidad(id))
-  const hayPorPagar = timeline.some((f) => f.estadoPago === 'SIN_PAGAR')
+  const hayPorPagar = hayComprasPorPagar(timeline)
+  const hayPagosFuera = hayPagosEnOtraVenta(timeline)
 
   const cliente = cot.clientes as { razon_social?: string; nit?: string } | null
 
@@ -244,7 +247,7 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
                 }
                 const e = fila.evento!
                 const estado = textoEstadoPago(fila)
-                const porPagar = fila.estadoPago === 'SIN_PAGAR'
+                const porPagar = fila.estadoPago === 'POR_PAGAR'
                 return (
                   <tr key={`f-${i}`} className="border-b border-gray-200 last:border-0">
                     <td className="px-2 py-1.5 text-gray-600 whitespace-nowrap">
@@ -267,6 +270,13 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
             <p className="text-xs text-red-700 mt-1.5 font-medium">
               Hay compras de esta venta que todavia NO se han pagado. Son cuentas por pagar
               vivas: la plata todavia no ha salido del banco.
+            </p>
+          )}
+          {hayPagosFuera && (
+            <p className="text-xs text-gray-500 mt-1.5">
+              Las que dicen solo &quot;Pagada&quot; ya estan pagadas, pero esa compra se
+              repartio entre varias ventas y el movimiento de banco quedo registrado en otra.
+              El detalle del pago esta en el Libro de Tesoreria.
             </p>
           )}
         </div>
