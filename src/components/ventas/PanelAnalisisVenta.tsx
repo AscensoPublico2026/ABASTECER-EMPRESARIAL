@@ -2,8 +2,9 @@ import { formatCOP, formatFecha } from '@/lib/format'
 import type { AnalisisVenta, AnalisisItem, EventoTrazabilidad } from '@/lib/queries/analisisVenta'
 import {
   TrendingUp, AlertTriangle, CheckCircle2, Landmark,
-  Wallet, PieChart, FileWarning, ListTree,
+  Wallet, PieChart, FileWarning, ListTree, FileText,
 } from 'lucide-react'
+import ResumenPlata from './ResumenPlata'
 
 interface Props {
   analisis: AnalisisVenta
@@ -172,6 +173,24 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
           </div>
         </div>
       )}
+
+      {/* ============ LO PRIMERO QUE SE DEBE VER ============ */}
+      {/* La cascada de la plata. Va ARRIBA de todo porque responde la
+          pregunta que el dueno de verdad tiene: cuanto me quedo. El resto
+          del panel es el detalle para cuando quiera profundizar. */}
+      <ResumenPlata analisis={a} />
+
+      <div className="flex items-center justify-between gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+        <p className="text-xs text-blue-900">
+          Necesitas este informe en papel o en PDF para el paquete de la venta?
+        </p>
+        <a
+          href={`/ventas/${a.cotizacion_id}/informe`}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 whitespace-nowrap"
+        >
+          <FileText className="w-3.5 h-3.5" /> Ver informe para imprimir
+        </a>
+      </div>
 
       {/* ============ RESUMEN EN 4 NUMEROS ============ */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -397,10 +416,12 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
               <tr className="bg-gray-50 text-left">
                 <th className="px-5 py-2.5 font-medium text-gray-500 text-xs">Producto</th>
                 <th className="px-3 py-2.5 font-medium text-gray-500 text-xs text-center">Cant</th>
-                <th className="px-3 py-2.5 font-medium text-gray-500 text-xs text-right">Compra c/u</th>
-                <th className="px-3 py-2.5 font-medium text-gray-500 text-xs text-right">Venta c/u</th>
-                <th className="px-3 py-2.5 font-medium text-gray-500 text-xs text-center">Multiplicador</th>
-                <th className="px-3 py-2.5 font-medium text-gray-500 text-xs text-right">Utilidad</th>
+                {/* Se quito la columna "Multiplicador": al dueno no le dice
+                    nada y hacia la tabla mas dificil de leer. El margen ya
+                    cuenta la misma historia en un lenguaje que si se entiende. */}
+                <th className="px-3 py-2.5 font-medium text-gray-500 text-xs text-right">Me costo c/u</th>
+                <th className="px-3 py-2.5 font-medium text-gray-500 text-xs text-right">Lo vendi c/u</th>
+                <th className="px-3 py-2.5 font-medium text-gray-500 text-xs text-right">Gane</th>
                 <th className="px-5 py-2.5 font-medium text-gray-500 text-xs text-right">Margen</th>
               </tr>
             </thead>
@@ -417,19 +438,13 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
                         : <span className="text-gray-300 text-xs">sin asignar</span>}
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums text-gray-600">{formatCOP(it.precio_venta_unitario)}</td>
-                    <td className="px-3 py-3 text-center">
-                      {it.multiplicador !== null ? (
-                        <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${
-                          it.multiplicador >= 1.4 ? 'bg-green-50 text-green-700'
-                          : it.multiplicador >= 1 ? 'bg-amber-50 text-amber-700'
-                          : 'bg-red-50 text-red-700'
-                        }`}>
-                          {it.multiplicador.toFixed(2)}x
-                        </span>
-                      ) : <span className="text-gray-300 text-xs">-</span>}
-                    </td>
                     <td className={`px-3 py-3 text-right tabular-nums font-medium ${negativo ? 'text-red-600' : 'text-green-600'}`}>
                       {formatCOP(it.utilidad)}
+                      {negativo && (
+                        <span className="block text-xs font-normal text-red-600">
+                          lo vendiste mas barato de lo que costo
+                        </span>
+                      )}
                     </td>
                     <td className={`px-5 py-3 text-right tabular-nums ${
                       it.margen_pct >= 30 ? 'text-green-600'
@@ -448,7 +463,6 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
                 <td className="px-3 py-3"></td>
                 <td className="px-3 py-3 text-right tabular-nums text-gray-700">{formatCOP(a.costo_real)}</td>
                 <td className="px-3 py-3 text-right tabular-nums text-gray-700">{formatCOP(a.venta_subtotal)}</td>
-                <td className="px-3 py-3"></td>
                 <td className="px-3 py-3 text-right tabular-nums text-green-700">{formatCOP(a.utilidad_bruta)}</td>
                 <td className="px-5 py-3 text-right tabular-nums text-green-700">{a.margen_bruto_pct.toFixed(1)}%</td>
               </tr>
