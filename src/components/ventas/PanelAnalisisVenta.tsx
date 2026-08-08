@@ -5,6 +5,7 @@ import {
   Wallet, PieChart, FileWarning, ListTree, FileText,
 } from 'lucide-react'
 import ResumenPlata from './ResumenPlata'
+import { construirTimeline, textoEstadoPago } from '@/lib/ventas/timelineVenta'
 
 interface Props {
   analisis: AnalisisVenta
@@ -47,105 +48,11 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
     : a.margen_bruto_pct >= 20 ? 'text-amber-600'
     : 'text-red-600'
 
-  // Ordenar trazabilidad: cada compra seguida de su pago respectivo
-  // Orden logico: Cotizacion → (Compra + su pago) × N → Entrega → Factura venta → Cobro
+  // La historia de la venta se arma en un solo lugar compartido
+  // (construirTimeline) para que el panel en pantalla y el informe
+  // imprimible cuenten exactamente lo mismo.
+  const timeline = construirTimeline(trazabilidad)
 
-  interface EventoConEtapa extends EventoTrazabilidad {
-    _esEtapa?: boolean
-    _etiquetaEtapa?: string
-    _grupo?: number
-  }
-
-  function separador(etiqueta: string): EventoConEtapa {
-    return {
-      _esEtapa: true, _etiquetaEtapa: etiqueta, documento_tipo: '',
-      documento_numero: null, documento_fecha: null, valor: null,
-      estado: null, documento_id: null,
-    }
-  }
-
-  // Agrupar: emparejar cada compra/gasto con su salida de caja
-  function ordenarTrazabilidad(): EventoConEtapa[] {
-    const cotizacion = trazabilidad.filter((e) => e.documento_tipo === 'COTIZACION')
-    const compras = trazabilidad.filter((e) => e.documento_tipo === 'FACTURA_COMPRA')
-    const gastos = trazabilidad.filter((e) => e.documento_tipo === 'GASTO')
-    const remisiones = trazabilidad.filter((e) => e.documento_tipo === 'REMISION')
-    const facturasVenta = trazabilidad.filter((e) => e.documento_tipo === 'FACTURA_VENTA')
-    const cobros = trazabilidad.filter((e) => e.documento_tipo === 'INGRESO_CAJA')
-
-    // Los movimientos de 4x1000 se excluyen de la historia de la venta.
-    // Son cobros del banco por mover la plata, no parte de la operacion
-    // comercial, y llenaban la lista de filas que no aportan a entender
-    // la venta. Estan completos en el Libro de Tesoreria.
-    const salidas = trazabilidad.filter(
-      (e) => e.documento_tipo === 'EGRESO_CAJA' && e.estado !== 'GMF',
-    )
-
-    const resultado: EventoConEtapa[] = []
-
-    // 1. Cotizacion
-    if (cotizacion.length > 0) {
-      resultado.push(separador('1. Cotizacion'))
-      for (const c of cotizacion) resultado.push(c)
-    }
-
-    // 2. Compras y gastos: cada documento seguido de SU pago y del 4x1000
-    const docsCosto = [...compras, ...gastos].sort((a, b) => {
-      const fa = a.documento_fecha ?? ''
-      const fb = b.documento_fecha ?? ''
-      if (fa !== fb) return fa < fb ? -1 : 1
-      return (a.documento_numero ?? '').localeCompare(b.documento_numero ?? '')
-    })
-
-    if (docsCosto.length > 0) {
-      resultado.push(separador('2. Compras y costos'))
-
-      // Cada salida se consume una sola vez
-      const salidasDisponibles = [...salidas]
-
-      for (const doc of docsCosto) {
-        resultado.push(doc)
-
-        const numero = (doc.documento_numero ?? '').trim()
-        if (!numero) continue
-        const numeroUp = numero.toUpperCase()
-
-        // El pago real
-        const idxPago = salidasDisponibles.findIndex((p) =>
-          (p.documento_numero ?? '').toUpperCase().includes(numeroUp)
-        )
-        if (idxPago !== -1) {
-          resultado.push(salidasDisponibles[idxPago])
-          salidasDisponibles.splice(idxPago, 1)
-        }
-      }
-
-      // Salidas que no se pudieron emparejar con su documento
-      for (const p of salidasDisponibles) resultado.push(p)
-    }
-
-    // 3. Entrega
-    if (remisiones.length > 0) {
-      resultado.push(separador('3. Entrega'))
-      for (const r of remisiones) resultado.push(r)
-    }
-
-    // 4. Facturacion
-    if (facturasVenta.length > 0) {
-      resultado.push(separador('4. Facturacion'))
-      for (const f of facturasVenta) resultado.push(f)
-    }
-
-    // 5. Cobro
-    if (cobros.length > 0) {
-      resultado.push(separador('5. Cobro del cliente'))
-      for (const c of cobros) resultado.push(c)
-    }
-
-    return resultado
-  }
-
-  const trazabilidadOrdenada = ordenarTrazabilidad()
 
   return (
     <div className="print:hidden space-y-5">
@@ -475,29 +382,49 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
           </div>
         </div>
         <div className="divide-y divide-gray-50">
-          {trazabilidadOrdenada.map((ev, i) => {
+          {timeline.map((fila, i) => {
+            if (fila.esEtapa) {
+              return (
+                <div key={`etapa-${i}`} className="px-5 py-2 bg-gray-50">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    {fila.etiquetaEtapa}
+                  </span>
+                </div>
+              )
+            }
+            const ev = fila.evento!
             const et = ETIQUETA_DOC[ev.documento_tipo] ?? { texto: ev.documento_tipo, color: 'bg-gray-50 text-gray-600 border-gray-200' }
-            const esEtapa = ev._esEtapa
-            return esEtapa ? (
-              <div key={`etapa-${i}`} className="px-5 py-2 bg-gray-50">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{ev._etiquetaEtapa}</span>
-              </div>
-            ) : (
-              <div key={`${ev.documento_tipo}-${ev.documento_id ?? i}`} className={`px-5 py-3 flex items-center gap-4 hover:bg-gray-50/50 ${ev.estado === 'GMF' ? 'pl-10 bg-slate-50/40' : ''}`}>
-                <span className={`px-2.5 py-1 rounded-lg text-xs font-medium border whitespace-nowrap ${
-                  ev.estado === 'GMF' ? ETIQUETA_DOC.GMF.color : et.color
-                }`}>
-                  {ev.estado === 'GMF' ? ETIQUETA_DOC.GMF.texto : et.texto}
+            const estadoTexto = textoEstadoPago(fila)
+            const porPagar = fila.estadoPago === 'SIN_PAGAR'
+            // El pago que quedo como fila propia (credito) se indenta para
+            // que se lea como consecuencia de la factura de arriba
+            const esPagoAparte = ev.documento_tipo === 'EGRESO_CAJA'
+
+            return (
+              <div
+                key={`${ev.documento_tipo}-${ev.documento_id ?? i}`}
+                className={`px-5 py-3 flex items-center gap-4 hover:bg-gray-50/50 ${esPagoAparte ? 'pl-10 bg-gray-50/40' : ''} ${porPagar ? 'bg-red-50/40' : ''}`}
+              >
+                <span className={`px-2.5 py-1 rounded-lg text-xs font-medium border whitespace-nowrap ${et.color}`}>
+                  {et.texto}
                 </span>
                 <span className="font-mono text-xs text-gray-700 flex-1 truncate">
                   {ev.documento_numero ?? '-'}
                 </span>
+                {estadoTexto && (
+                  <span className={`text-xs whitespace-nowrap px-2 py-0.5 rounded-md ${
+                    porPagar
+                      ? 'bg-red-100 text-red-700 font-semibold'
+                      : fila.estadoPago === 'PAGADA_MISMO_DIA'
+                        ? 'bg-green-50 text-green-700'
+                        : 'bg-amber-50 text-amber-700'
+                  }`}>
+                    {estadoTexto}
+                  </span>
+                )}
                 <span className="text-xs text-gray-400 whitespace-nowrap">
                   {ev.documento_fecha ? formatFecha(ev.documento_fecha) : '-'}
                 </span>
-                {ev.estado && (
-                  <span className="text-xs text-gray-500 whitespace-nowrap hidden sm:inline">{ev.estado}</span>
-                )}
                 <span className="tabular-nums text-sm text-gray-700 w-28 text-right font-medium">
                   {ev.valor !== null ? formatCOP(ev.valor) : ''}
                 </span>
@@ -505,6 +432,15 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
             )
           })}
         </div>
+        {timeline.some((f) => f.estadoPago === 'SIN_PAGAR') && (
+          <div className="px-5 py-3 bg-red-50 border-t border-red-100">
+            <p className="text-xs text-red-800">
+              <strong>Hay compras sin pagar en esta venta.</strong> Son cuentas por pagar vivas:
+              la plata todavia no salio del banco, asi que tu saldo disponible real es menor de
+              lo que parece.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
