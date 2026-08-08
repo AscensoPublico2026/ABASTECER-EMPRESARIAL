@@ -6,11 +6,13 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import BotonDescargarPDF from './BotonDescargarPDF'
 import PanelAnalisisVenta from '@/components/ventas/PanelAnalisisVenta'
+import DocumentosVenta from '@/components/ventas/DocumentosVenta'
 import {
   obtenerAnalisisVenta,
   obtenerAnalisisItems,
   obtenerTrazabilidad,
 } from '@/lib/queries/analisisVenta'
+import { obtenerDocumentosDeVenta } from '@/lib/queries/documentosVenta'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +34,9 @@ export default async function CotizacionDetallePage({ params }: { params: { id: 
   const analisis = await obtenerAnalisisVenta(params.id)
   const analisisItems = analisis ? await obtenerAnalisisItems(params.id) : []
   const trazabilidad = analisis ? await obtenerTrazabilidad(params.id) : []
+
+  // Todos los documentos de la venta, para el paquete
+  const docsVenta = await obtenerDocumentosDeVenta(params.id)
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -129,6 +134,19 @@ export default async function CotizacionDetallePage({ params }: { params: { id: 
           <p>{EMPRESA.slogan}</p>
           <p>{EMPRESA.direccion}, {EMPRESA.ciudad} | Tel: {EMPRESA.telefono} | {EMPRESA.email}</p>
         </div>
+      </div>
+
+      {/* ============================================================ */}
+      {/* DOCUMENTOS DE LA VENTA (para armar el paquete) */}
+      {/* ============================================================ */}
+      <div className="max-w-[210mm] mx-auto mb-8 print:hidden">
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-gray-800">Documentos de esta venta</h2>
+          <p className="text-sm text-gray-500">
+            Todo lo relacionado con esta venta en un solo lugar, para descargar o imprimir.
+          </p>
+        </div>
+        <DocumentosVenta datos={docsVenta} />
       </div>
 
       {/* ============================================================ */}

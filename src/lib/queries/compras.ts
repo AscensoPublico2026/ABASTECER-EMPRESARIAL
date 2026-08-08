@@ -15,6 +15,16 @@ export interface ResumenFacturaCompra {
   proveedor_nombre: string | null
   proveedor_id: string | null
   soporte_url: string | null
+  /**
+   * Id del documento soporte que el ERP genero para esta compra, si se
+   * registro como "sin factura del proveedor".
+   *
+   * Hace falta para poder abrirlo e imprimirlo desde la lista de compras.
+   * Antes no existia y esas compras se veian sin ninguna accion para ver
+   * el documento: el icono del PDF solo aparece cuando hay archivo subido,
+   * y el documento soporte no se sube, lo genera el sistema.
+   */
+  documento_soporte_id: string | null
 }
 
 export async function obtenerFacturasCompra(): Promise<{
@@ -33,6 +43,22 @@ export async function obtenerFacturasCompra(): Promise<{
 
     if (error) return { data: [], error: error.message, totales: totalesVacios }
 
+    // Documentos soporte generados desde estas compras, para poder abrirlos
+    // desde la lista. Se hace en una sola consulta y no una por factura.
+    const idsFacturas = (data ?? []).map((f) => String(f.id))
+    const dsPorFactura = new Map<string, string>()
+    if (idsFacturas.length > 0) {
+      const { data: dsRows } = await supabase
+        .from('documentos_soporte')
+        .select('id, factura_compra_id')
+        .in('factura_compra_id', idsFacturas)
+      for (const ds of dsRows ?? []) {
+        if (ds.factura_compra_id) {
+          dsPorFactura.set(String(ds.factura_compra_id), String(ds.id))
+        }
+      }
+    }
+
     const facturas: ResumenFacturaCompra[] = (data ?? []).map((f) => {
       const prov = f.proveedores as { razon_social?: string } | null
       return {
@@ -50,6 +76,7 @@ export async function obtenerFacturasCompra(): Promise<{
         proveedor_nombre: prov?.razon_social ?? null,
         proveedor_id: f.proveedor_id ?? null,
         soporte_url: f.soporte_url ?? null,
+        documento_soporte_id: dsPorFactura.get(String(f.id)) ?? null,
       }
     })
 
