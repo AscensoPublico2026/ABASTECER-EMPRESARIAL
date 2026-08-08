@@ -7,7 +7,7 @@ import { formatCOP } from '@/lib/format'
 import { ivaPorcentaje } from '@/lib/numeros'
 import {
   PlusCircle, X, Loader2, CheckCircle2, AlertCircle, Trash2, Plus,
-  Upload, FileCheck, Target, Package,
+  Upload, FileCheck, Target, Package, AlertTriangle,
 } from 'lucide-react'
 import MiniFormProveedor from '@/components/inline/MiniFormProveedor'
 import MiniFormProducto from '@/components/inline/MiniFormProducto'
@@ -143,6 +143,31 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
     return cot.items
       .filter((i) => i.producto_id === productoId)
       .reduce((s, i) => s + i.cantidad, 0)
+  }
+
+  /**
+   * El producto que estas comprando NO esta en los items de esa venta.
+   *
+   * ESTO ES LO QUE PASO CON EL EXTINTOR: se compro PRD-0013 (el kit con
+   * base y letrero) y se asigno a una venta donde lo que se vendio fue
+   * PRD-0017 (el extintor solo) mas PRD-0018 (la base aparte). El costo no
+   * cruza porque el cruce se hace por producto, y la venta queda mostrando
+   * margen del 100%, que no es real.
+   *
+   * Antes el formulario dejaba hacerlo sin decir nada. Ahora avisa.
+   */
+  function productoNoEstaEnLaVenta(cotizacionId: string, productoId: string): boolean {
+    if (!cotizacionId || !productoId) return false
+    const cot = cotizaciones.find((c) => c.id === cotizacionId)
+    if (!cot) return false
+    return !cot.items.some((i) => i.producto_id === productoId)
+  }
+
+  /** Que productos si pide esa venta, para poder decirle cual escoger */
+  function queSiPideLaVenta(cotizacionId: string): string {
+    const cot = cotizaciones.find((c) => c.id === cotizacionId)
+    if (!cot) return ''
+    return cot.items.map((i) => i.descripcion).join(', ')
   }
 
   function agregarAsignacion(idx: number) {
@@ -680,12 +705,15 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
                       )}
 
                       <div className="space-y-2">
-                        {item.asignaciones.map((a, aIdx) => (
-                          <div key={aIdx} className="flex gap-2 items-center">
+                        {item.asignaciones.map((a, aIdx) => {
+                          const noCruza = productoNoEstaEnLaVenta(a.cotizacion_id, item.producto_id)
+                          return (
+                          <div key={aIdx} className="space-y-1">
+                          <div className="flex gap-2 items-center">
                             <select
                               value={a.cotizacion_id}
                               onChange={(e) => actualizarAsignacion(idx, aIdx, 'cotizacion_id', e.target.value)}
-                              className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white"
+                              className={`flex-1 px-2 py-1.5 border rounded-lg text-xs bg-white ${noCruza ? 'border-amber-400' : 'border-gray-200'}`}
                             >
                               <option value="">-- Seleccionar venta --</option>
                               {sugeridas.map((c) => (
@@ -705,7 +733,27 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
                               <X className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                        ))}
+
+                          {/* AVISO: el costo no va a cruzar con esa venta.
+                              Es el error del extintor: compraste el kit y
+                              vendiste el extintor y la base por separado. */}
+                          {noCruza && (
+                            <div className="flex items-start gap-2 text-[11px] bg-amber-50 text-amber-800 rounded-lg px-2.5 py-2 border border-amber-200">
+                              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                              <span>
+                                <b>Ese producto no esta en esa venta.</b> El costo no va a
+                                cruzar y la venta va a mostrar margen del 100%, que no es real.
+                                {queSiPideLaVenta(a.cotizacion_id) && (
+                                  <> Esa venta pide: <b>{queSiPideLaVenta(a.cotizacion_id)}</b>.</>
+                                )}
+                                {' '}Si compraste un kit y lo vendiste por separado, registra el
+                                item con el producto que si vendiste.
+                              </span>
+                            </div>
+                          )}
+                          </div>
+                          )
+                        })}
                       </div>
 
                       {/* Resumen del reparto */}
