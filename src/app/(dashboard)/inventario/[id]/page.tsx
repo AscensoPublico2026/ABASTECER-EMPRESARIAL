@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Header from '@/components/layout/Header'
 import { ArrowLeft, Package, TrendingDown, Clock } from 'lucide-react'
 import FormPrecioProveedor from './FormPrecioProveedor'
+import { obtenerProveedoresParaSelect } from '@/lib/queries/compras'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,15 +27,21 @@ export default async function ProductoDetallePage({ params }: { params: { id: st
     .eq('producto_id', params.id)
     .order('precio', { ascending: true })
 
-  // Obtener proveedores para el formulario
-  const { data: proveedoresData } = await supabase
-    .from('proveedores')
-    .select('id, razon_social')
-    .eq('activo', true)
-    .order('razon_social')
+  // Proveedores para el formulario de precios.
+  //
+  // BUG QUE ESTO ARREGLA: aqui habia una consulta propia que filtraba por
+  // .eq('activo', true), pero la tabla proveedores NO tiene columna
+  // 'activo': tiene 'estado' con valores ACTIVO / INACTIVO /
+  // EN_EVALUACION. Al pedir una columna inexistente Supabase devolvia
+  // error, data quedaba null y la lista salia VACIA. Y como el error no se
+  // revisaba, fallaba en silencio: el usuario veia el desplegable sin
+  // ningun proveedor aunque los tuviera creados.
+  //
+  // Ahora se usa la funcion compartida, la misma que usa Compras y que si
+  // filtra bien por estado.
+  const proveedores = await obtenerProveedoresParaSelect()
 
   const precios = preciosData ?? []
-  const proveedores = proveedoresData ?? []
   const categoria = producto.categorias_producto as { nombre?: string } | null
   const precioMenor = precios.length > 0 ? precios[0] : null
 

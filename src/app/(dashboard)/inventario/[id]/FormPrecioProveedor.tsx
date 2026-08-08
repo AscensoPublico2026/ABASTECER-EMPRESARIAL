@@ -87,9 +87,20 @@ export default function FormPrecioProveedor({ productoId, proveedores }: Props) 
                   {pendiente ? 'Creando...' : 'Crear y seleccionar'}
                 </button>
               </div>
+            ) : listaProveedores.length === 0 ? (
+              /* Si no hay ninguno, decirlo con palabras en vez de mostrar un
+                 desplegable vacio. Antes esto pasaba por un bug de la
+                 consulta y era imposible saber si el problema era que no
+                 habia proveedores o que el sistema no los estaba trayendo. */
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                <p className="text-xs text-amber-900">
+                  Todavia no tienes proveedores activos. Usa
+                  <strong> Crear nuevo</strong> aqui arriba para agregar el primero.
+                </p>
+              </div>
             ) : (
               <select value={proveedorSeleccionado} onChange={(e) => setProveedorSeleccionado(e.target.value)} required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
-                <option value="">Seleccionar proveedor</option>
+                <option value="">Seleccionar proveedor ({listaProveedores.length} disponible{listaProveedores.length !== 1 ? 's' : ''})</option>
                 {listaProveedores.map((p) => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
               </select>
             )}
