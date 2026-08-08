@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { formatCOP } from '@/lib/format'
 
 /**
  * TODOS LOS DOCUMENTOS DE UNA VENTA, EN UN SOLO LUGAR.
@@ -168,18 +169,43 @@ export async function obtenerDocumentosDeVenta(cotizacionId: string): Promise<Do
 
     const { data: docsSoporte } = await supabase
       .from('documentos_soporte')
-      .select('id, numero, fecha, subtotal, tercero_nombre, concepto')
+      .select('id, numero, fecha, subtotal, tercero_nombre, concepto, gasto_id')
       .or(filtroDs)
       .order('fecha', { ascending: true })
 
     for (const ds of docsSoporte ?? []) {
+      // Si el DS viene de un gasto repartido, buscar cuanto le toca a ESTA
+      // venta. Si no tiene reparto (esta atado directo a la cotizacion o a
+      // una factura de compra), se muestra el total del DS.
+      let montoParaEstaVenta = Number(ds.subtotal ?? 0)
+      if (ds.gasto_id) {
+        const matchReparto = repartoGastos?.find((gr) => {
+          const g = gr.gastos as { id?: string } | null
+          return g?.id === ds.gasto_id
+        })
+        if (matchReparto) {
+          // Hay reparto: se busca cuanto le asignaron a esta venta
+          const { data: miParte } = await supabase
+            .from('gasto_reparto')
+            .select('monto')
+            .eq('gasto_id', ds.gasto_id as string)
+            .eq('cotizacion_id', cotizacionId)
+            .maybeSingle()
+          if (miParte) {
+            montoParaEstaVenta = Number(miParte.monto ?? 0)
+          }
+        }
+      }
+
       documentos.push({
         grupo: 'COMPRAS Y COSTOS',
         tipo: 'Documento soporte',
         numero: String(ds.numero ?? ''),
         fecha: ds.fecha ? String(ds.fecha) : null,
-        valor: Number(ds.subtotal ?? 0),
-        detalle: String(ds.tercero_nombre ?? ''),
+        valor: montoParaEstaVenta,
+        detalle: montoParaEstaVenta < Number(ds.subtotal ?? 0)
+          ? `${String(ds.tercero_nombre ?? '')} · ${formatCOP(Number(ds.subtotal ?? 0))} total, esta venta: ${formatCOP(montoParaEstaVenta)}`
+          : String(ds.tercero_nombre ?? ''),
         url: `/gastos/documento-soporte/${ds.id}`,
         clase: 'PAGINA',
       })
