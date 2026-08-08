@@ -2,15 +2,23 @@
 -- ABASTECER EMPRESARIAL SAS - AUDITORIA INTEGRAL DEL DINERO
 -- Migracion 039
 -- ============================================================
--- Corre TODO este archivo de una sola vez. Es idempotente: si lo corres
--- dos veces no se dana nada.
+-- Corre TODO este archivo de una sola vez. Es idempotente.
+-- Requiere haber corrido antes la 037 y la 038.
 --
--- PARTE A: corrige los datos que estan mal.
--- PARTE B: crea la vista auditoria_integridad, que de aqui en adelante
---          lista sola todo lo que este descuadrado.
--- PARTE C: muestra que quedo (esas son las tablas que hay que mandar).
+-- LA FUENTE DE LA VERDAD ES LA CONCILIACION BANCARIA DEL DUENO.
+-- Se comprobo linea por linea y cuadra al centavo:
+--   ingresos  13.734.720,00
+--   egresos    6.074.835,54
+--   disponible 7.659.884,46  + caja menor 100.000 = 7.759.884,46
+-- El ERP tiene que dar exactamente eso.
 --
--- REQUISITO: hay que haber corrido antes la 037 y la 038.
+-- POR QUE CAMBIO ESTA MIGRACION RESPECTO A LA PRIMERA VERSION
+-- La primera version deducia el monto real de un egreso a partir del
+-- 4x1000 cobrado. Con la impresora eso habria puesto 704.750, cuando la
+-- verdad es 779.070: se habria equivocado por 74.320 y habria dejado el
+-- dato PEOR. La leccion: el 4x1000 guardado en el ERP tampoco es confiable
+-- si se genero mal. Solo la conciliacion del banco manda.
+-- Ahora el 4x1000 solo se usa para AVISAR, nunca para reescribir montos.
 -- ============================================================
 
 
@@ -19,25 +27,49 @@
 -- ############################################################
 
 -- ------------------------------------------------------------
+-- A0. LA FUNCION slugificar() ESTABA ROTA DESDE LA MIGRACION 023
+-- ------------------------------------------------------------
+-- Tenia un parametro de mas: trim(both '-' from <texto>, '-'), que es
+-- btrim con 3 argumentos y no existe en Postgres. La funcion NUNCA se
+-- pudo crear. Se descubrio ejecutando las 40 migraciones contra un
+-- Postgres real.
+create or replace function public.slugificar(texto text)
+returns text
+language sql
+immutable
+as $$
+  select trim(both '-' from regexp_replace(
+    lower(translate(coalesce(texto, ''),
+      'ÁÀÂÄÃÅáàâäãåÉÈÊËéèêëÍÌÎÏíìîïÓÒÔÖÕóòôöõÚÙÛÜúùûüÑñÇç',
+      'AAAAAAaaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuNnCc')),
+    '[^a-z0-9]+', '-', 'g'))
+$$;
+
+
+-- ------------------------------------------------------------
 -- A1. DOCUMENTOS SOPORTE PEGADOS A LA VENTA EQUIVOCADA
 -- ------------------------------------------------------------
 -- EL CASO: el DS-2026-002 seguia apareciendo en la COT-2026-013 aunque el
 -- gasto ya se habia repartido a otras ventas.
 --
 -- POR QUE: documentos_soporte.cotizacion_id se escribe cuando se CREA el
--- DS, y editarGasto nunca lo volvia a tocar. Entonces el DS quedaba
--- clavado en la venta original para siempre, aunque el reparto cambiara.
+-- DS, y editarGasto nunca lo volvia a tocar. Quedaba clavado en la venta
+-- original para siempre.
 --
--- LA REGLA CORRECTA: si el DS pertenece a un GASTO, la verdad de a que
--- ventas pertenece esta en gasto_reparto, no en ese campo. El campo solo
--- tiene sentido si el gasto va a UNA sola venta.
+-- LA REGLA: si el DS pertenece a un GASTO, la verdad de a que ventas
+-- pertenece esta en gasto_reparto. Ese campo solo sirve si el gasto va a
+-- UNA sola venta; si se reparte, queda en null.
 update public.documentos_soporte ds
 set cotizacion_id = sub.cotizacion_unica
 from (
   select
     g.id as gasto_id,
-    case when count(gr.id) = 1 then min(gr.cotizacion_id) else null end
-      as cotizacion_unica
+    -- min() no acepta uuid en Postgres: se compara como texto y se
+    -- devuelve a uuid. Como solo entra cuando hay UNA fila, el min es
+    -- esa misma fila.
+    case when count(gr.id) = 1
+         then min(gr.cotizacion_id::text)::uuid
+         else null end as cotizacion_unica
   from public.gastos g
   left join public.gasto_reparto gr on gr.gasto_id = g.id
   group by g.id
@@ -49,19 +81,11 @@ where ds.gasto_id = sub.gasto_id
 -- ------------------------------------------------------------
 -- A2. DOCUMENTOS SOPORTE DE COMPRAS CON EL VALOR INFLADO
 -- ------------------------------------------------------------
--- ERROR ENCONTRADO EN LA AUDITORIA (no se habia detectado antes).
---
--- Al crear el DS de una factura de compra, el codigo mandaba
--- cantidad = numero de lineas de la factura y valor_unitario = total.
--- El trigger calcula subtotal = cantidad * valor_unitario, asi que:
---
---   factura de 3 lineas por 500.000  ->  DS por 1.500.000
---
--- Un documento soporte es un documento ante la DIAN. Estaba declarando
--- el triple de lo que se pago.
---
--- FIX: cantidad = 1 y valor_unitario = el total de la factura. El trigger
--- recalcula el subtotal solo.
+-- El codigo mandaba cantidad = numero de lineas y valor_unitario = total.
+-- El trigger calcula subtotal = cantidad * valor_unitario, asi que una
+-- factura de 3 lineas por 500.000 generaba un DS por 1.500.000.
+-- Un documento soporte es un documento ante la DIAN: estaba declarando el
+-- triple de lo que se pago.
 update public.documentos_soporte ds
 set cantidad = 1,
     valor_unitario = fc.total
@@ -73,9 +97,8 @@ where ds.factura_compra_id = fc.id
 -- ------------------------------------------------------------
 -- A3. DOCUMENTOS SOPORTE DESACTUALIZADOS RESPECTO A SU GASTO
 -- ------------------------------------------------------------
--- editarGasto cambiaba el monto, la fecha y el concepto del gasto pero
--- nunca actualizaba el DS. Quedaba un documento diciendo una cifra y el
--- gasto diciendo otra.
+-- editarGasto cambiaba monto, fecha y concepto del gasto pero no tocaba
+-- el DS. Quedaba un documento DIAN diciendo una cifra y el gasto otra.
 update public.documentos_soporte ds
 set cantidad = 1,
     valor_unitario = g.monto,
@@ -88,91 +111,339 @@ where ds.gasto_id = g.id
 
 
 -- ------------------------------------------------------------
--- A4. PLATA QUE SALIO DEL BANCO Y NO ESTABA REGISTRADA
+-- A4. MOVIMIENTOS EXENTOS DE 4x1000
 -- ------------------------------------------------------------
--- EL CASO DE LA IMPRESORA: el movimiento decia 654.881 pero el 4x1000
--- cobrado (2.819) solo se explica con un egreso de 704.750. El banco
--- descontó 704.750; el ERP tenia 49.869 menos.
---
--- EL 4x1000 ES EL TESTIGO: es el unico dato del libro que calcula el
--- banco. Si no corresponde con el monto guardado, el monto esta mal.
---
--- FIX AUTORIZADO POR EL DUENO: "el valor que salio de nuestra cuenta fue
--- completo, por lo tanto debe descontarlo completo". Se corrige el monto
--- al que vio el banco.
+-- En la conciliacion del banco hay egresos que NO llevan 4x1000:
+--   - los traslados al bolsillo de impuestos (cuenta propia)
+--   - el pago de la camara de comercio
+-- El ERP le ponia 4x1000 a TODO egreso, asi que inventaba un cobro que el
+-- banco nunca hizo y el saldo nunca podia cuadrar.
+alter table public.movimientos_tesoreria
+  add column if not exists exento_gmf boolean not null default false;
 
--- A4.1 Corregir el GASTO (el trigger de la 038 ajusta su movimiento)
-with tasa as (
-  select coalesce(
-    (select valor / 100 from public.config_tributaria where clave = 'GMF_TASA'),
-    0.004) as t
-),
-descuadre as (
-  select
-    m.gasto_id,
-    round(g_gmf.monto / t.t) as monto_real_banco
-  from public.movimientos_tesoreria m
-  cross join tasa t
-  join public.movimientos_tesoreria g_gmf on g_gmf.gmf_de_id = m.id
-  where m.gasto_id is not null
-    and g_gmf.monto <> ceil(m.monto * t.t)
-)
-update public.gastos g
-set monto = d.monto_real_banco,
-    -- El IVA se reparte a la tarifa del 19%, que es la de equipos y
-    -- servicios en Colombia. Si la factura tenia otra tarifa, se corrige
-    -- a mano; la vista de la PARTE B lo deja visible.
-    iva_incluido = case
-      when coalesce(g.iva_incluido, 0) > 0
-        then round(d.monto_real_banco - (d.monto_real_banco / 1.19), 2)
-      else 0 end
-from descuadre d
-where g.id = d.gasto_id
-  and g.monto <> d.monto_real_banco;
+comment on column public.movimientos_tesoreria.exento_gmf is
+  'Marca los egresos a los que el banco NO les cobra 4x1000 (traslados entre cuentas propias, movimientos exentos). Si esta en true no se genera el cobro.';
 
--- A4.2 Corregir el MOVIMIENTO de tesoreria al monto que vio el banco
-with tasa as (
-  select coalesce(
-    (select valor / 100 from public.config_tributaria where clave = 'GMF_TASA'),
-    0.004) as t
-),
-descuadre as (
-  select m.id as movimiento_id, round(g_gmf.monto / t.t) as monto_real_banco
-  from public.movimientos_tesoreria m
-  cross join tasa t
-  join public.movimientos_tesoreria g_gmf on g_gmf.gmf_de_id = m.id
-  where g_gmf.monto <> ceil(m.monto * t.t)
-)
+-- LA DISTINCION IMPORTA, Y LA CONCILIACION LA MUESTRA CLARITA:
+--
+--   BOLSILLO IVA       93.359  -> traslado a cuenta propia -> SIN 4x1000
+--   BOLSILLO SIMPLE    64.000  -> traslado a cuenta propia -> SIN 4x1000
+--   RETIRO CAJA MENOR 100.000  -> retiro a efectivo        -> 4x1000 de 400
+--
+-- O sea: NO se puede exentar todo traslado. Un traslado entre cuentas
+-- bancarias propias es exento; sacar la plata a efectivo si lo cobran.
+-- La regla es el destino: si la plata queda en otra cuenta de banco, exento;
+-- si sale a efectivo, se cobra.
+update public.movimientos_tesoreria ms
+set exento_gmf = true
+where ms.categoria = 'TRASLADO_SALIDA'
+  and ms.exento_gmf = false
+  and exists (
+    select 1
+    from public.movimientos_tesoreria me
+    join public.cuentas cd on cd.id = me.cuenta_id
+    where me.categoria = 'TRASLADO_ENTRADA'
+      and me.fecha = ms.fecha
+      and me.monto = ms.monto
+      and cd.tipo <> 'EFECTIVO'
+  );
+
+
+-- ------------------------------------------------------------
+-- A5. LA IMPRESORA: EL VALOR REAL ES EL DE LA CONCILIACION
+-- ------------------------------------------------------------
+-- ALKOSTO CALI NORTE - IMPRESORA - ACTIVO FIJO = 779.070, con 4x1000 de
+-- 3.116,28 (que es exactamente 779.070 x 0,004).
+--
+-- El ERP tenia 654.881, que es casi la BASE sin IVA (654.680,67): se
+-- digito el subtotal de la factura en el campo del total, y ademas con un
+-- 8 donde iba un 6.
+--
+-- Faltaban 124.189 por descontar de la cuenta.
+update public.gastos
+set monto = 779070,
+    iva_incluido = 124389.33,   -- 19% sobre la base de 654.680,67
+    categoria = 'ACTIVO_FIJO',
+    activo_nombre = coalesce(nullif(activo_nombre, ''), concepto),
+    activo_estado = coalesce(activo_estado, 'EN_USO'),
+    activo_garantia_meses = coalesce(activo_garantia_meses, 24)
+where concepto ilike '%impres%'
+  and monto <> 779070;
+
 update public.movimientos_tesoreria m
-set monto = d.monto_real_banco
-from descuadre d
-where m.id = d.movimiento_id
-  and m.monto <> d.monto_real_banco;
+set monto = g.monto
+from public.gastos g
+where m.gasto_id = g.id
+  and g.concepto ilike '%impres%'
+  and m.categoria <> 'GMF'
+  and m.monto <> g.monto;
 
 
 -- ------------------------------------------------------------
--- A5. EL 4x1000 DE TODOS LOS MOVIMIENTOS
+-- A6. EL 4x1000 SE COBRA CON CENTAVOS, NO REDONDEADO AL PESO
 -- ------------------------------------------------------------
--- Se revisa uno por uno: que exista donde debe, que valga lo que debe y
--- que no exista donde no debe.
+-- El ERP usaba ceil(): redondeaba hacia arriba al peso. El banco cobra el
+-- valor exacto con centavos. Comparado contra la conciliacion:
+--
+--   ARITEX 23.800     -> banco 95,20    el ERP ponia 96
+--   ALKOSTO 779.070   -> banco 3.116,28 el ERP ponia 3.117
+--   PROCOLDEXT        -> banco 6.016,06 el ERP ponia 6.017
+--
+-- Son centavos, pero mientras exista esa diferencia el saldo del ERP
+-- JAMAS va a dar igual al extracto, y entonces no sirve para conciliar.
+create or replace function public.generar_gmf()
+returns trigger
+language plpgsql
+as $$
+declare
+  tasa numeric;
+  monto_gmf numeric;
+  cuenta_cobra_gmf boolean;
+begin
+  if new.tipo <> 'EGRESO' then return new; end if;
+  if new.categoria = 'GMF' then return new; end if;
+  if new.categoria = 'TRASLADO_ENTRADA' then return new; end if;
+  if coalesce(new.exento_gmf, false) then return new; end if;
 
--- A5.1 Corregir los que existen pero con el valor equivocado
+  select coalesce(c.cobra_gmf, true) into cuenta_cobra_gmf
+  from public.cuentas c where c.id = new.cuenta_id;
+  if not cuenta_cobra_gmf then return new; end if;
+
+  select coalesce(
+    (select valor / 100 from public.config_tributaria where clave = 'GMF_TASA'),
+    0.004) into tasa;
+  if tasa <= 0 then return new; end if;
+
+  -- round a 2 decimales, NO ceil: asi coincide con lo que cobra el banco
+  monto_gmf := round(new.monto * tasa, 2);
+  if monto_gmf <= 0 then return new; end if;
+
+  insert into public.movimientos_tesoreria (
+    cuenta_id, fecha, tipo, categoria, monto, concepto,
+    factura_compra_id, cotizacion_id, gasto_id, movimiento_socio_id,
+    medio_pago, creado_por_id, creado_por_nombre, gmf_de_id
+  ) values (
+    new.cuenta_id, new.fecha, 'EGRESO', 'GMF', monto_gmf,
+    'GMF (4x1000) ' || left(new.concepto, 80),
+    new.factura_compra_id, new.cotizacion_id, new.gasto_id,
+    new.movimiento_socio_id, 'Cobro bancario',
+    new.creado_por_id, new.creado_por_nombre, new.id
+  );
+  return new;
+end;
+$$;
+
+comment on function public.generar_gmf is
+  'Cada egreso genera su cobro de 4x1000, con centavos (round a 2 decimales, no ceil) para que el saldo cuadre con el extracto. Respeta exento_gmf y cuentas.cobra_gmf.';
+
+-- El de la 038 (cuando cambia el monto) con la misma precision y la misma
+-- regla de exencion.
+create or replace function public.resincronizar_gmf()
+returns trigger
+language plpgsql
+as $$
+declare
+  tasa numeric;
+  monto_gmf numeric;
+  cuenta_cobra_gmf boolean;
+begin
+  if new.monto = old.monto
+     and new.cuenta_id = old.cuenta_id
+     and coalesce(new.exento_gmf, false) = coalesce(old.exento_gmf, false) then
+    return new;
+  end if;
+
+  if new.categoria = 'GMF' then return new; end if;
+
+  select coalesce(c.cobra_gmf, true) into cuenta_cobra_gmf
+  from public.cuentas c where c.id = new.cuenta_id;
+
+  if new.tipo <> 'EGRESO'
+     or new.categoria = 'TRASLADO_ENTRADA'
+     or coalesce(new.exento_gmf, false)
+     or not cuenta_cobra_gmf then
+    delete from public.movimientos_tesoreria where gmf_de_id = new.id;
+    return new;
+  end if;
+
+  select coalesce(
+    (select valor / 100 from public.config_tributaria where clave = 'GMF_TASA'),
+    0.004) into tasa;
+
+  monto_gmf := round(new.monto * tasa, 2);
+
+  if monto_gmf <= 0 then
+    delete from public.movimientos_tesoreria where gmf_de_id = new.id;
+    return new;
+  end if;
+
+  if exists (select 1 from public.movimientos_tesoreria where gmf_de_id = new.id) then
+    update public.movimientos_tesoreria
+    set monto = monto_gmf, cuenta_id = new.cuenta_id, fecha = new.fecha,
+        concepto = 'GMF (4x1000) ' || left(new.concepto, 80)
+    where gmf_de_id = new.id;
+  else
+    insert into public.movimientos_tesoreria (
+      cuenta_id, fecha, tipo, categoria, monto, concepto,
+      factura_compra_id, cotizacion_id, gasto_id, movimiento_socio_id,
+      medio_pago, creado_por_id, creado_por_nombre, gmf_de_id
+    ) values (
+      new.cuenta_id, new.fecha, 'EGRESO', 'GMF', monto_gmf,
+      'GMF (4x1000) ' || left(new.concepto, 80),
+      new.factura_compra_id, new.cotizacion_id, new.gasto_id,
+      new.movimiento_socio_id, 'Cobro bancario',
+      new.creado_por_id, new.creado_por_nombre, new.id
+    );
+  end if;
+  return new;
+end;
+$$;
+
+
+-- ------------------------------------------------------------
+-- A6b. EL TRASLADO DEBE DECIDIR SI LLEVA 4x1000
+-- ------------------------------------------------------------
+-- La funcion trasladar_entre_cuentas tenia este comentario:
+--   "los traslados no generan GMF (ver generar_gmf)"
+-- y era FALSO: generar_gmf solo se saltaba TRASLADO_ENTRADA, asi que el
+-- lado de SALIDA si generaba el cobro. Por eso el ERP le ponia 4x1000 a
+-- los traslados al bolsillo de impuestos, que el banco nunca cobro.
+--
+-- Ahora la funcion decide segun el DESTINO, que es lo que determina el
+-- cobro de verdad:
+--   destino cuenta bancaria propia -> exento
+--   destino efectivo (retiro)      -> lo cobra el banco
+create or replace function public.trasladar_entre_cuentas(
+  p_cuenta_origen  uuid,
+  p_cuenta_destino uuid,
+  p_monto          numeric,
+  p_fecha          date,
+  p_concepto       text,
+  p_usuario_id     uuid default null,
+  p_usuario_nombre text default null
+)
+returns json
+language plpgsql
+as $$
+declare
+  v_saldo_origen   numeric;
+  v_nombre_origen  text;
+  v_nombre_destino text;
+  v_tipo_destino   text;
+  v_exento         boolean;
+  v_id_salida      uuid;
+  v_id_entrada     uuid;
+begin
+  if p_cuenta_origen = p_cuenta_destino then
+    return json_build_object('ok', false, 'mensaje', 'La cuenta de origen y la de destino son la misma.');
+  end if;
+
+  if p_monto is null or p_monto <= 0 then
+    return json_build_object('ok', false, 'mensaje', 'El monto debe ser mayor a cero.');
+  end if;
+
+  perform 1 from public.cuentas
+   where id in (p_cuenta_origen, p_cuenta_destino) for update;
+
+  select sc.saldo_actual, sc.nombre
+    into v_saldo_origen, v_nombre_origen
+    from public.saldos_cuentas sc where sc.id = p_cuenta_origen;
+
+  if v_nombre_origen is null then
+    return json_build_object('ok', false, 'mensaje', 'La cuenta de origen no existe.');
+  end if;
+
+  select c.nombre, c.tipo into v_nombre_destino, v_tipo_destino
+    from public.cuentas c where c.id = p_cuenta_destino;
+
+  if v_nombre_destino is null then
+    return json_build_object('ok', false, 'mensaje', 'La cuenta de destino no existe.');
+  end if;
+
+  -- Sacar la plata a efectivo si causa 4x1000; moverla a otra cuenta
+  -- bancaria propia no.
+  v_exento := (v_tipo_destino <> 'EFECTIVO');
+
+  if v_saldo_origen < p_monto then
+    return json_build_object(
+      'ok', false,
+      'mensaje', v_nombre_origen || ' solo tiene ' || to_char(v_saldo_origen, 'FM999,999,999') ||
+                 ' y quieres trasladar ' || to_char(p_monto, 'FM999,999,999') || '.'
+    );
+  end if;
+
+  insert into public.movimientos_tesoreria (
+    cuenta_id, fecha, tipo, categoria, monto, concepto,
+    medio_pago, creado_por_id, creado_por_nombre, exento_gmf
+  ) values (
+    p_cuenta_origen, p_fecha, 'EGRESO', 'TRASLADO_SALIDA', p_monto,
+    p_concepto || ' (sale de ' || v_nombre_origen || ')',
+    'Transferencia', p_usuario_id, p_usuario_nombre, v_exento
+  ) returning id into v_id_salida;
+
+  insert into public.movimientos_tesoreria (
+    cuenta_id, fecha, tipo, categoria, monto, concepto,
+    medio_pago, movimiento_relacionado_id, creado_por_id, creado_por_nombre
+  ) values (
+    p_cuenta_destino, p_fecha, 'INGRESO', 'TRASLADO_ENTRADA', p_monto,
+    p_concepto || ' (entra a ' || v_nombre_destino || ')',
+    'Transferencia', v_id_salida, p_usuario_id, p_usuario_nombre
+  ) returning id into v_id_entrada;
+
+  update public.movimientos_tesoreria
+     set movimiento_relacionado_id = v_id_entrada
+   where id = v_id_salida;
+
+  return json_build_object(
+    'ok', true,
+    'mensaje', to_char(p_monto, 'FM999,999,999') || ' trasladados de ' ||
+               v_nombre_origen || ' a ' || v_nombre_destino ||
+               case when v_exento then ' (sin 4x1000, es cuenta propia).'
+                    else ' (con 4x1000, sale a efectivo).' end,
+    'id_salida', v_id_salida,
+    'id_entrada', v_id_entrada
+  );
+end;
+$$;
+
+comment on function public.trasladar_entre_cuentas is
+  'Traslada plata entre dos cuentas en UNA transaccion. Marca exento_gmf segun el destino: a cuenta bancaria propia no causa 4x1000, a efectivo si. Antes generaba 4x1000 en todo traslado y el saldo nunca cuadraba con el extracto.';
+
+
+-- ------------------------------------------------------------
+-- A7. RECALCULAR EL 4x1000 DE TODOS LOS MOVIMIENTOS
+-- ------------------------------------------------------------
+-- A7.1 Borrar el que no deberia existir.
+-- OJO: no se excluye TRASLADO_SALIDA en bloque, porque el retiro a efectivo
+-- SI lleva 4x1000 (400 en la conciliacion). Manda exento_gmf, que ya quedo
+-- puesto en A4 segun el destino del traslado.
+delete from public.movimientos_tesoreria gmf
+using public.movimientos_tesoreria padre
+left join public.cuentas cu on cu.id = padre.cuenta_id
+where gmf.gmf_de_id = padre.id
+  and (
+    padre.tipo <> 'EGRESO'
+    or padre.categoria in ('GMF', 'TRASLADO_ENTRADA')
+    or coalesce(padre.exento_gmf, false)
+    or coalesce(cu.cobra_gmf, true) = false
+  );
+
+-- A7.2 Corregir el valor de los que si van
 with tasa as (
   select coalesce(
     (select valor / 100 from public.config_tributaria where clave = 'GMF_TASA'),
     0.004) as t
 )
 update public.movimientos_tesoreria gmf
-set monto = ceil(padre.monto * t.t),
+set monto = round(padre.monto * t.t, 2),
     cuenta_id = padre.cuenta_id,
     fecha = padre.fecha
 from public.movimientos_tesoreria padre, tasa t
 where gmf.gmf_de_id = padre.id
   and gmf.categoria = 'GMF'
-  and gmf.monto <> ceil(padre.monto * t.t);
+  and gmf.monto <> round(padre.monto * t.t, 2);
 
--- A5.2 Crear el 4x1000 que falta
--- Un egreso de una cuenta que cobra GMF y que no tiene su cobro.
+-- A7.3 Crear el que falta
 with tasa as (
   select coalesce(
     (select valor / 100 from public.config_tributaria where clave = 'GMF_TASA'),
@@ -185,7 +456,7 @@ insert into public.movimientos_tesoreria (
 )
 select
   m.cuenta_id, m.fecha, 'EGRESO', 'GMF',
-  ceil(m.monto * t.t),
+  round(m.monto * t.t, 2),
   'GMF (4x1000) ' || left(m.concepto, 80),
   m.factura_compra_id, m.cotizacion_id, m.gasto_id, m.movimiento_socio_id,
   'Cobro bancario', m.creado_por_id, m.creado_por_nombre, m.id
@@ -194,52 +465,28 @@ cross join tasa t
 join public.cuentas cu on cu.id = m.cuenta_id
 where m.tipo = 'EGRESO'
   and m.categoria not in ('GMF', 'TRASLADO_ENTRADA')
+  and coalesce(m.exento_gmf, false) = false
   and coalesce(cu.cobra_gmf, true) = true
-  and ceil(m.monto * t.t) > 0
+  and round(m.monto * t.t, 2) > 0
   and not exists (
     select 1 from public.movimientos_tesoreria g where g.gmf_de_id = m.id
   );
 
--- A5.3 Borrar el 4x1000 que no deberia existir
--- (cuentas exentas, o movimientos que dejaron de ser egresos que lo causan)
-delete from public.movimientos_tesoreria gmf
-using public.movimientos_tesoreria padre
-left join public.cuentas cu on cu.id = padre.cuenta_id
-where gmf.gmf_de_id = padre.id
-  and (
-    padre.tipo <> 'EGRESO'
-    or padre.categoria in ('GMF', 'TRASLADO_ENTRADA')
-    or coalesce(cu.cobra_gmf, true) = false
-  );
-
 
 -- ------------------------------------------------------------
--- A6. FORZAR EL RECALCULO DE LOS CAMPOS DERIVADOS
+-- A8. FORZAR EL RECALCULO DE LOS CAMPOS DERIVADOS
 -- ------------------------------------------------------------
--- Estos campos los calculan triggers. Si alguna vez se escribieron a
--- mano o el trigger se agrego despues, quedaron con basura. Un update
--- que no cambia nada dispara el trigger y los deja bien.
-
--- retencion_total y total_neto de las compras (trigger de la 029)
 update public.facturas_compra set updated_at = now();
-
--- subtotal e iva_valor de las asignaciones (trigger de la 017)
 update public.asignacion_costos set notas = notas;
-
--- subtotal de los documentos soporte (trigger de la 018)
 update public.documentos_soporte set updated_at = now();
 
 
 -- ------------------------------------------------------------
--- A7. COSTO Y UTILIDAD DE CADA ITEM VENDIDO
+-- A9. COSTO Y UTILIDAD DE CADA ITEM VENDIDO
 -- ------------------------------------------------------------
--- Se recalcula desde asignacion_costos, que es la verdad de lo que se
--- pago por cada producto. Antes esto solo pasaba cuando la app tocaba la
--- venta; si el costo cambiaba por otro lado, el item quedaba viejo.
 with costo_por_producto as (
   select
-    ac.cotizacion_id,
-    ac.producto_id,
+    ac.cotizacion_id, ac.producto_id,
     sum(ac.cantidad) as cantidad,
     sum(ac.subtotal) as subtotal
   from public.asignacion_costos ac
@@ -255,10 +502,10 @@ from costo_por_producto cp
 where ci.cotizacion_id = cp.cotizacion_id
   and ci.producto_id = cp.producto_id
   and cp.cantidad > 0
-  and (ci.costo_unitario is distinct from round(cp.subtotal / nullif(cp.cantidad, 0), 2));
+  and ci.costo_unitario is distinct from round(cp.subtotal / nullif(cp.cantidad, 0), 2);
 
--- Los items que NO tienen ninguna compra asignada deben quedar en cero,
--- no con un costo viejo que ya no corresponde.
+-- Los items sin ninguna compra asignada deben quedar en cero, no con un
+-- costo viejo que ya no corresponde.
 update public.cotizacion_items ci
 set costo_unitario = 0,
     utilidad = ci.subtotal
@@ -272,12 +519,12 @@ where ci.costo_unitario <> 0
 
 
 -- ------------------------------------------------------------
--- A8. COSTO, UTILIDAD Y MARGEN DE CADA COTIZACION
+-- A10. COSTO, UTILIDAD Y MARGEN DE CADA COTIZACION
 -- ------------------------------------------------------------
--- costo_total = costo de los productos + gastos repartidos a esta venta.
--- El IVA del gasto se prorratea: si el flete de 45.000 traia IVA y a esta
--- venta le toca un tercio, le corresponde un tercio del IVA. Sin
--- prorratear, el mismo IVA se descontaria tres veces.
+-- costo_total = productos + gastos repartidos. El IVA del gasto se
+-- prorratea: si el flete de 45.000 traia IVA y a esta venta le toca un
+-- tercio, le corresponde un tercio del IVA. Sin prorratear, el mismo IVA
+-- se descontaria tres veces.
 with costo_items as (
   select ci.cotizacion_id,
          coalesce(sum(ci.costo_unitario * ci.cantidad), 0) as costo
@@ -308,46 +555,74 @@ where c.id = cc.id;
 
 
 -- ############################################################
--- ##  PARTE B  --  LA VISTA QUE AUDITA SOLA DE AQUI EN ADELANTE
+-- ##  PARTE B  --  LA CONCILIACION Y LA AUDITORIA PERMANENTES
 -- ############################################################
--- Un solo lugar donde se ve todo lo que esta descuadrado. Si devuelve
--- cero filas, el circuito del dinero esta sano.
-create or replace view public.auditoria_integridad as
 
--- 1. El banco vio salir mas plata de la que tenemos registrada
+-- ------------------------------------------------------------
+-- B1. CONCILIACION BANCARIA: los mismos totales de la hoja
+-- ------------------------------------------------------------
+create or replace view public.conciliacion_bancaria as
+select
+  c.nombre                                as cuenta,
+  c.es_reserva,
+  c.saldo_inicial,
+  coalesce(sum(case when m.tipo = 'INGRESO' then m.monto end), 0) as ingresos,
+  coalesce(sum(case when m.tipo = 'EGRESO'  then m.monto end), 0) as egresos,
+  coalesce(sum(case when m.categoria = 'GMF' then m.monto end), 0) as del_cual_4x1000,
+  c.saldo_inicial
+    + coalesce(sum(case when m.tipo = 'INGRESO' then m.monto end), 0)
+    - coalesce(sum(case when m.tipo = 'EGRESO'  then m.monto end), 0) as disponible,
+  count(m.id)                             as num_movimientos
+from public.cuentas c
+left join public.movimientos_tesoreria m on m.cuenta_id = c.id
+where c.activa
+group by c.id, c.nombre, c.es_reserva, c.saldo_inicial, c.orden
+order by c.orden, c.nombre;
+
+comment on view public.conciliacion_bancaria is
+  'Ingresos, egresos y disponible por cuenta, para comparar directo contra la conciliacion bancaria hecha a mano. Tiene que dar identico al extracto.';
+
+
+-- ------------------------------------------------------------
+-- B2. AUDITORIA: todo lo descuadrado en un solo lugar
+-- ------------------------------------------------------------
+create or replace view public.auditoria_integridad as
 with tasa as (
   select coalesce(
     (select valor / 100 from public.config_tributaria where clave = 'GMF_TASA'),
     0.004) as t
 )
+
+-- 1. El 4x1000 no corresponde al monto del egreso
 select
   'BANCO'                                       as area,
   'GRAVE'                                       as gravedad,
-  'El 4x1000 no corresponde al monto: el banco vio salir otra cifra' as problema,
+  'El 4x1000 no corresponde al monto del egreso' as problema,
   m.concepto                                    as detalle,
-  round(g.monto / t.t) - m.monto                as diferencia,
+  g.monto - round(m.monto * t.t, 2)             as diferencia,
   m.id::text                                    as referencia
 from public.movimientos_tesoreria m
 cross join tasa t
 join public.movimientos_tesoreria g on g.gmf_de_id = m.id
-where g.monto <> ceil(m.monto * t.t)
+where g.monto <> round(m.monto * t.t, 2)
 
 union all
 
--- 2. Egresos sin su 4x1000 (el banco lo cobro y no esta registrado)
+-- 2. Egreso sin su 4x1000 (el banco lo cobro y no esta registrado)
 select
   'BANCO', 'GRAVE',
   'Egreso sin su 4x1000 registrado',
   m.concepto,
-  ceil(m.monto * t.t),
+  round(m.monto * t.t, 2),
   m.id::text
 from public.movimientos_tesoreria m
 cross join tasa t
 join public.cuentas cu on cu.id = m.cuenta_id
 where m.tipo = 'EGRESO'
   and m.categoria not in ('GMF', 'TRASLADO_ENTRADA')
+  and coalesce(m.exento_gmf, false) = false
   and coalesce(cu.cobra_gmf, true)
-  and ceil(m.monto * t.t) > 0
+  and round(m.monto * t.t, 2) > 0
   and not exists (select 1 from public.movimientos_tesoreria g where g.gmf_de_id = m.id)
 
 union all
@@ -373,7 +648,7 @@ group by c.id, c.numero, p.nombre
 
 union all
 
--- 4. Gastos de venta con plata sin repartir (infla la utilidad)
+-- 4. Gasto de venta con plata sin repartir (infla la utilidad)
 select
   'COSTOS', 'MEDIA',
   'Gasto de venta con parte sin repartir: ese costo no entra a ninguna venta',
@@ -445,7 +720,7 @@ where abs(ds.subtotal - fc.total) > 1
 
 union all
 
--- 9. Gastos cuyo IVA no da ninguna tarifa colombiana
+-- 9. Gasto cuyo IVA no da ninguna tarifa colombiana
 select
   'IVA', 'MEDIA',
   'El IVA de este gasto no da 0%, 5% ni 19%: revisa la factura',
@@ -456,8 +731,8 @@ from public.gastos g
 where g.monto > 0
   and coalesce(g.iva_incluido, 0) > 0
   and not exists (
-    select 1 from (values (5.0), (19.0)) as t(tarifa)
-    where abs(((g.iva_incluido / nullif(g.monto - g.iva_incluido, 0)) * 100) - t.tarifa) < 0.6
+    select 1 from (values (5.0), (19.0)) as t2(tarifa)
+    where abs(((g.iva_incluido / nullif(g.monto - g.iva_incluido, 0)) * 100) - t2.tarifa) < 0.6
   )
 
 union all
@@ -480,7 +755,6 @@ where fc.estado = 'PAGADA'
 union all
 
 -- 11. Cotizacion cuyo total no cuadra con la suma de sus items
---     (solo las que no tienen descuento, donde el total debe ser exacto)
 select
   'VENTAS', 'GRAVE',
   'El total de la cotizacion no cuadra con la suma de sus items',
@@ -498,11 +772,9 @@ where coalesce(c.descuento_pct, 0) = 0
 
 union all
 
--- 12. Ingreso de cliente colgado: la venta ya no dice que le pagaron
---     CRITERIO ESTRECHO A PROPOSITO: solo cuando la venta volvio a un
---     estado anterior al pago Y no hay factura de venta viva. Asi no se
---     senalan las ventas a credito, que se cobran por la factura y nunca
---     escriben monto_recibido en la cotizacion.
+-- 12. Ingreso de cliente colgado: la venta volvio atras
+--     Criterio estrecho a proposito, para no senalar las ventas a credito
+--     que se cobran por la factura y nunca escriben monto_recibido.
 select
   'BANCO', 'GRAVE',
   'Ingreso de cliente registrado pero la venta volvio atras: infla el saldo',
@@ -521,7 +793,7 @@ where m.tipo = 'INGRESO'
   );
 
 comment on view public.auditoria_integridad is
-  'Todo lo que esta descuadrado en el circuito del dinero, en un solo lugar. Si devuelve cero filas, las cuentas cuadran. Se revisa con: select * from auditoria_integridad order by gravedad, area;';
+  'Todo lo descuadrado en el circuito del dinero, en un solo lugar. Si devuelve cero filas, las cuentas cuadran.';
 
 
 
@@ -529,68 +801,72 @@ comment on view public.auditoria_integridad is
 -- ##  PARTE C  --  QUE QUEDO (manda estas tablas)
 -- ############################################################
 
--- C.1  LO QUE SIGUE MAL. Si sale vacio, todo cuadra.
+-- C.1  CONCILIACION: comparar contra la hoja
+--      Bancaria deberia dar 7.659.884,46 y caja menor 100.000,00
+select cuenta, es_reserva, saldo_inicial, ingresos, egresos,
+       del_cual_4x1000, disponible, num_movimientos
+from public.conciliacion_bancaria;
+
+-- C.1b TOTAL DISPONIBLE (sin contar la reserva, que no es plata libre)
+select
+  sum(case when not es_reserva then disponible else 0 end) as disponible_total,
+  sum(case when es_reserva then disponible else 0 end)     as apartado_para_dian,
+  sum(ingresos)                                            as ingresos_totales,
+  sum(egresos)                                             as egresos_totales
+from public.conciliacion_bancaria;
+
+-- C.2  LO QUE SIGUE MAL. Si sale vacio, todo cuadra.
 select area, gravedad, problema, detalle, diferencia
 from public.auditoria_integridad
-order by
-  case gravedad when 'GRAVE' then 1 else 2 end,
-  area, abs(coalesce(diferencia, 0)) desc;
+order by case gravedad when 'GRAVE' then 1 else 2 end,
+         area, abs(coalesce(diferencia, 0)) desc;
 
+-- C.3  EL 4x1000 DE CADA MOVIMIENTO, UNO POR UNO
+select
+  m.fecha, m.concepto, m.categoria, m.monto,
+  m.exento_gmf,
+  gmf.monto                        as gmf_registrado,
+  round(m.monto * 0.004, 2)        as gmf_que_corresponde,
+  case
+    when m.exento_gmf then 'EXENTO, no lleva'
+    when gmf.id is null and m.tipo = 'EGRESO'
+         and m.categoria not in ('GMF','TRASLADO_ENTRADA')
+      then 'FALTA'
+    when gmf.id is null then 'no aplica'
+    when gmf.monto <> round(m.monto * 0.004, 2) then 'DESCUADRADO'
+    else 'OK'
+  end                              as estado
+from public.movimientos_tesoreria m
+left join public.movimientos_tesoreria gmf on gmf.gmf_de_id = m.id
+where m.categoria <> 'GMF'
+order by m.fecha, m.concepto;
 
--- C.2  SALDO DE CADA CUENTA. Comparar con el extracto del banco.
-select nombre, tipo, saldo_inicial, total_ingresos, total_egresos,
-       saldo_actual, num_movimientos
-from public.saldos_cuentas
-where activa
-order by orden, nombre;
-
-
--- C.3  TODAS LAS VENTAS, CON SUS NUMEROS YA RECALCULADOS.
---      La resta tiene que dar: venta - costo = utilidad.
+-- C.4  TODAS LAS VENTAS: la resta tiene que dar
 select
   numero, cliente_nombre, estado,
   venta_subtotal, costo_compras, costo_gastos, costo_real,
   utilidad_bruta, margen_bruto_pct,
-  venta_subtotal - costo_real as comprobacion_utilidad,
+  venta_subtotal - costo_real as comprobacion,
   case when abs((venta_subtotal - costo_real) - utilidad_bruta) < 1
        then 'OK' else 'REVISAR' end as cuadra
 from public.analisis_venta
 order by numero;
 
-
--- C.4  EL 4x1000 DE CADA MOVIMIENTO, UNO POR UNO.
-select
-  m.fecha, m.concepto, m.categoria, m.monto,
-  gmf.monto                                as gmf_cobrado,
-  ceil(m.monto * 0.004)                    as gmf_correcto,
-  case
-    when gmf.id is null and m.tipo = 'EGRESO' and m.categoria not in ('GMF','TRASLADO_ENTRADA')
-      then 'FALTA EL 4x1000'
-    when gmf.monto <> ceil(m.monto * 0.004) then 'DESCUADRADO'
-    else 'OK'
-  end                                      as estado
-from public.movimientos_tesoreria m
-left join public.movimientos_tesoreria gmf on gmf.gmf_de_id = m.id
-where m.categoria <> 'GMF'
-order by m.fecha desc, m.concepto;
-
-
--- C.5  LOS DOCUMENTOS SOPORTE: a que venta y a que gasto pertenecen.
+-- C.5  LOS DOCUMENTOS SOPORTE: a que venta pertenecen de verdad
 select
   ds.numero, ds.fecha, ds.tercero_nombre, ds.subtotal,
-  c.numero                                 as venta_del_campo_directo,
+  c.numero as venta_directa,
   (select string_agg(c2.numero, ', ' order by c2.numero)
      from public.gasto_reparto gr
      join public.cotizaciones c2 on c2.id = gr.cotizacion_id
-    where gr.gasto_id = ds.gasto_id)       as ventas_del_reparto,
-  fc.numero_factura                        as factura_compra
+    where gr.gasto_id = ds.gasto_id) as ventas_del_reparto,
+  fc.numero_factura as factura_compra
 from public.documentos_soporte ds
 left join public.cotizaciones c on c.id = ds.cotizacion_id
 left join public.facturas_compra fc on fc.id = ds.factura_compra_id
 order by ds.numero;
 
-
--- C.6  ACTIVOS FIJOS (la impresora deberia estar aqui si la recategorizaste)
-select activo, fecha_compra, costo_total, estado_garantia,
-       garantia_hasta, valor_en_libros, gasto_mantenimiento
+-- C.6  ACTIVOS FIJOS (la impresora debe salir en 779.070)
+select activo, fecha_compra, costo_total, iva, costo_sin_iva,
+       estado_garantia, garantia_hasta, valor_en_libros
 from public.activos_fijos;
