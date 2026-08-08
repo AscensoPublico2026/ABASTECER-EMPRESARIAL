@@ -14,12 +14,21 @@ import { formatCOP } from '@/lib/format'
  * entra hasta lo que queda, linea por linea, en lenguaje de todos los
  * dias.
  *
- * Y CUADRA: el resultado da exactamente igual que utilidad_neta_con_gmf,
- * que es el mismo numero por el camino contable. Verificado con la
- * COT-2026-012:
+ * Y CUADRA: el resultado da exactamente igual que utilidad_neta, que es
+ * el mismo numero por el camino contable. Verificado con la COT-2026-012:
  *
- *   1.486.720 - 656.639 - 113.361 - 3.080 - 93.359 - 64.000 = 556.281
- *   (venta sin IVA 1.280.000 - costo 656.639 - simple 64.000 - gmf 3.080)
+ *   1.486.720 - 656.639 - 113.361 - 93.359 - 64.000 = 559.361
+ *   (venta sin IVA 1.280.000 - costo 656.639 - simple 64.000 = 559.361)
+ *
+ * EL 4x1000 NO VA EN ESTE INFORME (decision del dueno, y es la correcta):
+ * el 4x1000 no lo causa la venta, lo causa CUANTAS transferencias hiciste
+ * para pagarla. Dos ventas identicas pueden tener 4x1000 distinto solo
+ * porque una se pago en un giro y la otra en tres. Meterlo aqui ensucia la
+ * comparacion de rentabilidad entre ventas.
+ *
+ * Sigue calculandose y afectando el saldo en TESORERIA, que es donde de
+ * verdad importa: ahi si sale plata del banco. Se ve como gasto operativo
+ * en el Centro Financiero.
  */
 export default function ResumenPlata({ analisis: a }: { analisis: AnalisisVenta }) {
   // Si la venta todavia no se ha cobrado, la cascada es una PROYECCION.
@@ -31,11 +40,11 @@ export default function ResumenPlata({ analisis: a }: { analisis: AnalisisVenta 
 
   const pagadoMercancia = a.costo_real
   const pagadoIvaCompras = a.iva_pagado
-  const banco = a.gmf_venta
   const guardarIva = a.iva_neto_dian
   const guardarSimple = a.impuesto_simple_pendiente
 
-  const queda = entrada - pagadoMercancia - pagadoIvaCompras - banco - guardarIva - guardarSimple
+  // El 4x1000 NO entra aqui a proposito. Ver la nota del encabezado.
+  const queda = entrada - pagadoMercancia - pagadoIvaCompras - guardarIva - guardarSimple
   const pctSobreVenta = a.venta_subtotal > 0 ? (queda / a.venta_subtotal) * 100 : 0
 
   const lineas: { texto: string; detalle?: string; valor: number; signo: '+' | '-' }[] = [
@@ -59,12 +68,6 @@ export default function ResumenPlata({ analisis: a }: { analisis: AnalisisVenta 
       texto: 'Pague el IVA de esas compras',
       detalle: 'Esta plata la recupero: baja lo que le debo de IVA a la DIAN',
       valor: pagadoIvaCompras,
-      signo: '-',
-    },
-    {
-      texto: 'Me cobro el banco (4x1000)',
-      detalle: `${a.num_gmf} movimiento${a.num_gmf !== 1 ? 's' : ''} de plata hacia afuera`,
-      valor: banco,
       signo: '-',
     },
     {

@@ -27,7 +27,6 @@ const ETIQUETA: Record<string, string> = {
   COTIZACION: 'Cotizacion',
   FACTURA_COMPRA: 'Factura de compra',
   EGRESO_CAJA: 'Salida de plata',
-  GMF: '4x1000',
   GASTO: 'Gasto',
   REMISION: 'Remision',
   FACTURA_VENTA: 'Factura de venta',
@@ -50,7 +49,11 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
   if (!analisis) notFound()
 
   const items = await obtenerAnalisisItems(id)
-  const trazabilidad = await obtenerTrazabilidad(id)
+
+  // Los cobros de 4x1000 no van en el informe de la venta: no los causa la
+  // venta sino cuantas transferencias se hicieron para pagarla. Siguen
+  // completos en el Libro de Tesoreria, que es donde afectan el saldo.
+  const trazabilidad = (await obtenerTrazabilidad(id)).filter((e) => e.estado !== 'GMF')
 
   const cliente = cot.clientes as { razon_social?: string; nit?: string } | null
 
