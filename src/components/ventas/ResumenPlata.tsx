@@ -38,10 +38,39 @@ export default function ResumenPlata({ analisis: a }: { analisis: AnalisisVenta 
     ? a.monto_recibido
     : a.venta_total - a.retenciones
 
-  const pagadoMercancia = a.costo_real
+  /**
+   * LA MERCANCIA Y LOS GASTOS VAN EN LINEAS SEPARADAS.
+   *
+   * Antes iban juntos en una sola linea con el valor de costo_real. El
+   * numero estaba bien sumado, pero era imposible verificarlo: el dueno
+   * veia "Pague la mercancia y los gastos 545.260", lo comparaba con el
+   * total de sus facturas de compra, le cuadraba exacto, y concluia que el
+   * flete de 15.000 no estaba entrando, cuando si estaba.
+   *
+   * Estamos hablando de plata: si no se puede verificar linea por linea,
+   * no sirve. Ahora la mercancia va en una linea, los gastos en otra, y
+   * abajo el total. Asi se ve que 530.260 + 15.000 = 545.260, o se ve de
+   * una que los gastos estan en cero y algo esta roto.
+   */
+  const pagadoCompras = a.costo_compras
+  const pagadoGastos = a.costo_gastos
+  const pagadoMercancia = a.costo_real   // = compras + gastos, para el total
   const pagadoIvaCompras = a.iva_pagado
   const guardarIva = a.iva_neto_dian
   const guardarSimple = a.impuesto_simple_pendiente
+
+  /**
+   * CONTROL DE INTEGRIDAD.
+   *
+   * Si hay gastos contados en esta venta pero el costo de gastos esta en
+   * cero, el gasto existe pero NO esta entrando al costo (casi siempre
+   * porque no quedo marcado como costo de venta, o porque el reparto no
+   * llego a esta venta). Eso infla la ganancia y hay que gritarlo, no
+   * dejarlo pasar en silencio.
+   */
+  const gastoQueNoEntra = a.num_gastos > 0 && pagadoGastos <= 0
+  // Y al reves: que la suma de las lineas cuadre con el total de la vista
+  const descuadre = Math.abs((pagadoCompras + pagadoGastos) - pagadoMercancia)
 
   // El 4x1000 NO entra aqui a proposito. Ver la nota del encabezado.
   const queda = entrada - pagadoMercancia - pagadoIvaCompras - guardarIva - guardarSimple
@@ -57,11 +86,19 @@ export default function ResumenPlata({ analisis: a }: { analisis: AnalisisVenta 
       signo: '+',
     },
     {
-      texto: 'Pague la mercancia y los gastos',
+      texto: 'Pague la mercancia',
       detalle: a.num_facturas_compra > 0
-        ? `${a.num_facturas_compra} factura${a.num_facturas_compra !== 1 ? 's' : ''} de compra${a.num_gastos > 0 ? ` y ${a.num_gastos} gasto${a.num_gastos !== 1 ? 's' : ''}` : ''}`
+        ? `${a.num_facturas_compra} factura${a.num_facturas_compra !== 1 ? 's' : ''} de compra, sin IVA`
         : 'Sin compras registradas todavia',
-      valor: pagadoMercancia,
+      valor: pagadoCompras,
+      signo: '-',
+    },
+    {
+      texto: 'Pague gastos de esta venta',
+      detalle: a.num_gastos > 0
+        ? `${a.num_gastos} gasto${a.num_gastos !== 1 ? 's' : ''} (fletes, domicilios, mano de obra). Si un gasto se repartio entre varias ventas, aqui solo va la parte de esta.`
+        : 'Sin gastos imputados a esta venta',
+      valor: pagadoGastos,
       signo: '-',
     },
     {
@@ -102,6 +139,28 @@ export default function ResumenPlata({ analisis: a }: { analisis: AnalisisVenta 
         </div>
       )}
 
+      {/* CONTROL: un gasto que existe pero no esta entrando al costo infla
+          la ganancia. Es plata: no se puede quedar callado. */}
+      {gastoQueNoEntra && (
+        <div className="px-5 py-2.5 bg-red-50 border-b-2 border-red-400">
+          <p className="text-xs text-red-800">
+            <strong>Ojo, esta venta tiene {a.num_gastos} gasto{a.num_gastos !== 1 ? 's' : ''} contado
+            {a.num_gastos !== 1 ? 's' : ''} pero el costo de gastos sale en cero.</strong> Ese
+            gasto existe pero NO esta entrando al costo de esta venta, asi que la ganancia de
+            abajo esta mas alta de lo real. Revisa que el gasto este marcado como
+            &quot;costo de una venta&quot; y que el reparto llegue a esta venta.
+          </p>
+        </div>
+      )}
+      {descuadre > 1 && (
+        <div className="px-5 py-2.5 bg-red-50 border-b-2 border-red-400">
+          <p className="text-xs text-red-800">
+            <strong>Descuadre de {formatCOP(descuadre)} entre la mercancia mas los gastos y el
+            costo total.</strong> No uses este informe hasta revisarlo.
+          </p>
+        </div>
+      )}
+
       <div className="divide-y divide-gray-100">
         {lineas.map((l, i) => (
           <div key={i} className="px-5 py-3 flex items-start gap-4">
@@ -121,6 +180,24 @@ export default function ResumenPlata({ analisis: a }: { analisis: AnalisisVenta 
           </div>
         ))}
       </div>
+
+      {/* TOTAL DE LO QUE SALIO. Para poder verificar de un vistazo que la
+          mercancia y los gastos suman lo que dice el costo total. */}
+      {(pagadoCompras > 0 || pagadoGastos > 0) && (
+        <div className="px-5 py-2.5 bg-gray-100 border-t border-gray-200 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold text-gray-700">
+              Costo total de esta venta (mercancia + gastos)
+            </p>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {formatCOP(pagadoCompras)} de mercancia + {formatCOP(pagadoGastos)} de gastos
+            </p>
+          </div>
+          <p className="text-sm font-bold text-gray-900 tabular-nums whitespace-nowrap">
+            {formatCOP(pagadoCompras + pagadoGastos)}
+          </p>
+        </div>
+      )}
 
       <div className={`px-5 py-4 flex items-center justify-between gap-4 ${
         queda >= 0 ? 'bg-green-600' : 'bg-red-600'

@@ -32,6 +32,10 @@ const CATEGORIAS_GASTO = [
   ['TECNOLOGIA', 'Tecnologia'],
   ['LEGAL', 'Legal'],
   ['BANCARIO', 'Bancario'],
+  // Un activo fijo sale del banco pero no es gasto del periodo. Tienen que
+  // estar en esta lista o al editar un activo el select saldria en blanco.
+  ['ACTIVO_FIJO', 'Activo fijo (impresora, equipo)'],
+  ['MANTENIMIENTO_ACTIVO', 'Mantenimiento de un activo'],
   ['OTROS', 'Otros'],
 ] as const
 
