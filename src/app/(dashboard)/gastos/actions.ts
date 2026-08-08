@@ -401,6 +401,8 @@ export interface GastoDetalle {
   soporte_url: string | null
   cuenta_id: string | null
   tiene_documento_soporte: boolean
+  /** Las ventas a las que esta repartido, con su monto */
+  reparto: { cotizacion_id: string; monto: number }[]
 }
 
 export async function cargarGastoParaEditar(gasto_id: string): Promise<GastoDetalle | null> {
@@ -433,6 +435,18 @@ export async function cargarGastoParaEditar(gasto_id: string): Promise<GastoDeta
       .limit(1)
       .maybeSingle()
 
+    // El reparto entre ventas (puede tener 0, 1 o N filas)
+    const { data: repartoData } = await supabase
+      .from('gasto_reparto')
+      .select('cotizacion_id, monto')
+      .eq('gasto_id', gasto_id)
+      .order('created_at', { ascending: true })
+
+    const reparto = (repartoData ?? []).map((r) => ({
+      cotizacion_id: String(r.cotizacion_id),
+      monto: Number(r.monto ?? 0),
+    }))
+
     return {
       id: String(g.id),
       concepto: String(g.concepto ?? ''),
@@ -452,6 +466,7 @@ export async function cargarGastoParaEditar(gasto_id: string): Promise<GastoDeta
       soporte_url: (g.soporte_url as string | null) ?? null,
       cuenta_id: mov?.cuenta_id ? String(mov.cuenta_id) : null,
       tiene_documento_soporte: Boolean(ds),
+      reparto,
     }
   } catch {
     return null
@@ -476,6 +491,21 @@ export async function editarGasto(formData: FormData): Promise<ResultadoAccion> 
   const categoria = String(formData.get('categoria') ?? 'OTROS').trim()
   const cotizacion_id = String(formData.get('cotizacion_id') ?? '').trim()
   const es_costo_venta = formData.get('es_costo_venta') === 'on' || formData.get('es_costo_venta') === 'true'
+
+  // Reparto multiple (nuevo)
+  let reparto: { cotizacion_id: string; monto: number }[] = []
+  try {
+    const parsed = JSON.parse(String(formData.get('reparto') ?? '[]'))
+    if (Array.isArray(parsed)) {
+      reparto = parsed
+        .filter((r: unknown) => r && typeof (r as { cotizacion_id?: string }).cotizacion_id === 'string' && Number((r as { monto?: number }).monto) > 0)
+        .map((r: unknown) => ({ cotizacion_id: String((r as { cotizacion_id: string }).cotizacion_id), monto: Number((r as { monto: number }).monto) }))
+    }
+  } catch { /* ignora JSON invalido */ }
+  if (reparto.length === 0 && es_costo_venta && cotizacion_id) {
+    reparto = [{ cotizacion_id, monto: valor }]
+  }
+
   const cuenta_id = String(formData.get('cuenta_id') ?? '').trim()
   const notas = String(formData.get('notas') ?? '').trim()
 
@@ -483,8 +513,8 @@ export async function editarGasto(formData: FormData): Promise<ResultadoAccion> 
   if (!concepto) return { ok: false, mensaje: 'El concepto es obligatorio.' }
   if (valor <= 0) return { ok: false, mensaje: 'El monto debe ser mayor a cero.' }
   if (iva_incluido > valor) return { ok: false, mensaje: 'El IVA no puede ser mayor al monto total.' }
-  if (es_costo_venta && !cotizacion_id) {
-    return { ok: false, mensaje: 'Si es costo de una venta, selecciona la cotizacion.' }
+  if (es_costo_venta && reparto.length === 0) {
+    return { ok: false, mensaje: 'Si es costo de una venta, elige al menos una venta.' }
   }
   if (!cuenta_id) {
     return { ok: false, mensaje: 'Selecciona de que cuenta se pago el gasto.' }
@@ -551,10 +581,27 @@ export async function editarGasto(formData: FormData): Promise<ResultadoAccion> 
       avisoCaja = ` La salida de caja se ajusto de ${fmtCop(montoAnterior)} a ${fmtCop(valor)}.`
     }
 
-    // 3. Recalcular las ventas afectadas: la de antes y la de ahora
+    // 3. Borrar el reparto anterior y crear el nuevo.
+    // Las ventas anteriores Y las nuevas se recalculan.
+    const { data: repartoAnterior } = await supabase
+      .from('gasto_reparto')
+      .select('cotizacion_id')
+      .eq('gasto_id', gasto_id)
+
+    await supabase.from('gasto_reparto').delete().eq('gasto_id', gasto_id)
+
+    if (es_costo_venta && reparto.length > 0) {
+      await supabase.from('gasto_reparto').insert(
+        reparto.map((r) => ({ gasto_id, cotizacion_id: r.cotizacion_id, monto: r.monto })),
+      )
+    }
+
     const porRecalcular = new Set<string>()
     if (cotizacionAnterior) porRecalcular.add(cotizacionAnterior)
-    if (es_costo_venta && cotizacion_id) porRecalcular.add(cotizacion_id)
+    for (const r of repartoAnterior ?? []) {
+      if (r.cotizacion_id) porRecalcular.add(String(r.cotizacion_id))
+    }
+    for (const r of reparto) porRecalcular.add(r.cotizacion_id)
 
     for (const cid of Array.from(porRecalcular)) {
       await recalcularCostoCotizacion(supabase, cid)
