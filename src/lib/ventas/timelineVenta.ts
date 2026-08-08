@@ -28,7 +28,12 @@ import type { EventoTrazabilidad } from '@/lib/queries/analisisVenta'
  * plata que todavia se debe y no puede pasar inadvertida.
  */
 
-export type EstadoPago = 'PAGADA_MISMO_DIA' | 'PAGADA_DESPUES' | 'SIN_PAGAR'
+export type EstadoPago =
+  | 'PAGADA_MISMO_DIA'
+  | 'PAGADA_DESPUES'
+  /** La factura esta pagada, pero el pago no quedo ligado a ESTA venta */
+  | 'PAGADA'
+  | 'POR_PAGAR'
 
 export interface PagoVinculado {
   fecha: string | null
@@ -134,10 +139,47 @@ export function construirTimeline(trazabilidad: EventoTrazabilidad[]): FilaTimel
       const totalPagado = pagos.reduce((s, p) => s + p.valor, 0)
       const todosMismoDia = pagos.length > 0 && pagos.every((p) => p.dias === 0)
 
-      const estadoPago: EstadoPago =
-        pagos.length === 0 ? 'SIN_PAGAR'
-        : todosMismoDia ? 'PAGADA_MISMO_DIA'
-        : 'PAGADA_DESPUES'
+      /**
+       * DE DONDE SALE EL ESTADO DE PAGO.
+       *
+       * ANTES estaba MAL: se deducia de si encontrabamos el movimiento de
+       * tesoreria dentro de esta venta. Si no aparecia, se marcaba
+       * "POR PAGAR". Eso daba ALARMAS FALSAS.
+       *
+       * Por que: una compra se puede repartir entre VARIAS ventas
+       * (asignacion_costos), pero el movimiento de tesoreria solo puede
+       * apuntar a UNA cotizacion (registrarFacturaCompra usa
+       * cotizacionesAfectadas[0] y registrarPagoFacturaCompra usa
+       * .limit(1)). Entonces, en las demas ventas de esa misma compra el
+       * pago no aparece, y el informe decia "POR PAGAR" una factura que
+       * el usuario ya habia pagado de contado.
+       *
+       * AHORA la fuente de verdad es el estado de la factura, que es el
+       * dato autoritativo: la vista trae fc.estado (PAGADA / REGISTRADA /
+       * ANULADA) en la columna estado. El movimiento solo se usa para
+       * enriquecer con la FECHA del pago cuando si esta ligado.
+       *
+       * OJO con los gastos: para ellos la vista trae DEDUCIBLE /
+       * NO DEDUCIBLE en esa misma columna, que no es un estado de pago. Un
+       * gasto se registra cuando ya se pago, asi que no lleva etiqueta.
+       */
+      const esFacturaCompra = doc.documento_tipo === 'FACTURA_COMPRA'
+      const estadoDelDocumento = String(doc.estado ?? '').toUpperCase()
+
+      let estadoPago: EstadoPago | undefined
+      if (!esFacturaCompra) {
+        estadoPago = undefined
+      } else if (estadoDelDocumento === 'REGISTRADA') {
+        estadoPago = 'POR_PAGAR'
+      } else if (pagos.length === 0) {
+        // La factura dice PAGADA pero el movimiento quedo ligado a otra
+        // venta de la misma compra. Esta pagada: no es cuenta por pagar.
+        estadoPago = 'PAGADA'
+      } else if (todosMismoDia) {
+        estadoPago = 'PAGADA_MISMO_DIA'
+      } else {
+        estadoPago = 'PAGADA_DESPUES'
+      }
 
       filas.push({ esEtapa: false, evento: doc, estadoPago, pagos, totalPagado })
 
@@ -186,5 +228,23 @@ export function textoEstadoPago(fila: FilaTimeline): string | null {
     if (pagos.length > 1) return `Pagada en ${pagos.length} abonos`
     return `A credito, pagada ${dias} dia${dias !== 1 ? 's' : ''} despues`
   }
+  if (fila.estadoPago === 'PAGADA') {
+    // El pago existe pero quedo ligado a otra venta de la misma compra
+    return 'Pagada'
+  }
   return 'POR PAGAR'
+}
+
+/** true si en esta venta hay compras que de verdad estan sin pagar */
+export function hayComprasPorPagar(filas: FilaTimeline[]): boolean {
+  return filas.some((f) => f.estadoPago === 'POR_PAGAR')
+}
+
+/**
+ * true si alguna compra aparece como "Pagada" sin el detalle del pago.
+ * Sirve para explicarle al usuario por que no ve la fecha: esa compra se
+ * repartio entre varias ventas y el movimiento quedo ligado a otra.
+ */
+export function hayPagosEnOtraVenta(filas: FilaTimeline[]): boolean {
+  return filas.some((f) => f.estadoPago === 'PAGADA')
 }

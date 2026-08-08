@@ -5,7 +5,9 @@ import {
   Wallet, PieChart, FileWarning, ListTree, FileText,
 } from 'lucide-react'
 import ResumenPlata from './ResumenPlata'
-import { construirTimeline, textoEstadoPago } from '@/lib/ventas/timelineVenta'
+import {
+  construirTimeline, textoEstadoPago, hayComprasPorPagar, hayPagosEnOtraVenta,
+} from '@/lib/ventas/timelineVenta'
 
 interface Props {
   analisis: AnalisisVenta
@@ -395,7 +397,7 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
             const ev = fila.evento!
             const et = ETIQUETA_DOC[ev.documento_tipo] ?? { texto: ev.documento_tipo, color: 'bg-gray-50 text-gray-600 border-gray-200' }
             const estadoTexto = textoEstadoPago(fila)
-            const porPagar = fila.estadoPago === 'SIN_PAGAR'
+            const porPagar = fila.estadoPago === 'POR_PAGAR'
             // El pago que quedo como fila propia (credito) se indenta para
             // que se lea como consecuencia de la factura de arriba
             const esPagoAparte = ev.documento_tipo === 'EGRESO_CAJA'
@@ -412,13 +414,20 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
                   {ev.documento_numero ?? '-'}
                 </span>
                 {estadoTexto && (
-                  <span className={`text-xs whitespace-nowrap px-2 py-0.5 rounded-md ${
-                    porPagar
-                      ? 'bg-red-100 text-red-700 font-semibold'
-                      : fila.estadoPago === 'PAGADA_MISMO_DIA'
-                        ? 'bg-green-50 text-green-700'
-                        : 'bg-amber-50 text-amber-700'
-                  }`}>
+                  <span
+                    title={fila.estadoPago === 'PAGADA'
+                      ? 'Esta compra se repartio entre varias ventas y el movimiento de banco quedo registrado en otra. El detalle esta en el Libro de Tesoreria.'
+                      : undefined}
+                    className={`text-xs whitespace-nowrap px-2 py-0.5 rounded-md ${
+                      porPagar
+                        ? 'bg-red-100 text-red-700 font-semibold'
+                        : fila.estadoPago === 'PAGADA_MISMO_DIA'
+                          ? 'bg-green-50 text-green-700'
+                          : fila.estadoPago === 'PAGADA'
+                            ? 'bg-gray-100 text-gray-600'
+                            : 'bg-amber-50 text-amber-700'
+                    }`}
+                  >
                     {estadoTexto}
                   </span>
                 )}
@@ -432,12 +441,21 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
             )
           })}
         </div>
-        {timeline.some((f) => f.estadoPago === 'SIN_PAGAR') && (
+        {hayComprasPorPagar(timeline) && (
           <div className="px-5 py-3 bg-red-50 border-t border-red-100">
             <p className="text-xs text-red-800">
               <strong>Hay compras sin pagar en esta venta.</strong> Son cuentas por pagar vivas:
               la plata todavia no salio del banco, asi que tu saldo disponible real es menor de
               lo que parece.
+            </p>
+          </div>
+        )}
+        {hayPagosEnOtraVenta(timeline) && (
+          <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
+            <p className="text-xs text-gray-600">
+              Las compras que dicen solo <strong>Pagada</strong> ya estan pagadas. No se ve la
+              fecha porque esa compra se repartio entre varias ventas y el movimiento de banco
+              quedo registrado en otra. El detalle esta en el Libro de Tesoreria.
             </p>
           </div>
         )}

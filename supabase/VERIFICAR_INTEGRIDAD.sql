@@ -425,3 +425,95 @@ select * from (
 order by
   case r.estado when 'ERROR' then 1 when 'REVISAR' then 2 else 3 end,
   r.nro;
+
+
+
+-- ############################################################
+-- ##  CHEQUEO 27  --  FACTURAS "PAGADA" SIN PLATA QUE SALIO
+-- ############################################################
+-- Corre esto aparte. Es el chequeo que hacia falta cuando el informe de
+-- una venta decia "POR PAGAR" una factura que ya se habia pagado.
+--
+-- CONTEXTO
+-- El informe de la venta deducia el estado de pago de si encontraba el
+-- movimiento de tesoreria DENTRO de esa venta. Pero una compra se puede
+-- repartir entre varias ventas, y el movimiento solo puede apuntar a UNA
+-- cotizacion. En las demas ventas el pago no aparecia y se marcaba mal.
+-- Eso ya quedo corregido: ahora la fuente de verdad es el estado de la
+-- factura.
+--
+-- Pero queda un caso que SI es un problema real y hay que vigilar: una
+-- factura marcada PAGADA que NO tiene NINGUN movimiento de banco. Ahi la
+-- factura dice que se pago pero la plata nunca salio en el sistema, asi
+-- que el saldo del banco esta mas alto de lo que deberia.
+
+-- 27.a  Facturas PAGADA sin ningun egreso registrado
+select
+  fc.fecha_factura,
+  p.razon_social                as proveedor,
+  fc.numero_factura,
+  fc.total,
+  coalesce(fc.total_neto, fc.total) as deberia_haber_salido,
+  fc.forma_pago,
+  fc.id                         as factura_compra_id,
+  'PAGADA pero sin movimiento de banco' as problema
+from public.facturas_compra fc
+left join public.proveedores p on p.id = fc.proveedor_id
+where fc.estado = 'PAGADA'
+  and not exists (
+    select 1 from public.movimientos_tesoreria mt
+    where mt.factura_compra_id = fc.id
+      and mt.tipo = 'EGRESO'
+      and mt.categoria <> 'GMF'
+  )
+order by fc.fecha_factura desc;
+-- Si sale VACIO, todas las compras pagadas tienen su salida de plata.
+
+
+-- 27.b  Al contrario: egreso registrado en una factura que dice REGISTRADA
+--       (o sea, salio la plata pero la factura no quedo marcada pagada)
+select
+  fc.fecha_factura,
+  p.razon_social         as proveedor,
+  fc.numero_factura,
+  fc.estado             as estado_factura,
+  sum(mt.monto)         as ya_pagado,
+  coalesce(fc.total_neto, fc.total) as total_neto,
+  fc.id                 as factura_compra_id
+from public.movimientos_tesoreria mt
+join public.facturas_compra fc on fc.id = mt.factura_compra_id
+left join public.proveedores p on p.id = fc.proveedor_id
+where mt.tipo = 'EGRESO'
+  and mt.categoria <> 'GMF'
+  and fc.estado = 'REGISTRADA'
+group by fc.id, fc.fecha_factura, p.razon_social, fc.numero_factura, fc.estado, fc.total_neto, fc.total
+order by fc.fecha_factura desc;
+-- Si sale algo, esas facturas ya se pagaron pero siguen contando como
+-- cuenta por pagar: el disponible real se ve mas bajo de lo que es.
+
+
+-- 27.c  Compras repartidas entre varias ventas
+--       Esto NO es un error: es la causa de que algunas facturas se vean
+--       solo como "Pagada" sin fecha en el informe de una venta. El
+--       movimiento de banco quedo ligado a la primera cotizacion.
+select
+  fc.numero_factura,
+  p.razon_social                              as proveedor,
+  fc.estado,
+  count(distinct ac.cotizacion_id)             as en_cuantas_ventas,
+  string_agg(distinct c.numero, ', ' order by c.numero) as ventas,
+  (select cot.numero
+     from public.movimientos_tesoreria mt
+     join public.cotizaciones cot on cot.id = mt.cotizacion_id
+    where mt.factura_compra_id = fc.id and mt.tipo = 'EGRESO'
+      and mt.categoria <> 'GMF'
+    limit 1)                                   as el_pago_quedo_en
+from public.asignacion_costos ac
+join public.facturas_compra fc on fc.id = ac.factura_compra_id
+join public.cotizaciones c on c.id = ac.cotizacion_id
+left join public.proveedores p on p.id = fc.proveedor_id
+where ac.cotizacion_id is not null
+  and fc.estado <> 'ANULADA'
+group by fc.id, fc.numero_factura, p.razon_social, fc.estado
+having count(distinct ac.cotizacion_id) > 1
+order by fc.numero_factura;
