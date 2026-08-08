@@ -309,6 +309,64 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input:not([ty
   .print\:shadow-none { box-shadow: none !important; }
   .print\:p-8 { padding: 2rem !important; }
   .print\:p-\[15mm\] { padding: 15mm !important; }
+  .print\:p-\[12mm\] { padding: 12mm !important; }
   /* FORZAR colores de fondo en impresion (header azul de tabla, etc) */
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+
+  /* ------------------------------------------------------------
+     CONTROL DE CORTES ENTRE HOJAS
+     ------------------------------------------------------------
+     El informe de la venta se partia a mitad de un bloque y la seccion
+     de impuestos quedaba recortada entre la hoja 1 y la 2: se perdia
+     informacion al imprimir.
+
+     La clase de Tailwind break-inside-avoid sola no basta, porque no
+     emite el page-break-inside que todavia necesitan varios
+     navegadores al imprimir. Aqui se ponen las dos propiedades.
+     ------------------------------------------------------------ */
+  .evitar-corte {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Forzar que un bloque arranque en hoja nueva */
+  .nueva-hoja {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+
+  /* Un titulo nunca debe quedar solo al final de la hoja, separado de
+     su contenido */
+  h1, h2, h3 {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+
+  /* Si una tabla larga si tiene que partirse, que al menos repita el
+     encabezado en la hoja siguiente y no corte una fila por la mitad */
+  thead { display: table-header-group !important; }
+  tfoot { display: table-footer-group !important; }
+  tr, td, th { break-inside: avoid !important; page-break-inside: avoid !important; }
+
+  /* Tailwind tambien emite break-inside-avoid: se le agrega el
+     respaldo para navegadores viejos */
+  .break-inside-avoid { page-break-inside: avoid !important; }
+
+  /* ------------------------------------------------------------
+     ESTA ERA LA CAUSA DE QUE EL CONTENIDO SE BORRARA
+     ------------------------------------------------------------
+     Las tarjetas usan overflow-hidden para redondear las esquinas. En
+     pantalla no molesta, pero al imprimir, si el bloque cae sobre el
+     salto de hoja, el navegador RECORTA lo que sobra en vez de pasarlo
+     a la hoja siguiente: la informacion no se corta, desaparece.
+
+     En impresion no hacen falta las esquinas redondeadas, asi que se
+     deja el contenido fluir.
+     ------------------------------------------------------------ */
+  .overflow-hidden { overflow: visible !important; }
+  .overflow-x-auto, .overflow-y-auto, .overflow-auto { overflow: visible !important; }
+
+  /* Espaciado mas compacto en papel: en pantalla los 24px entre
+     secciones se ven bien, pero en A4 se comen media hoja */
+  .print\:space-y-4 > * + * { margin-top: 1rem !important; }
 }

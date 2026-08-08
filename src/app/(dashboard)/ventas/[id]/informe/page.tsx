@@ -86,7 +86,7 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
       </div>
 
       {/* ---------------- HOJA ---------------- */}
-      <div className="max-w-[210mm] mx-auto my-6 print:my-0 bg-white shadow-lg print:shadow-none p-10 print:p-[12mm] space-y-6">
+      <div className="max-w-[210mm] mx-auto my-6 print:my-0 bg-white shadow-lg print:shadow-none p-10 print:p-[12mm] space-y-6 print:space-y-4">
 
         {/* Encabezado */}
         <div className="flex items-start justify-between gap-6 border-b-2 border-gray-900 pb-4">
@@ -102,7 +102,7 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
         </div>
 
         {/* Cliente */}
-        <div className="grid grid-cols-2 gap-6 text-sm">
+        <div className="grid grid-cols-2 gap-6 text-sm evitar-corte">
           <div>
             <p className="text-xs text-gray-500 uppercase tracking-wide">Cliente</p>
             <p className="font-medium text-gray-900">{cliente?.razon_social ?? 'Sin cliente'}</p>
@@ -117,11 +117,13 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
           </div>
         </div>
 
-        {/* LA CASCADA */}
-        <ResumenPlata analisis={analisis} />
+        {/* LA CASCADA - nunca se debe partir: es el corazon del informe */}
+        <div className="evitar-corte">
+          <ResumenPlata analisis={analisis} />
+        </div>
 
         {/* Producto por producto */}
-        <div>
+        <div className="evitar-corte">
           <h2 className="font-bold text-gray-900 text-sm mb-2">Producto por producto</h2>
           <table className="w-full text-xs border border-gray-300">
             <thead>
@@ -169,8 +171,11 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
           )}
         </div>
 
-        {/* Los dos bolsillos de impuestos, en corto */}
-        <div>
+        {/* Los dos bolsillos de impuestos.
+            Esta era la seccion que quedaba recortada entre las dos hojas y
+            se perdia. Con evitar-corte, si no alcanza en la hoja actual se
+            pasa COMPLETA a la siguiente en vez de partirse. */}
+        <div className="evitar-corte">
           <h2 className="font-bold text-gray-900 text-sm mb-2">Lo que hay que guardar para la DIAN</h2>
           <div className="grid grid-cols-2 gap-4 text-xs">
             <div className="border border-gray-300 p-3">
@@ -210,8 +215,11 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
           </div>
         </div>
 
-        {/* Documentos de la venta */}
-        <div className="break-inside-avoid">
+        {/* Historia de la venta.
+            Esta si puede partirse si es muy larga (una venta con muchas
+            compras), pero el encabezado de la tabla se repite en la hoja
+            siguiente y ninguna fila se corta por la mitad. */}
+        <div>
           <h2 className="font-bold text-gray-900 text-sm mb-2">Historia de esta venta</h2>
           <table className="w-full text-xs border border-gray-300">
             <thead>
@@ -265,7 +273,7 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
 
         {/* Avisos de calidad del dato */}
         {(!analisis.tiene_costo_asignado || analisis.num_gastos_sin_soporte > 0) && (
-          <div className="border-2 border-red-600 p-3 text-xs space-y-1.5">
+          <div className="border-2 border-red-600 p-3 text-xs space-y-1.5 evitar-corte">
             <p className="font-bold text-red-800">Atencion: este informe puede estar incompleto</p>
             {!analisis.tiene_costo_asignado && (
               <p className="text-red-700">
