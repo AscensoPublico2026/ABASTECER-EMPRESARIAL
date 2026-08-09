@@ -10,9 +10,10 @@ import {
   obtenerPosicionFinanciera,
   obtenerGmfPorPeriodo,
   obtenerDescuadresGmf,
+  obtenerAuditoriaIntegridad,
 } from '@/lib/queries/tesoreria'
 import { formatCOP, formatFecha } from '@/lib/format'
-import { Landmark, PiggyBank, Wallet, TrendingUp, AlertCircle } from 'lucide-react'
+import { Landmark, PiggyBank, Wallet, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +39,15 @@ export default async function TesoreriaPage() {
    */
   const descuadres = await obtenerDescuadresGmf()
   const totalSinRegistrar = descuadres.reduce((s, d) => s + Math.abs(d.plata_sin_registrar), 0)
+
+  /**
+   * AUDITORIA COMPLETA DEL CIRCUITO DEL DINERO.
+   *
+   * Antes el dueno encontraba los errores uno por uno revisando con
+   * calculadora. Eso lo tiene que hacer el sistema y avisarlo aqui.
+   */
+  const hallazgos = await obtenerAuditoriaIntegridad()
+  const graves = hallazgos.filter((h) => h.gravedad === 'GRAVE').length
 
   const operativas = cuentasSaldo.filter((c) => !c.es_reserva)
   const reservas = cuentasSaldo.filter((c) => c.es_reserva)
@@ -185,6 +195,74 @@ export default async function TesoreriaPage() {
                 Si en alguna transaccion el banco NO lo cobro, filtra por &quot;4x1000 (GMF)&quot; en el libro
                 de abajo y borralo con el icono de basura.
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* ===== AUDITORIA DE INTEGRIDAD =====
+            Todo lo que esta descuadrado en el circuito del dinero, en un
+            solo lugar. Si no hay nada, sale el sello verde: el dueno no
+            tiene que revisar con calculadora para saber si puede confiar. */}
+        {hallazgos.length === 0 ? (
+          <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-5 py-4">
+            <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium text-green-900">Las cuentas cuadran</p>
+              <p className="text-green-800 mt-0.5">
+                Se revisaron el 4x1000 de cada movimiento, los costos de cada venta, los
+                documentos soporte, los gastos repartidos y los totales de cada cotizacion.
+                No hay descuadres.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl shadow-sm border-2 border-red-300 overflow-hidden">
+            <div className="px-6 py-5 border-b border-red-100 bg-red-50">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-red-900">
+                    Auditoria: {hallazgos.length} descuadre{hallazgos.length !== 1 ? 's' : ''} en las cuentas
+                    {graves > 0 && ` (${graves} grave${graves !== 1 ? 's' : ''})`}
+                  </h3>
+                  <p className="text-sm text-red-800 mt-1">
+                    Revisado automaticamente: banco contra 4x1000, costos por producto,
+                    documentos soporte, gastos repartidos y totales de cada venta.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                  <tr>
+                    <th className="px-6 py-2.5 text-left font-medium">Area</th>
+                    <th className="px-4 py-2.5 text-left font-medium">Que esta mal</th>
+                    <th className="px-4 py-2.5 text-left font-medium">Donde</th>
+                    <th className="px-6 py-2.5 text-right font-medium">Diferencia</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {hallazgos.map((h, i) => (
+                    <tr key={i} className={h.gravedad === 'GRAVE' ? 'bg-red-50/40' : ''}>
+                      <td className="px-6 py-3">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          h.gravedad === 'GRAVE'
+                            ? 'bg-red-100 text-red-800 font-medium'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {h.area}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-800">{h.problema}</td>
+                      <td className="px-4 py-3 text-gray-600">{h.detalle}</td>
+                      <td className="px-6 py-3 text-right tabular-nums font-semibold text-red-700">
+                        {formatCOP(Math.abs(h.diferencia))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

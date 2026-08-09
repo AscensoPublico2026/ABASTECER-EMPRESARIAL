@@ -27,11 +27,14 @@ returns text
 language sql
 immutable
 as $$
+  -- El `, '-'` del final sobraba: cerraba el regexp_replace y quedaba
+  -- trim(both '-' from <texto>, '-'), o sea btrim con 3 argumentos, que no
+  -- existe. La funcion NUNCA se pudo crear por eso.
   select trim(both '-' from regexp_replace(
     lower(translate(coalesce(texto, ''),
       'ÁÀÂÄÃÅáàâäãåÉÈÊËéèêëÍÌÎÏíìîïÓÒÔÖÕóòôöõÚÙÛÜúùûüÑñÇç',
       'AAAAAAaaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuNnCc')),
-    '[^a-z0-9]+', '-', 'g'), '-')
+    '[^a-z0-9]+', '-', 'g'))
 $$;
 
 comment on function public.slugificar(text) is 'Convierte un texto a slug para URLs del sitio web publico.';

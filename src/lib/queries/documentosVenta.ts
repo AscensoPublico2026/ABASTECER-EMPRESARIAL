@@ -167,13 +167,37 @@ export async function obtenerDocumentosDeVenta(cotizacionId: string): Promise<Do
       gastoIds.length > 0 ? `gasto_id.in.(${gastoIds.join(',')})` : null,
     ].filter(Boolean).join(',')
 
-    const { data: docsSoporte } = await supabase
+    const { data: docsSoporteCrudo } = await supabase
       .from('documentos_soporte')
       .select('id, numero, fecha, subtotal, tercero_nombre, concepto, gasto_id')
       .or(filtroDs)
       .order('fecha', { ascending: true })
 
-    for (const ds of docsSoporte ?? []) {
+    /**
+     * SI EL DOCUMENTO SOPORTE ES DE UN GASTO, MANDA EL REPARTO.
+     *
+     * EL ERROR QUE HABIA: el DS-2026-002 seguia apareciendo en la
+     * COT-2026-013 aunque ese gasto ya se habia repartido a otras ventas.
+     *
+     * La causa es la rama `cotizacion_id.eq.<id>` de la consulta de arriba.
+     * Ese campo se escribe cuando se CREA el documento y editarGasto nunca
+     * lo volvia a tocar, asi que el DS quedaba clavado en la venta original
+     * para siempre.
+     *
+     * La verdad de a que ventas pertenece un gasto esta en gasto_reparto.
+     * Entonces: si el DS tiene gasto_id y esta venta NO esta en el reparto
+     * de ese gasto, el documento no es de esta venta y no se muestra, sin
+     * importar lo que diga el campo viejo.
+     *
+     * Los DS que no vienen de un gasto (los de una factura de compra, o los
+     * atados directamente a la venta) se dejan pasar como estaban.
+     */
+    const docsSoporte = (docsSoporteCrudo ?? []).filter((ds) => {
+      if (!ds.gasto_id) return true
+      return gastoIds.includes(String(ds.gasto_id))
+    })
+
+    for (const ds of docsSoporte) {
       // Si el DS viene de un gasto, buscar cuanto le toca a ESTA venta
       // del reparto. Si no tiene reparto, se muestra el total.
       let montoParaEstaVenta = Number(ds.subtotal ?? 0)
