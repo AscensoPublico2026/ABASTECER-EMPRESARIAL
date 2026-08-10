@@ -7,7 +7,6 @@ import FormVentaDirecta from './FormVentaDirecta'
 import TablaCotizaciones from './TablaCotizaciones'
 import { obtenerClientesParaSelect } from '@/lib/queries/clientes'
 import { obtenerProductoParaSelect } from '@/lib/queries/productos'
-import { obtenerCuentasParaSelect } from '@/lib/queries/tesoreria'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +14,6 @@ export default async function VentasPage() {
   const { data: cotizaciones, error } = await obtenerCotizaciones()
   const clientes = await obtenerClientesParaSelect()
   const productos = await obtenerProductoParaSelect()
-  const cuentas = await obtenerCuentasParaSelect()
 
   // NIVEL 1: Cotizaciones (PENDIENTE, APROBADA)
   const nivel1 = cotizaciones.filter((c) => c.estado === 'PENDIENTE' || c.estado === 'APROBADA')
@@ -86,7 +84,7 @@ export default async function VentasPage() {
             </div>
           </div>
 
-          <TablaCotizaciones cotizaciones={nivel1} clientes={nombresClientesN1} cuentas={cuentas} />
+          <TablaCotizaciones cotizaciones={nivel1} clientes={nombresClientesN1}  />
         </section>
 
         {/* ============================================================ */}
@@ -137,7 +135,7 @@ export default async function VentasPage() {
               <p className="text-sm mt-1">Cuando un cliente pague o apruebes una venta a credito, aparecera aqui.</p>
             </div>
           ) : (
-            <TablaCotizaciones cotizaciones={nivel2} clientes={nombresClientesN2} cuentas={cuentas} />
+            <TablaCotizaciones cotizaciones={nivel2} clientes={nombresClientesN2}  />
           )}
         </section>
 

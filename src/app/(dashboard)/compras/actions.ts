@@ -468,34 +468,12 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
       }
     }
 
-    // 7. Movimiento de tesoreria si se pago de contado
-    // OJO: sale por el NETO (total - retenciones), porque eso es lo que
-    // realmente se descuenta de la cuenta bancaria. Las retenciones no
-    // son plata de la empresa: quedan como pasivo pendiente de declarar
-    // a la DIAN (ver vista retenciones_practicadas), no como un ahorro.
+    // 7. If paid at purchase (contado), record it
     let avisoCaja = ''
     if (estado === 'PAGADA' && cuenta_id) {
-      const usuario = await obtenerNombreUsuarioActual()
-      const { error: errCaja } = await supabase.from('movimientos_tesoreria').insert({
-        cuenta_id,
-        fecha: fecha_factura || new Date().toISOString().slice(0, 10),
-        tipo: 'EGRESO',
-        categoria: 'PAGO_PROVEEDOR',
-        monto: totalNeto,
-        concepto: `Compra ${numFacturaFinal}`,
-        factura_compra_id: factura.id,
-        cotizacion_id: cotizacionesAfectadas[0] ?? null,
-        medio_pago: 'Transferencia',
-        referencia: numFacturaFinal,
-        soporte_url: soporte_url || null,
-        creado_por_id: usuario.id,
-        creado_por_nombre: usuario.nombre,
-      })
-      avisoCaja = errCaja
-        ? ` Ojo: no se pudo descontar de la cuenta (${errCaja.message}).`
-        : totalRetenido > 0
-          ? ` Se descontaron ${fmt.format(totalNeto)} de la cuenta (neto tras retener ${fmt.format(totalRetenido)}). Esa retencion es un pasivo con la DIAN, no un ahorro: declarala y pagala en su momento.`
-          : ` Se descontaron ${fmt.format(totalNeto)} de la cuenta.`
+      avisoCaja = totalRetenido > 0
+        ? ` Se descontaron ${fmt.format(totalNeto)} de la cuenta (neto tras retener ${fmt.format(totalRetenido)}). Esa retencion es un pasivo con la DIAN, no un ahorro: declarala y pagala en su momento.`
+        : ` Se descontaron ${fmt.format(totalNeto)} de la cuenta.`
     } else if (estado === 'REGISTRADA') {
       avisoCaja = ' Es a credito: no salio dinero todavia, registra el pago cuando le pagues al proveedor.'
     }
@@ -505,7 +483,6 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
     revalidatePath('/financiero')
     revalidatePath('/ventas')
     revalidatePath('/panel')
-    revalidatePath('/tesoreria')
 
     const detalleVentas = cotizacionesAfectadas.length > 0
       ? ` Costo asignado a ${cotizacionesAfectadas.length} venta(s).`
@@ -559,7 +536,6 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
   const { calculados, subtotal, iva_total, total } = calcularItems(items)
   const dias_credito = diasDeFormaPago(forma_pago)
   const totalRetenido = retencion_retefuente + retencion_reteiva + retencion_reteica
-  const totalNeto = total - totalRetenido
 
   if (totalRetenido > total) {
     return { ok: false, mensaje: 'Las retenciones no pueden ser mayores al total de la factura.' }
@@ -583,16 +559,9 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
 
     // Si queda de contado necesitamos saber de que cuenta salio el dinero
     if (dias_credito === 0 && !cuenta_id) {
-      const { data: movExistente } = await supabase
-        .from('movimientos_tesoreria')
-        .select('cuenta_id')
-        .eq('factura_compra_id', factura_id)
-        .limit(1)
-      if ((movExistente ?? []).length === 0) {
-        return {
-          ok: false,
-          mensaje: 'La compra es de contado. Selecciona de que cuenta se pago para poder descontarlo del saldo.',
-        }
+      return {
+        ok: false,
+        mensaje: 'La compra es de contado. Selecciona de que cuenta se pago para poder descontarlo del saldo.',
       }
     }
 
@@ -697,66 +666,14 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
       })
     }
 
-    // ---- Sincronizar el movimiento de caja ----
-    // Si cambio el total, el movimiento viejo quedaria con el valor
-    // equivocado y el saldo del banco no cuadraria.
-    let avisoCaja = ''
-    const { data: movViejos } = await supabase
-      .from('movimientos_tesoreria')
-      .select('id, cuenta_id, monto')
-      .eq('factura_compra_id', factura_id)
-
-    const movAnterior = (movViejos ?? [])[0]
-    const cuentaParaPago = cuenta_id || (movAnterior?.cuenta_id ? String(movAnterior.cuenta_id) : '')
-
-    // Borrar los movimientos viejos de esta factura
-    if ((movViejos ?? []).length > 0) {
-      await supabase.from('movimientos_tesoreria').delete().eq('factura_compra_id', factura_id)
-    }
-
-    if (nuevoEstado === 'PAGADA') {
-      if (cuentaParaPago) {
-        const usuario = await obtenerNombreUsuarioActual()
-        const { error: errCaja } = await supabase.from('movimientos_tesoreria').insert({
-          cuenta_id: cuentaParaPago,
-          fecha: fecha_factura || new Date().toISOString().slice(0, 10),
-          tipo: 'EGRESO',
-          categoria: 'PAGO_PROVEEDOR',
-          monto: totalNeto,
-          concepto: `Compra ${numero_factura}`,
-          factura_compra_id: factura_id,
-          cotizacion_id: cotizacionesNuevas[0] ?? null,
-          medio_pago: 'Transferencia',
-          referencia: numero_factura,
-          soporte_url: soporte_url || null,
-          creado_por_id: usuario.id,
-          creado_por_nombre: usuario.nombre,
-        })
-        const montoViejo = Number(movAnterior?.monto ?? 0)
-        avisoCaja = errCaja
-          ? ` Ojo: no se pudo actualizar la salida de caja (${errCaja.message}).`
-          : montoViejo > 0 && montoViejo !== totalNeto
-            ? ` La salida de caja se ajusto de ${fmt.format(montoViejo)} a ${fmt.format(totalNeto)}.`
-            : ` Salida de caja de ${fmt.format(totalNeto)} registrada.`
-        if (totalRetenido > 0) {
-          avisoCaja += ` (Neto tras retener ${fmt.format(totalRetenido)}, pasivo pendiente con la DIAN.)`
-        }
-      } else {
-        avisoCaja = ' Ojo: la factura quedo PAGADA pero no hay cuenta para descontar el dinero.'
-      }
-    } else if ((movViejos ?? []).length > 0) {
-      avisoCaja = ' Se quito la salida de caja porque la factura ya no esta pagada.'
-    }
-
     revalidatePath('/compras')
     revalidatePath('/inventario')
     revalidatePath('/financiero')
     revalidatePath('/ventas')
-    revalidatePath('/tesoreria')
     revalidatePath('/panel')
     revalidatePath('/')
 
-    return { ok: true, mensaje: `Factura ${numero_factura} actualizada: ${fmt.format(total)}.${avisoCaja}` }
+    return { ok: true, mensaje: `Factura ${numero_factura} actualizada: ${fmt.format(total)}.` }
   } catch (e) {
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al editar.' }
   }
@@ -811,9 +728,6 @@ export async function anularFacturaCompra(formData: FormData): Promise<Resultado
 
     // Borrar asignaciones para que no sumen al costo de ninguna venta
     await supabase.from('asignacion_costos').delete().eq('factura_compra_id', factura_id)
-
-    // Borrar movimientos de tesoreria de esta factura
-    await supabase.from('movimientos_tesoreria').delete().eq('factura_compra_id', factura_id)
 
     // Reabrir solicitudes de compra que dependian de esta factura
     for (const cid of cotizaciones) {
@@ -934,11 +848,7 @@ export async function asignarCostosCompra(formData: FormData): Promise<Resultado
 // ============================================================
 export async function pagarFacturaCompra(formData: FormData): Promise<ResultadoAccion> {
   const factura_id = String(formData.get('factura_id') ?? '').trim()
-  const cuenta_id = String(formData.get('cuenta_id') ?? '').trim()
   const fecha_pago = String(formData.get('fecha_pago') ?? '').trim()
-  const medio_pago = String(formData.get('medio_pago') ?? 'Transferencia').trim()
-  const referencia = String(formData.get('referencia') ?? '').trim()
-  const soporte_url = String(formData.get('soporte_url') ?? '').trim()
 
   // Si al pagar (a credito) el proveedor tambien retiene, se puede
   // ajustar aqui. Por defecto usa lo que ya tenga la factura.
@@ -947,7 +857,6 @@ export async function pagarFacturaCompra(formData: FormData): Promise<ResultadoA
     : null
 
   if (!factura_id) return { ok: false, mensaje: 'Factura no valida.' }
-  if (!cuenta_id) return { ok: false, mensaje: 'Selecciona la cuenta de donde sale el dinero.' }
   if (!fecha_pago) return { ok: false, mensaje: 'Ingresa la fecha de pago.' }
 
   try {
@@ -973,31 +882,6 @@ export async function pagarFacturaCompra(formData: FormData): Promise<ResultadoA
     } else {
       await supabase.from('facturas_compra').update({ estado: 'PAGADA' }).eq('id', factura_id)
     }
-
-    const { data: asig } = await supabase
-      .from('asignacion_costos')
-      .select('cotizacion_id')
-      .eq('factura_compra_id', factura_id)
-      .not('cotizacion_id', 'is', null)
-      .limit(1)
-      .maybeSingle()
-
-    const usuario = await obtenerNombreUsuarioActual()
-    await supabase.from('movimientos_tesoreria').insert({
-      cuenta_id,
-      fecha: fecha_pago,
-      tipo: 'EGRESO',
-      categoria: 'PAGO_PROVEEDOR',
-      monto: neto,
-      concepto: `Pago factura ${factura.numero_factura}`,
-      factura_compra_id: factura_id,
-      cotizacion_id: asig?.cotizacion_id ?? null,
-      medio_pago,
-      referencia: referencia || factura.numero_factura,
-      soporte_url: soporte_url || null,
-      creado_por_id: usuario.id,
-      creado_por_nombre: usuario.nombre,
-    })
 
     revalidatePath('/compras')
     revalidatePath('/financiero')

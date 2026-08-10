@@ -20,7 +20,6 @@ interface Props {
     tieneDocumentoSoporte: boolean
   }
   cotizaciones?: CotizacionOpcion[]
-  cuentas?: { id: string; nombre: string; es_reserva: boolean }[]
 }
 
 const CATEGORIAS_GASTO = [
@@ -39,7 +38,7 @@ const CATEGORIAS_GASTO = [
   ['OTROS', 'Otros'],
 ] as const
 
-export default function AccionesGasto({ gasto, cotizaciones = [], cuentas = [] }: Props) {
+export default function AccionesGasto({ gasto, cotizaciones = [] }: Props) {
   const [pendiente, startTransition] = useTransition()
   const [modal, setModal] = useState<null | 'soporte' | 'eliminar' | 'editar'>(null)
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
@@ -53,10 +52,8 @@ export default function AccionesGasto({ gasto, cotizaciones = [], cuentas = [] }
   const [categoria, setCategoria] = useState('OTROS')
   const [esCostoVenta, setEsCostoVenta] = useState(false)
   const [reparto, setReparto] = useState<{ cotizacion_id: string; monto: string }[]>([])
-  const [cuentaId, setCuentaId] = useState('')
   const [notas, setNotas] = useState('')
 
-  const cuentasOperativas = cuentas.filter((c) => !c.es_reserva)
 
   function cerrar() {
     setModal(null)
@@ -93,7 +90,7 @@ export default function AccionesGasto({ gasto, cotizaciones = [], cuentas = [] }
       } else {
         setReparto([{ cotizacion_id: '', monto: '' }])
       }
-      setCuentaId(d.cuenta_id ?? cuentasOperativas[0]?.id ?? '')
+      
       setNotas(d.notas ?? '')
     } catch (e) {
       setResultado({ ok: false, mensaje: e instanceof Error ? e.message : 'Error al cargar.' })
@@ -109,7 +106,6 @@ export default function AccionesGasto({ gasto, cotizaciones = [], cuentas = [] }
     fd.set('iva_incluido', ivaTxt || '0')
     fd.set('fecha', fecha)
     fd.set('categoria', categoria)
-    fd.set('cuenta_id', cuentaId)
     fd.set('notas', notas)
     if (esCostoVenta) {
       fd.set('es_costo_venta', 'true')
@@ -287,21 +283,6 @@ export default function AccionesGasto({ gasto, cotizaciones = [], cuentas = [] }
                   </div>
                 </div>
 
-                {cuentasOperativas.length > 0 && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">De que cuenta se pago *</label>
-                    <select
-                      value={cuentaId}
-                      onChange={(e) => setCuentaId(e.target.value)}
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
-                    >
-                      {cuentasOperativas.map((c) => (
-                        <option key={c.id} value={c.id}>{c.nombre}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
                 {/* Costo de venta con REPARTO MULTIPLE */}
                 {cotizaciones.length > 0 && (
                   <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-4 space-y-3">
@@ -428,7 +409,7 @@ export default function AccionesGasto({ gasto, cotizaciones = [], cuentas = [] }
                   <button
                     type="button"
                     onClick={guardarEdicion}
-                    disabled={pendiente || montoNum <= 0 || ivaNum > montoNum || !cuentaId}
+                    disabled={pendiente || montoNum <= 0 || ivaNum > montoNum}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
                   >
                     {pendiente && <Loader2 className="w-4 h-4 animate-spin" />} Guardar cambios

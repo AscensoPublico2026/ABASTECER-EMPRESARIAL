@@ -1,10 +1,9 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { obtenerPosicionFinanciera } from '@/lib/queries/tesoreria'
 import { obtenerAnalisisVentas } from '@/lib/queries/analisisVenta'
 import { formatCOP } from '@/lib/format'
 import {
-  DollarSign, TrendingUp, ShoppingCart, Users, Receipt, AlertTriangle,
-  FileCheck2, Wallet, ArrowRight, Landmark, Target,
+  TrendingUp, ShoppingCart, Users, Receipt, AlertTriangle,
+  FileCheck2, ArrowRight, Landmark, Target,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -13,8 +12,7 @@ export const dynamic = 'force-dynamic'
 export default async function DashboardPage() {
   const supabase = createServerSupabaseClient()
 
-  const [{ datos: p }, ventasAnalisis, ventasRes, comprasRes, clientesRes] = await Promise.all([
-    obtenerPosicionFinanciera(),
+  const [ventasAnalisis, ventasRes, comprasRes, clientesRes] = await Promise.all([
     obtenerAnalisisVentas(),
     supabase.from('facturas_venta').select('total, estado, fecha_vencimiento'),
     supabase.from('facturas_compra').select('id, estado'),
@@ -25,11 +23,21 @@ export default async function DashboardPage() {
   const compras = (comprasRes.data ?? []).filter((c) => c.estado !== 'ANULADA')
   const clientesCount = clientesRes.data?.length ?? 0
 
-  const ventasSinCosto = ventasAnalisis.filter(
-    (v) =>
-      !v.tiene_costo_asignado &&
-      ['FACTURADA', 'DESPACHADA', 'ENTREGADO', 'POR_COBRAR', 'COBRADA', 'ENTREGA_PARCIAL'].includes(v.estado)
+  // Calcular totales desde analisis_venta (ya no depende de posicion_financiera)
+  const ventasActivas = ventasAnalisis.filter((v) =>
+    ['FACTURADA', 'DESPACHADA', 'ENTREGADO', 'POR_COBRAR', 'COBRADA', 'ENTREGA_PARCIAL', 'EN_ALISTAMIENTO', 'PAGADA'].includes(v.estado),
   )
+  const totalVendido = ventasActivas.reduce((s, v) => s + v.venta_subtotal, 0)
+  const totalCosto = ventasActivas.reduce((s, v) => s + v.costo_real, 0)
+  const totalUtilidadNeta = ventasActivas.reduce((s, v) => s + v.utilidad_neta, 0)
+  const margenBruto = totalVendido > 0
+    ? (ventasActivas.reduce((s, v) => s + v.utilidad_bruta, 0) / totalVendido) * 100
+    : 0
+  const totalIvaPorPagar = ventasActivas.reduce((s, v) => s + v.iva_neto_dian, 0)
+  const totalSimplePorPagar = ventasActivas.reduce((s, v) => s + v.impuesto_simple_pendiente, 0)
+  const impuestosPorPagar = totalIvaPorPagar + totalSimplePorPagar
+
+  const ventasSinCosto = ventasActivas.filter((v) => !v.tiene_costo_asignado)
 
   // ---- Alertas ----
   const alertas: { mensaje: string; color: string; bg: string; href?: string }[] = []
@@ -42,18 +50,6 @@ export default async function DashboardPage() {
     return new Date(y, m - 1, d) < hoy
   })
 
-  if (p.en_riesgo) {
-    alertas.push({
-      mensaje: `Disponible real negativo: ${formatCOP(p.disponible_real)}. Las obligaciones superan la caja.`,
-      color: 'text-red-700', bg: 'bg-red-50', href: '/financiero',
-    })
-  }
-  if (p.reserva_insuficiente && p.impuestos_por_pagar > 0) {
-    alertas.push({
-      mensaje: `Falta ${formatCOP(p.impuestos_por_pagar - p.saldo_reservas)} en la cuenta de reserva de impuestos`,
-      color: 'text-amber-700', bg: 'bg-amber-50', href: '/financiero',
-    })
-  }
   if (ventasSinCosto.length > 0) {
     alertas.push({
       mensaje: `${ventasSinCosto.length} venta(s) sin costo asignado: la utilidad esta inflada`,
@@ -64,24 +60,6 @@ export default async function DashboardPage() {
     alertas.push({
       mensaje: `${ventasVencidas.length} factura(s) vencida(s) por cobrar`,
       color: 'text-red-600', bg: 'bg-red-50', href: '/facturacion',
-    })
-  }
-  if (p.cuentas_por_cobrar > 0) {
-    alertas.push({
-      mensaje: `Tienes ${formatCOP(p.cuentas_por_cobrar)} por cobrar de clientes`,
-      color: 'text-amber-600', bg: 'bg-amber-50', href: '/facturacion',
-    })
-  }
-  if (p.cuentas_por_pagar > 0) {
-    alertas.push({
-      mensaje: `Debes ${formatCOP(p.cuentas_por_pagar)} a proveedores`,
-      color: 'text-red-600', bg: 'bg-red-50', href: '/compras',
-    })
-  }
-  if (p.pipeline_num > 0) {
-    alertas.push({
-      mensaje: `${p.pipeline_num} cotizacion(es) por cerrar (${formatCOP(p.pipeline_total)})`,
-      color: 'text-blue-600', bg: 'bg-blue-50', href: '/ventas',
     })
   }
   if (alertas.length === 0) {
@@ -97,27 +75,14 @@ export default async function DashboardPage() {
 
       {/* KPIs principales */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Link href="/financiero" className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:border-green-200 transition">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-green-600" />
-            </div>
-          </div>
-          <p className={`text-2xl font-bold tabular-nums ${p.disponible_real >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {formatCOP(p.disponible_real)}
-          </p>
-          <p className="text-sm text-gray-500 mt-1">Disponible real</p>
-          <p className="text-xs text-gray-400 mt-0.5">Ya descontados impuestos y deudas</p>
-        </Link>
-
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
               <TrendingUp className="w-5 h-5 text-blue-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-800 tabular-nums">{formatCOP(p.ventas_subtotal_acum)}</p>
-          <p className="text-sm text-gray-500 mt-1">Vendido ({p.num_ventas} venta{p.num_ventas !== 1 ? 's' : ''})</p>
+          <p className="text-2xl font-bold text-gray-800 tabular-nums">{formatCOP(totalVendido)}</p>
+          <p className="text-sm text-gray-500 mt-1">Vendido ({ventasActivas.length} venta{ventasActivas.length !== 1 ? 's' : ''})</p>
           <p className="text-xs text-gray-400 mt-0.5">Base sin IVA</p>
         </div>
 
@@ -127,9 +92,22 @@ export default async function DashboardPage() {
               <ShoppingCart className="w-5 h-5 text-purple-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-800 tabular-nums">{formatCOP(p.costo_real_acum)}</p>
+          <p className="text-2xl font-bold text-gray-800 tabular-nums">{formatCOP(totalCosto)}</p>
           <p className="text-sm text-gray-500 mt-1">Costo real ({compras.length} factura{compras.length !== 1 ? 's' : ''})</p>
           <p className="text-xs text-gray-400 mt-0.5">Lo que costo lo vendido</p>
+        </div>
+
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+              <FileCheck2 className="w-5 h-5 text-green-600" />
+            </div>
+          </div>
+          <p className={`text-2xl font-bold tabular-nums ${totalUtilidadNeta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {formatCOP(totalUtilidadNeta)}
+          </p>
+          <p className="text-sm text-gray-500 mt-1">Utilidad neta</p>
+          <p className="text-xs text-gray-400 mt-0.5">Margen {margenBruto.toFixed(1)}%</p>
         </div>
 
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -143,50 +121,36 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Fila 2 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <div className="flex items-center gap-2 mb-2">
-            <FileCheck2 className="w-4 h-4 text-green-600" />
-            <span className="text-xs text-gray-500 uppercase">Utilidad neta</span>
-          </div>
-          <p className={`text-xl font-bold tabular-nums ${p.utilidad_neta_acum >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {formatCOP(p.utilidad_neta_acum)}
-          </p>
-          <p className="text-xs text-gray-400 mt-0.5">Margen {p.margen_bruto_pct.toFixed(1)}%</p>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+      {/* Impuestos */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Link href="/obligaciones" className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:border-red-200 transition">
           <div className="flex items-center gap-2 mb-2">
             <Landmark className="w-4 h-4 text-red-600" />
-            <span className="text-xs text-gray-500 uppercase">Impuestos</span>
+            <span className="text-xs text-gray-500 uppercase">Debes guardar para la DIAN</span>
           </div>
-          <p className="text-xl font-bold text-red-600 tabular-nums">{formatCOP(p.impuestos_por_pagar)}</p>
-          <p className="text-xs text-gray-400 mt-0.5">IVA + Simple por pagar</p>
-        </div>
+          <p className="text-xl font-bold text-red-600 tabular-nums">{formatCOP(impuestosPorPagar)}</p>
+          <p className="text-xs text-gray-400 mt-0.5">IVA {formatCOP(totalIvaPorPagar)} + Simple {formatCOP(totalSimplePorPagar)}</p>
+        </Link>
 
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-2 mb-2">
             <Receipt className="w-4 h-4 text-amber-600" />
             <span className="text-xs text-gray-500 uppercase">Por cobrar</span>
           </div>
-          <p className="text-xl font-bold text-amber-600 tabular-nums">{formatCOP(p.cuentas_por_cobrar)}</p>
+          <p className="text-xl font-bold text-amber-600 tabular-nums">
+            {formatCOP(ventas.filter((v) => v.estado === 'EMITIDA').reduce((s, v) => s + Number(v.total ?? 0), 0))}
+          </p>
         </div>
 
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-2 mb-2">
             <ShoppingCart className="w-4 h-4 text-red-600" />
-            <span className="text-xs text-gray-500 uppercase">Por pagar</span>
+            <span className="text-xs text-gray-500 uppercase">Por pagar a proveedores</span>
           </div>
-          <p className="text-xl font-bold text-red-600 tabular-nums">{formatCOP(p.cuentas_por_pagar)}</p>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <div className="flex items-center gap-2 mb-2">
-            <Wallet className="w-4 h-4 text-purple-600" />
-            <span className="text-xs text-gray-500 uppercase">Gastos operativos</span>
-          </div>
-          <p className="text-xl font-bold text-purple-600 tabular-nums">{formatCOP(p.gastos_operativos)}</p>
+          <p className="text-xl font-bold text-red-600 tabular-nums">
+            {formatCOP(compras.filter((c) => c.estado === 'REGISTRADA').length * 0)}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">{compras.filter((c) => c.estado === 'REGISTRADA').length} factura(s) pendientes</p>
         </div>
       </div>
 
@@ -207,7 +171,7 @@ export default async function DashboardPage() {
                 <div key={i} className={`flex items-center gap-3 p-3 rounded-xl ${a.bg}`}>
                   <p className={`text-sm font-medium ${a.color}`}>{a.mensaje}</p>
                 </div>
-              )
+              ),
             )}
           </div>
         </div>
@@ -219,7 +183,7 @@ export default async function DashboardPage() {
               { label: 'Nueva cotizacion', href: '/ventas', color: 'text-blue-600 bg-blue-50 hover:bg-blue-100' },
               { label: 'Registrar compra', href: '/compras', color: 'text-purple-600 bg-purple-50 hover:bg-purple-100' },
               { label: 'Registrar gasto', href: '/gastos', color: 'text-red-600 bg-red-50 hover:bg-red-100' },
-              { label: 'Centro Financiero', href: '/financiero', color: 'text-green-600 bg-green-50 hover:bg-green-100' },
+              { label: 'Obligaciones DIAN', href: '/obligaciones', color: 'text-green-600 bg-green-50 hover:bg-green-100' },
             ].map((item) => (
               <Link key={item.href} href={item.href} className={`flex items-center justify-between p-3 rounded-xl text-sm font-medium transition ${item.color}`}>
                 {item.label}
@@ -230,7 +194,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Ultimas ventas con analisis */}
+      {/* Ultimas ventas */}
       {ventasAnalisis.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -238,7 +202,7 @@ export default async function DashboardPage() {
               <Target className="w-5 h-5 text-gray-500" />
               <h3 className="font-semibold text-gray-800">Ultimas ventas</h3>
             </div>
-            <Link href="/financiero" className="text-xs text-blue-600 hover:underline">Ver analisis completo</Link>
+            <Link href="/obligaciones" className="text-xs text-blue-600 hover:underline">Ver obligaciones DIAN</Link>
           </div>
           <div className="divide-y divide-gray-50">
             {ventasAnalisis.slice(0, 5).map((v) => (
