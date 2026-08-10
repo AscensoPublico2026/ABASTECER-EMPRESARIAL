@@ -14,7 +14,7 @@ const config: Config = {
         // ------------------------------------------------------------
         // Identidad de marca ABASTECER EMPRESARIAL S.A.S.
         // Fuente: manual de identidad (paleta oficial)
-        //   #0D1B2A azul noche  |  #16823C verde  |  #F2B705 amarillo
+        //   #0D1B2A azul noche  |  #16B23C verde  |  #F2B705 amarillo
         //   #636B73 gris        |  #F2F4F7 gris claro
         // ------------------------------------------------------------
         marca: {
@@ -31,16 +31,16 @@ const config: Config = {
           950: "#07111B",
         },
         verde: {
-          50: "#EFFAF2",
-          100: "#D6F2DF",
-          200: "#AEE4C1",
-          300: "#77CE9A",
-          400: "#41B171",
-          500: "#1F9A50",
-          600: "#16823C",
-          700: "#126832",
-          800: "#11522A",
-          900: "#0E4324",
+          50: "#EDFCF2",
+          100: "#D3F8E0",
+          200: "#AAF0C5",
+          300: "#73E3A2",
+          400: "#3BCF79",
+          500: "#16B23C",
+          600: "#0C9632",
+          700: "#0A7829",
+          800: "#0B5F24",
+          900: "#0A4E20",
         },
         oro: {
           50: "#FFFAEB",
@@ -75,7 +75,7 @@ const config: Config = {
         tarjeta: "0 2px 8px -2px rgba(13, 27, 42, 0.08), 0 12px 32px -12px rgba(13, 27, 42, 0.12)",
       },
       backgroundImage: {
-        "degradado-marca": "linear-gradient(135deg, #0D1B2A 0%, #132B43 45%, #16823C 140%)",
+        "degradado-marca": "linear-gradient(135deg, #0D1B2A 0%, #132B43 45%, #16B23C 140%)",
         "degradado-oro": "linear-gradient(135deg, #F2B705 0%, #DDA303 100%)",
       },
       keyframes: {

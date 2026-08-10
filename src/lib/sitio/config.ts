@@ -12,7 +12,9 @@ export const SITIO_URL = (
 /** Menu principal del sitio publico */
 export const MENU_SITIO = [
   { nombre: 'Inicio', href: '/' },
+  { nombre: 'Soluciones', href: '/soluciones' },
   { nombre: 'Catálogo', href: '/catalogo' },
+  { nombre: 'Sectores', href: '/sectores' },
   { nombre: 'Nosotros', href: '/nosotros' },
   { nombre: 'Contacto', href: '/contacto' },
 ] as const
