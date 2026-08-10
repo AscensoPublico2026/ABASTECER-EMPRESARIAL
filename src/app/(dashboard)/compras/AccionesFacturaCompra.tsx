@@ -31,7 +31,7 @@ interface Props {
     proveedor_id?: string | null
   }
   proveedores: { id: string; razon_social: string }[]
-  cuentas: { id: string; nombre: string; es_reserva: boolean }[]
+  
   productos?: { id: string; codigo: string; nombre: string; iva_porcentaje: number }[]
   cotizaciones?: CotizacionOpcion[]
 }
@@ -59,10 +59,12 @@ function num(v: string) {
 }
 
 export default function AccionesFacturaCompra({
-  factura, proveedores, cuentas, productos = [], cotizaciones = [],
+  factura, proveedores, productos = [], cotizaciones = [],
 }: Props) {
   const [pendiente, startTransition] = useTransition()
   const [modal, setModal] = useState<null | 'editar' | 'pagar' | 'anular'>(null)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const cuentasOperativas: { id: string; nombre: string }[] = []
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
   const [pdf, setPdf] = useState<File | null>(null)
   const [subiendo, setSubiendo] = useState(false)
@@ -84,7 +86,6 @@ export default function AccionesFacturaCompra({
 
   const anulada = factura.estado === 'ANULADA'
   const pagada = factura.estado === 'PAGADA'
-  const cuentasOperativas = cuentas.filter((c) => !c.es_reserva)
   const ocupado = pendiente || subiendo
   const esContado = !formaPago.includes('Credito')
 
@@ -338,7 +339,7 @@ export default function AccionesFacturaCompra({
         </button>
       )}
 
-      {!anulada && !pagada && cuentasOperativas.length > 0 && (
+      {!anulada && !pagada && false && (
         <button
           onClick={() => setModal('pagar')}
           className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-medium hover:bg-emerald-100 transition"
@@ -438,7 +439,7 @@ export default function AccionesFacturaCompra({
                 </div>
 
                 {/* Cuenta si es contado */}
-                {esContado && cuentasOperativas.length > 0 && (
+                {esContado && false && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Cuenta de donde salio el dinero
@@ -449,7 +450,7 @@ export default function AccionesFacturaCompra({
                       className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
                     >
                       <option value="">Dejar la cuenta que ya tenia</option>
-                      {cuentasOperativas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                      {null}
                     </select>
                     <p className="text-xs text-gray-400 mt-1">
                       Solo cambialo si el pago salio de otra cuenta
@@ -805,7 +806,7 @@ export default function AccionesFacturaCompra({
                 <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta de donde sale *</label>
                 <select name="cuenta_id" required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
                   <option value="">Seleccionar cuenta</option>
-                  {cuentasOperativas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  {null}
                 </select>
               </div>
 

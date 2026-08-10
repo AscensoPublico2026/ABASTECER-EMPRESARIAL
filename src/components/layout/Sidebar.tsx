@@ -3,15 +3,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { clsx } from 'clsx'
-import { LayoutDashboard, Users, ShoppingCart, Receipt, Truck, UserCheck, Package, BarChart3, DollarSign, LogOut, Wallet, FileText, UserCog, Settings, PanelLeftClose, PanelLeftOpen, Globe, Landmark, Tags } from 'lucide-react'
+import { LayoutDashboard, ShoppingCart, Receipt, Truck, UserCheck, Package, LogOut, Wallet, FileText, UserCog, Settings, PanelLeftClose, PanelLeftOpen, Globe, Landmark, Tags } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 
 const navigation = [
   { name: 'Dashboard', href: '/panel', icon: LayoutDashboard },
-  { name: 'Centro Financiero', href: '/financiero', icon: DollarSign },
-  { name: 'Tesoreria', href: '/tesoreria', icon: Landmark },
-  { name: 'Socios & Capital', href: '/socios', icon: Users },
+  { name: 'Obligaciones DIAN', href: '/obligaciones', icon: Landmark },
   { name: 'Catalogo', href: '/inventario', icon: Package },
   { name: 'Listado de precios', href: '/precios', icon: Tags },
   { name: 'Cotizaciones', href: '/ventas', icon: Receipt },
@@ -20,7 +18,6 @@ const navigation = [
   { name: 'Gastos', href: '/gastos', icon: Wallet },
   { name: 'Proveedores', href: '/proveedores', icon: Truck },
   { name: 'Clientes', href: '/clientes', icon: UserCheck },
-  { name: 'Indicadores', href: '/indicadores', icon: BarChart3 },
   { name: 'Sitio Web', href: '/sitio-web', icon: Globe },
   { name: 'Perfiles', href: '/perfiles', icon: UserCog },
   { name: 'Configuracion', href: '/configuracion', icon: Settings },

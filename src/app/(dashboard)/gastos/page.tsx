@@ -1,7 +1,6 @@
 import Header from '@/components/layout/Header'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { obtenerCotizacionesParaAsignar } from '@/lib/queries/compras'
-import { obtenerCuentasParaSelect } from '@/lib/queries/tesoreria'
 import { formatCOP, formatFecha } from '@/lib/format'
 import { Wallet, FileWarning, ShieldCheck, Target, FileText, Boxes } from 'lucide-react'
 import FormGasto from './FormGasto'
@@ -29,14 +28,13 @@ export default async function GastosPage() {
   // Nota: no se puede embeber documentos_soporte porque hay dos llaves foraneas
   // entre gastos y documentos_soporte (gasto_id y documento_soporte_id).
   // PostgREST no sabe cual usar, asi que se consulta aparte.
-  const [{ data, error }, cotizaciones, cuentas, provRes, activosRes] = await Promise.all([
+  const [{ data, error }, cotizaciones, provRes, activosRes] = await Promise.all([
     supabase
       .from('gastos')
       .select('*, cotizaciones(numero)')
       .order('fecha', { ascending: false })
       .limit(100),
     obtenerCotizacionesParaAsignar(),
-    obtenerCuentasParaSelect(),
     // Terceros ya registrados, para llenar solos los datos del documento
     // soporte y no tener que digitar nombre y cedula cada vez
     supabase
@@ -237,7 +235,7 @@ export default async function GastosPage() {
             </div>
             <FormGasto
               cotizaciones={cotizaciones}
-              cuentas={cuentas}
+              
               proveedores={proveedores}
               activos={activosFijos.map((a) => ({ id: a.id, activo: a.activo, fecha_compra: a.fecha_compra }))}
             />
@@ -338,7 +336,7 @@ export default async function GastosPage() {
                                 tieneDocumentoSoporte: Boolean(ds?.id),
                               }}
                               cotizaciones={cotizaciones}
-                              cuentas={cuentas}
+                              
                             />
                           </div>
                         </td>

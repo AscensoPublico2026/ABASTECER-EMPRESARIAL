@@ -24,7 +24,6 @@ interface Props {
   proveedores: { id: string; razon_social: string }[]
   productos: { id: string; codigo: string; nombre: string; costo_promedio: number; iva_porcentaje: number; stock_actual: number }[]
   cotizaciones: CotizacionOpcion[]
-  cuentas: { id: string; nombre: string; es_reserva: boolean }[]
 }
 
 interface AsignacionLocal {
@@ -56,7 +55,7 @@ function num(v: string) {
 
 type TipoComprobante = 'FACTURA' | 'DOCUMENTO_SOPORTE'
 
-export default function FormFacturaCompra({ proveedores: proveedoresIniciales, productos: productosIniciales, cotizaciones, cuentas }: Props) {
+export default function FormFacturaCompra({ proveedores: proveedoresIniciales, productos: productosIniciales, cotizaciones }: Props) {
   const [abierto, setAbierto] = useState(false)
   const [listaProveedores, setListaProveedores] = useState(proveedoresIniciales)
   const [listaProductos, setListaProductos] = useState(productosIniciales)
@@ -81,9 +80,7 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
   const pdfRef = useRef<HTMLInputElement>(null)
 
-  const esContado = !formaPago.includes('Credito')
   const esDocSoporte = tipoComprobante === 'DOCUMENTO_SOPORTE'
-  const cuentasOperativas = cuentas.filter((c) => !c.es_reserva)
 
   function agregarItem() {
     setItems([...items, { ...ITEM_VACIO, asignaciones: [] }])
@@ -542,34 +539,6 @@ export default function FormFacturaCompra({ proveedores: proveedoresIniciales, p
               </select>
             </div>
           </div>
-
-          {/* Cuenta de donde sale la plata (solo contado, obligatoria) */}
-          {esContado && (
-            cuentasOperativas.length > 0 ? (
-              <div className="bg-red-50 border border-red-100 rounded-xl p-4">
-                <label className="block text-sm font-medium text-red-800 mb-1">De que cuenta se pago *</label>
-                <select
-                  name="cuenta_id"
-                  required
-                  defaultValue={cuentasOperativas[0]?.id ?? ''}
-                  className="w-full px-3 py-2.5 border border-red-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-red-400 outline-none"
-                >
-                  {cuentasOperativas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
-                <p className="text-xs text-red-600 mt-1.5">
-                  De contado la factura queda pagada, o sea que el dinero ya salio. Se descuenta de esta cuenta.
-                </p>
-              </div>
-            ) : (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                <p className="text-sm text-amber-800 font-medium">No hay cuentas de banco creadas</p>
-                <p className="text-xs text-amber-700 mt-1">
-                  Para registrar una compra de contado necesitas al menos una cuenta. Crea la cuenta en Tesoreria
-                  o cambia la forma de pago a credito.
-                </p>
-              </div>
-            )
-          )}
 
           {/* PDF de la factura */}
           <div>

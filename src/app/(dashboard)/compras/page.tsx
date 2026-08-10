@@ -7,7 +7,6 @@ import {
   obtenerRetencionesPracticadas,
 } from '@/lib/queries/compras'
 import { obtenerProductoParaSelect } from '@/lib/queries/productos'
-import { obtenerCuentasParaSelect } from '@/lib/queries/tesoreria'
 import { formatCOP, formatFecha } from '@/lib/format'
 import { ShoppingCart, Target, ShieldAlert } from 'lucide-react'
 import FormFacturaCompra from './FormFacturaCompra'
@@ -22,7 +21,6 @@ export default async function ComprasPage() {
   const proveedores = await obtenerProveedoresParaSelect()
   const productos = await obtenerProductoParaSelect()
   const cotizacionesAsignar = await obtenerCotizacionesParaAsignar()
-  const cuentas = await obtenerCuentasParaSelect()
   const pendientesAsignar = await obtenerItemsPendientesAsignar()
   const retenciones = await obtenerRetencionesPracticadas()
 
@@ -195,7 +193,7 @@ export default async function ComprasPage() {
               proveedores={proveedores}
               productos={productos}
               cotizaciones={cotizacionesAsignar}
-              cuentas={cuentas}
+              
             />
           </div>
 
@@ -258,7 +256,7 @@ export default async function ComprasPage() {
                               proveedor_id: f.proveedor_id,
                             }}
                             proveedores={proveedores}
-                            cuentas={cuentas}
+                            
                             productos={productos}
                             cotizaciones={cotizacionesAsignar}
                           />

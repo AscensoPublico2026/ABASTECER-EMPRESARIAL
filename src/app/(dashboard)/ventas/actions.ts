@@ -542,7 +542,6 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
     revalidatePath('/ventas')
     revalidatePath('/facturacion')
     revalidatePath('/financiero')
-    revalidatePath('/tesoreria')
     revalidatePath('/')
     const montoRecibido = fvData ? Number(fvData.total) - total_retenciones : 0
     return { ok: true, mensaje: total_retenciones > 0
@@ -700,7 +699,6 @@ export async function registrarPagoContado(formData: FormData): Promise<Resultad
     revalidatePath('/ventas')
     revalidatePath('/financiero')
     revalidatePath('/compras')
-    revalidatePath('/tesoreria')
     revalidatePath('/')
 
     return { ok: true, mensaje: `Pago registrado: ${fmt.format(monto_recibido)} recibido.${total_retenciones > 0 ? ` Retenciones: ${fmt.format(total_retenciones)}.` : ''}${avisoCaja} → En alistamiento.` }
@@ -1071,7 +1069,6 @@ export async function revertirEstadoCotizacion(formData: FormData): Promise<Resu
     revalidatePath('/ventas')
     revalidatePath('/compras')
     revalidatePath('/financiero')
-    revalidatePath('/tesoreria')
     revalidatePath('/inventario')
     revalidatePath('/indicadores')
     revalidatePath('/panel')
