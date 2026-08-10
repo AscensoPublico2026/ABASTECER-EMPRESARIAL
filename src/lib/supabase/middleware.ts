@@ -34,6 +34,20 @@ export async function updateSession(request: NextRequest) {
     request: { headers: request.headers },
   })
 
+  const { pathname } = request.nextUrl
+
+  // ============================================================
+  // EL SITIO WEB PUBLICO SE SIRVE SIN PREGUNTAR NADA.
+  // Si la ruta es publica, se devuelve INMEDIATAMENTE sin tocar
+  // Supabase, sin revisar cookies, sin nada. Esto evita que un
+  // error de conexion a Supabase o una cookie corrupta mande al
+  // login a un visitante que solo quiere ver la pagina web.
+  // ============================================================
+  if (esRutaPublica(pathname)) {
+    return response
+  }
+
+  // De aqui en adelante son rutas del ERP: necesitan sesion.
   const supabase = createServerClient(
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
@@ -55,13 +69,6 @@ export async function updateSession(request: NextRequest) {
       },
     }
   )
-
-  const { pathname } = request.nextUrl
-
-  // El sitio web publico no necesita sesion: se sirve tal cual.
-  if (esRutaPublica(pathname) && pathname !== '/login') {
-    return response
-  }
 
   const { data: { user } } = await supabase.auth.getUser()
 
