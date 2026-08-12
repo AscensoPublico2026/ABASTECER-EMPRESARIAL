@@ -218,6 +218,14 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
         </button>
       )}
 
+      {/* Registrar pago — credito (ya facturada o en alistamiento, aun sin cobrar) */}
+      {esCredito && ['EN_ALISTAMIENTO', 'FACTURADA', 'DESPACHADA'].includes(estado) && (
+        <button onClick={() => setModalPago(true)} disabled={pendiente} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-medium hover:bg-emerald-100 transition disabled:opacity-50">
+          <DollarSign className="w-3 h-3" />
+          Registrar pago
+        </button>
+      )}
+
       {/* Pasar a alistamiento — credito (APROBADA y dias_credito > 0) */}
       {estado === 'APROBADA' && esCredito && (
         <button onClick={handleAlistamiento} disabled={pendiente} className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg text-xs font-medium hover:bg-orange-100 transition disabled:opacity-50">
