@@ -302,13 +302,8 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
   }
 
   // Si la compra es de contado, la factura queda PAGADA: el dinero YA salio.
-  // Sin cuenta no podriamos descontarlo y el saldo quedaria inflado.
-  if (dias_credito === 0 && !cuenta_id) {
-    return {
-      ok: false,
-      mensaje: 'La compra es de contado, o sea que el dinero ya salio. Selecciona de que cuenta se pago para poder descontarlo del saldo.',
-    }
-  }
+  // Ya no se registra movimiento de tesoreria (eliminado en la simplificacion).
+  // La salida de plata se controla en la conciliacion bancaria del Excel.
 
   let fecha_vencimiento: string | null = null
   if (dias_credito > 0 && fecha_factura) {
@@ -515,7 +510,7 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
   const itemsJson = String(formData.get('items') ?? '[]')
   const soporte_url = String(formData.get('soporte_url') ?? '').trim()
   const soporte_nombre = String(formData.get('soporte_nombre') ?? '').trim()
-  const cuenta_id = String(formData.get('cuenta_id') ?? '').trim()
+  // cuenta_id ya no se usa (tesoreria eliminada)
 
   const retencion_retefuente = montoDesdeCampo(formData.get('retencion_retefuente'))
   const retencion_reteiva = montoDesdeCampo(formData.get('retencion_reteiva'))
@@ -556,14 +551,6 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
       .select('estado')
       .eq('id', factura_id)
       .single()
-
-    // Si queda de contado necesitamos saber de que cuenta salio el dinero
-    if (dias_credito === 0 && !cuenta_id) {
-      return {
-        ok: false,
-        mensaje: 'La compra es de contado. Selecciona de que cuenta se pago para poder descontarlo del saldo.',
-      }
-    }
 
     if (!actual) return { ok: false, mensaje: 'Factura no encontrada.' }
     if (actual.estado === 'ANULADA') return { ok: false, mensaje: 'No se puede editar una factura anulada.' }
