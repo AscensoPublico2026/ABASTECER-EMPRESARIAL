@@ -329,8 +329,8 @@ export default async function InformeVentaPage({ params }: { params: Promise<{ i
           {hayPagosFuera && (
             <p className="text-xs text-gray-500 mt-1.5">
               Las que dicen solo &quot;Pagada&quot; ya estan pagadas, pero esa compra se
-              repartio entre varias ventas y el movimiento de banco quedo registrado en otra.
-              El detalle del pago esta en el Libro de Tesoreria.
+              repartio entre varias ventas.
+              
             </p>
           )}
         </div>

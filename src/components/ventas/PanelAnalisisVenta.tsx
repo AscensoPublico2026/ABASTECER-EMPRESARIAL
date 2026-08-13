@@ -518,7 +518,7 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
                 {estadoTexto && (
                   <span
                     title={fila.estadoPago === 'PAGADA'
-                      ? 'Esta compra se repartio entre varias ventas y el movimiento de banco quedo registrado en otra. El detalle esta en el Libro de Tesoreria.'
+                      ? 'Esta compra se repartio entre varias ventas.'
                       : undefined}
                     className={`text-xs whitespace-nowrap px-2 py-0.5 rounded-md ${
                       porPagar
@@ -556,8 +556,8 @@ export default function PanelAnalisisVenta({ analisis: a, items, trazabilidad }:
           <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
             <p className="text-xs text-gray-600">
               Las compras que dicen solo <strong>Pagada</strong> ya estan pagadas. No se ve la
-              fecha porque esa compra se repartio entre varias ventas y el movimiento de banco
-              quedo registrado en otra. El detalle esta en el Libro de Tesoreria.
+              fecha porque esa compra se repartio entre varias ventas.
+              
             </p>
           </div>
         )}

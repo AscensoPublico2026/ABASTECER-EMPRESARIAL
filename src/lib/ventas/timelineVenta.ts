@@ -76,11 +76,11 @@ export function construirTimeline(trazabilidad: EventoTrazabilidad[]): FilaTimel
   const facturasVenta = trazabilidad.filter((e) => e.documento_tipo === 'FACTURA_VENTA')
   const cobros = trazabilidad.filter((e) => e.documento_tipo === 'INGRESO_CAJA')
 
-  // Los cobros de 4x1000 no entran: no los causa la venta sino cuantas
-  // transferencias se hicieron. Estan completos en el Libro de Tesoreria.
-  const salidas = trazabilidad.filter(
-    (e) => e.documento_tipo === 'EGRESO_CAJA' && e.estado !== 'GMF',
-  )
+  // Los movimientos de tesoreria (EGRESO_CAJA / INGRESO_CAJA) ya no se
+  // muestran en el timeline. Se eliminó el módulo de tesorería: la salida
+  // de plata la controla el dueño en su conciliación bancaria en Excel.
+  // Si se dejaban, aparecían "Salida de plata" sueltas que confundían.
+  const salidas: EventoTrazabilidad[] = []
 
   const filas: FilaTimeline[] = []
 
