@@ -643,6 +643,29 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
       }
     }
 
+    // Sincronizar el documento soporte asociado (si existe).
+    // Cuando se edita el proveedor o el total de la compra, el DS que se
+    // emitio tiene que reflejar el mismo dato. Sin esto, el DS sigue
+    // mostrando al tercero viejo y el monto viejo.
+    const { data: proveedorNuevo } = proveedor_id
+      ? await supabase.from('proveedores').select('razon_social, nit, tipo_documento, contacto_telefono, direccion').eq('id', proveedor_id).maybeSingle()
+      : { data: null }
+
+    if (proveedorNuevo) {
+      await supabase
+        .from('documentos_soporte')
+        .update({
+          tercero_nombre: proveedorNuevo.razon_social ?? '',
+          tercero_documento: proveedorNuevo.nit ?? '',
+          tercero_tipo_documento: proveedorNuevo.tipo_documento ?? 'NIT',
+          tercero_telefono: proveedorNuevo.contacto_telefono ?? null,
+          tercero_direccion: proveedorNuevo.direccion ?? null,
+          cantidad: 1,
+          valor_unitario: total,
+        })
+        .eq('factura_compra_id', factura_id)
+    }
+
     if (soporte_url) {
       await supabase.from('documentos').insert({
         entidad_tipo: 'FACTURA_COMPRA',
@@ -659,6 +682,10 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
     revalidatePath('/ventas')
     revalidatePath('/panel')
     revalidatePath('/')
+    // Revalidar las paginas de detalle de cada venta afectada
+    for (const cid of [...cotizacionesPrevias, ...cotizacionesNuevas]) {
+      revalidatePath(`/ventas/${cid}`)
+    }
 
     return { ok: true, mensaje: `Factura ${numero_factura} actualizada: ${fmt.format(total)}.` }
   } catch (e) {
@@ -958,6 +985,40 @@ export async function editarDatosFacturaCompra(formData: FormData): Promise<Resu
     }
 
     revalidatePath('/compras')
+    revalidatePath('/ventas')
+    revalidatePath('/panel')
+
+    // Sincronizar el DS si cambio el proveedor
+    if (proveedor_id) {
+      const { data: provNuevo } = await supabase
+        .from('proveedores')
+        .select('razon_social, nit, tipo_documento, contacto_telefono, direccion')
+        .eq('id', proveedor_id)
+        .maybeSingle()
+      if (provNuevo) {
+        await supabase
+          .from('documentos_soporte')
+          .update({
+            tercero_nombre: provNuevo.razon_social ?? '',
+            tercero_documento: provNuevo.nit ?? '',
+            tercero_tipo_documento: provNuevo.tipo_documento ?? 'NIT',
+            tercero_telefono: provNuevo.contacto_telefono ?? null,
+            tercero_direccion: provNuevo.direccion ?? null,
+          })
+          .eq('factura_compra_id', factura_id)
+      }
+    }
+
+    // Revalidar las ventas que tienen esta compra asignada
+    const { data: ventasAsoc } = await supabase
+      .from('asignacion_costos')
+      .select('cotizacion_id')
+      .eq('factura_compra_id', factura_id)
+      .not('cotizacion_id', 'is', null)
+    for (const v of ventasAsoc ?? []) {
+      if (v.cotizacion_id) revalidatePath(`/ventas/${v.cotizacion_id}`)
+    }
+
     return { ok: true, mensaje: 'Factura actualizada correctamente.' }
   } catch (e) {
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al editar.' }
