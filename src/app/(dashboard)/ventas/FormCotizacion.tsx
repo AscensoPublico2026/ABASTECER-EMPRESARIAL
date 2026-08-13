@@ -20,9 +20,10 @@ interface ItemLocal {
   precio_unitario: string
   costo_unitario: string
   iva_porcentaje: string
+  _busqueda?: string
 }
 
-const ITEM_VACIO: ItemLocal = { producto_id: '', descripcion: '', cantidad: '1', precio_unitario: '', costo_unitario: '', iva_porcentaje: '19' }
+const ITEM_VACIO: ItemLocal = { producto_id: '', descripcion: '', cantidad: '1', precio_unitario: '', costo_unitario: '', iva_porcentaje: '19', _busqueda: '' }
 
 function hoy() {
   return new Date().toISOString().slice(0, 10)
@@ -181,17 +182,51 @@ export default function FormCotizacion({ clientes: clientesIniciales, productos:
                 <div key={idx} className="bg-gray-50 p-3 rounded-xl space-y-2">
                   <div className="flex gap-2 items-start">
                     <div className="flex-1 relative">
-                      <select
-                        value={item.producto_id}
-                        onChange={(e) => seleccionarProducto(idx, e.target.value)}
-                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm appearance-none bg-white"
-                      >
-                        <option value="">Buscar producto...</option>
-                        {listaProductos.map((p) => (
-                          <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>
-                        ))}
-                      </select>
-                      {item.descripcion && (
+                      <input
+                        type="text"
+                        value={item.producto_id ? `${listaProductos.find((p) => p.id === item.producto_id)?.codigo ?? ''} - ${listaProductos.find((p) => p.id === item.producto_id)?.nombre ?? ''}` : (item._busqueda ?? '')}
+                        onChange={(e) => {
+                          const items2 = [...items]
+                          items2[idx] = { ...items2[idx], _busqueda: e.target.value, producto_id: '' }
+                          setItems(items2)
+                        }}
+                        onFocus={() => {
+                          const items2 = [...items]
+                          items2[idx] = { ...items2[idx], _busqueda: '', producto_id: '' }
+                          setItems(items2)
+                        }}
+                        placeholder="Escribir para buscar producto..."
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white"
+                        autoComplete="off"
+                      />
+                      {!item.producto_id && (item._busqueda ?? '').length >= 1 && (
+                        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {listaProductos
+                            .filter((p) => {
+                              const q = (item._busqueda ?? '').toLowerCase()
+                              return p.nombre.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q)
+                            })
+                            .slice(0, 15)
+                            .map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => seleccionarProducto(idx, p.id)}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 transition border-b border-gray-50 last:border-0"
+                              >
+                                <span className="font-mono text-xs text-blue-600">{p.codigo}</span>
+                                {' '}<span className="text-gray-800">{p.nombre}</span>
+                              </button>
+                            ))}
+                          {listaProductos.filter((p) => {
+                            const q = (item._busqueda ?? '').toLowerCase()
+                            return p.nombre.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q)
+                          }).length === 0 && (
+                            <p className="px-3 py-2 text-xs text-gray-400">No se encontro ningun producto</p>
+                          )}
+                        </div>
+                      )}
+                      {item.descripcion && item.producto_id && (
                         <p className="text-xs text-gray-500 mt-1 px-1">{item.descripcion}</p>
                       )}
                     </div>
