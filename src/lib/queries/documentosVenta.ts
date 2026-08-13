@@ -284,16 +284,35 @@ export async function obtenerDocumentosDeVenta(cotizacionId: string): Promise<Do
       { tipo: 'FACTURA_VENTA', ids: (facturasVenta ?? []).map((f) => String(f.id)) },
     ]
 
-    // Las URL que ya se listaron arriba, para no repetirlas
+    // Las URL que ya se listaron arriba, para no repetirlas.
+    // Tambien se excluyen los adjuntos de facturas de compra que YA tienen
+    // soporte_url mostrado arriba como "Descargar": sin esto, el mismo PDF
+    // aparecia dos veces (una como factura con Descargar y otra como
+    // "Factura DS1.PDF" suelto abajo).
     const yaListadas = new Set(documentos.filter((d) => d.clase === 'ARCHIVO').map((d) => d.url))
+    // Si ALGUNA factura de compra ya se mostro arriba con su boton
+    // Descargar (tiene soporte_url), no volver a mostrar sus adjuntos de
+    // la tabla documentos. Sin esto el mismo PDF aparecia dos veces.
+    const facturasYaMostradas = new Set(
+      facturaIds.filter(() =>
+        documentos.some((d) => d.grupo === 'COMPRAS Y COSTOS' && d.tipo === 'Factura de compra' && d.clase === 'ARCHIVO')
+      )
+    )
 
     for (const ent of entidades) {
       if (ent.ids.length === 0) continue
+      // Si la factura de compra ya tiene su PDF mostrado arriba, no traer
+      // sus adjuntos (evita duplicados)
+      const idsAConsultar = ent.tipo === 'FACTURA_COMPRA'
+        ? ent.ids.filter((id) => !facturasYaMostradas.has(id))
+        : ent.ids
+      if (idsAConsultar.length === 0) continue
+
       const { data: adjuntos } = await supabase
         .from('documentos')
         .select('id, tipo_documento, nombre_archivo, url_archivo, created_at')
         .eq('entidad_tipo', ent.tipo)
-        .in('entidad_id', ent.ids)
+        .in('entidad_id', idsAConsultar)
 
       for (const d of adjuntos ?? []) {
         const url = String(d.url_archivo)
