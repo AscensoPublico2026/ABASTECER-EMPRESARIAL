@@ -1081,3 +1081,67 @@ export async function revertirEstadoCotizacion(formData: FormData): Promise<Resu
     }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
+
+
+
+// ============================================================
+// ELIMINAR COTIZACION
+// Solo se puede eliminar si NO tiene facturas de venta emitidas
+// (un documento fiscal no se puede borrar, solo anular).
+// ============================================================
+export async function eliminarCotizacion(formData: FormData): Promise<ResultadoAccion> {
+  const cotizacion_id = String(formData.get('cotizacion_id') ?? '').trim()
+  const confirmacion = String(formData.get('confirmacion') ?? '').trim()
+
+  if (!cotizacion_id) return { ok: false, mensaje: 'Cotizacion no valida.' }
+  if (confirmacion.toUpperCase() !== 'ELIMINAR') {
+    return { ok: false, mensaje: 'Escribe la palabra ELIMINAR para confirmar.' }
+  }
+
+  try {
+    const supabase = createServerSupabaseClient()
+
+    const { data: cot } = await supabase
+      .from('cotizaciones')
+      .select('numero, estado')
+      .eq('id', cotizacion_id)
+      .single()
+
+    if (!cot) return { ok: false, mensaje: 'Cotizacion no encontrada.' }
+
+    // No permitir eliminar si tiene factura de venta (es un documento fiscal)
+    const { data: facturas } = await supabase
+      .from('facturas_venta')
+      .select('id, numero_factura_dian')
+      .eq('cotizacion_id', cotizacion_id)
+      .neq('estado', 'ANULADA')
+      .limit(1)
+
+    if (facturas && facturas.length > 0) {
+      return {
+        ok: false,
+        mensaje: `No se puede eliminar: tiene la factura de venta ${facturas[0].numero_factura_dian ?? ''}. Primero anula la factura.`,
+      }
+    }
+
+    // Borrar todo lo relacionado (en orden para respetar foreign keys)
+    await supabase.from('solicitudes_compra').delete().eq('cotizacion_id', cotizacion_id)
+    await supabase.from('remisiones').delete().eq('cotizacion_id', cotizacion_id)
+    await supabase.from('gasto_reparto').delete().eq('cotizacion_id', cotizacion_id)
+    await supabase.from('asignacion_costos').delete().eq('cotizacion_id', cotizacion_id)
+    await supabase.from('documentos_soporte').delete().eq('cotizacion_id', cotizacion_id)
+    await supabase.from('documentos').delete().eq('entidad_tipo', 'COTIZACION').eq('entidad_id', cotizacion_id)
+    await supabase.from('cotizacion_items').delete().eq('cotizacion_id', cotizacion_id)
+
+    const { error } = await supabase.from('cotizaciones').delete().eq('id', cotizacion_id)
+    if (error) return { ok: false, mensaje: error.message }
+
+    revalidatePath('/ventas')
+    revalidatePath('/panel')
+    revalidatePath('/compras')
+
+    return { ok: true, mensaje: `Cotizacion ${cot.numero} eliminada permanentemente.` }
+  } catch (e) {
+    return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al eliminar.' }
+  }
+}

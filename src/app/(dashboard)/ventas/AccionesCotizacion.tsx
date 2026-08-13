@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useTransition, useRef } from 'react'
-import { aprobarCotizacion, registrarPagoContado, pasarAlistamiento, cerrarVenta, generarRemision, revertirEstadoCotizacion } from './actions'
+import { aprobarCotizacion, registrarPagoContado, pasarAlistamiento, cerrarVenta, generarRemision, revertirEstadoCotizacion, eliminarCotizacion } from './actions'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle2, FileText, Loader2, AlertCircle, X, Upload, FileCheck, Pencil, Package, Truck, DollarSign, Undo2, ClipboardList } from 'lucide-react'
+import { CheckCircle2, FileText, Loader2, AlertCircle, X, Upload, FileCheck, Pencil, Package, Truck, DollarSign, Undo2, ClipboardList, Trash2 } from 'lucide-react'
 
 interface Props {
   cotizacionId: string
@@ -19,6 +19,8 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
   const [modalPago, setModalPago] = useState(false)
   const [modalCerrar, setModalCerrar] = useState(false)
   const [modalRemision, setModalRemision] = useState(false)
+  const [modalEliminar, setModalEliminar] = useState(false)
+  const [textoEliminar, setTextoEliminar] = useState('')
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
 
   // Pago contado states
@@ -192,6 +194,13 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
       {['APROBADA', 'PAGADA', 'EN_ALISTAMIENTO', 'FACTURADA', 'DESPACHADA'].includes(estado) && (
         <button onClick={handleRevertir} disabled={pendiente} className="p-1.5 text-gray-400 hover:text-orange-600 rounded-lg hover:bg-orange-50 transition" title="Deshacer (volver al paso anterior)">
           <Undo2 className="w-3.5 h-3.5" />
+        </button>
+      )}
+
+      {/* Eliminar (PENDIENTE, APROBADA o RECHAZADA) */}
+      {['PENDIENTE', 'APROBADA', 'RECHAZADA'].includes(estado) && (
+        <button onClick={() => setModalEliminar(true)} disabled={pendiente} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition" title="Eliminar cotizacion">
+          <Trash2 className="w-3.5 h-3.5" />
         </button>
       )}
 
@@ -584,6 +593,61 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* ===== MODAL ELIMINAR COTIZACION ===== */}
+      {modalEliminar && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-semibold text-red-700">Eliminar cotizacion</h3>
+              <button onClick={() => { setModalEliminar(false); setTextoEliminar(''); setResultado(null) }} className="p-1.5 rounded-lg hover:bg-gray-100">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-red-50 rounded-xl p-4">
+                <p className="text-sm text-red-800 font-medium">¿Eliminar {numero} permanentemente?</p>
+                <p className="text-xs text-red-600 mt-1">Se borran todos los datos de esta cotizacion: items, documentos, solicitudes de compra y remisiones. Esta accion NO se puede deshacer.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Escribe <b>ELIMINAR</b> para confirmar</label>
+                <input
+                  value={textoEliminar}
+                  onChange={(e) => setTextoEliminar(e.target.value)}
+                  placeholder="ELIMINAR"
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm uppercase"
+                  autoComplete="off"
+                />
+              </div>
+              {resultado && (
+                <div className={`flex items-start gap-2 p-3 rounded-xl text-sm ${resultado.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                  {resultado.ok ? <CheckCircle2 className="w-4 h-4 mt-0.5" /> : <AlertCircle className="w-4 h-4 mt-0.5" />}
+                  <span>{resultado.mensaje}</span>
+                </div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => { setModalEliminar(false); setTextoEliminar(''); setResultado(null) }} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50">Cancelar</button>
+                <button
+                  onClick={() => {
+                    const fd = new FormData()
+                    fd.set('cotizacion_id', cotizacionId)
+                    fd.set('confirmacion', textoEliminar)
+                    startTransition(async () => {
+                      const res = await eliminarCotizacion(fd)
+                      setResultado(res)
+                      if (res.ok) setTimeout(() => { setModalEliminar(false); setTextoEliminar('') }, 1500)
+                    })
+                  }}
+                  disabled={pendiente || textoEliminar.toUpperCase() !== 'ELIMINAR'}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {pendiente && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Eliminar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
