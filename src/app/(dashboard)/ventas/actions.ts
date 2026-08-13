@@ -1145,3 +1145,44 @@ export async function eliminarCotizacion(formData: FormData): Promise<ResultadoA
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al eliminar.' }
   }
 }
+
+
+
+// ============================================================
+// EDITAR REMISION (OC del cliente y observaciones)
+// ============================================================
+export async function editarRemision(formData: FormData): Promise<ResultadoAccion> {
+  const cotizacion_id = String(formData.get('cotizacion_id') ?? '').trim()
+  const oc_cliente = String(formData.get('oc_cliente') ?? '').trim()
+  const observaciones = String(formData.get('observaciones') ?? '').trim()
+
+  if (!cotizacion_id) return { ok: false, mensaje: 'Cotizacion no valida.' }
+
+  try {
+    const supabase = createServerSupabaseClient()
+
+    const { error } = await supabase
+      .from('cotizaciones')
+      .update({
+        oc_cliente: oc_cliente || null,
+        remision_observaciones: observaciones || null,
+      })
+      .eq('id', cotizacion_id)
+
+    if (error) return { ok: false, mensaje: error.message }
+
+    // Actualizar la remision tambien si existe
+    await supabase
+      .from('remisiones')
+      .update({ observaciones: observaciones || null })
+      .eq('cotizacion_id', cotizacion_id)
+
+    revalidatePath(`/ventas/${cotizacion_id}`)
+    revalidatePath(`/ventas/${cotizacion_id}/remision`)
+    revalidatePath('/ventas')
+
+    return { ok: true, mensaje: 'Remision actualizada.' }
+  } catch (e) {
+    return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al editar.' }
+  }
+}

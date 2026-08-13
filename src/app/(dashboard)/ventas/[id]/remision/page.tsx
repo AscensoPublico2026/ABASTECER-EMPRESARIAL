@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import BotonImprimir from '../BotonImprimir'
+import FormEditarRemision from './FormEditarRemision'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,8 +39,16 @@ export default async function RemisionPage({ params }: { params: { id: string } 
         <Link href="/ventas" className="flex items-center gap-2 text-gray-600 hover:text-gray-800 text-sm">
           <ArrowLeft className="w-4 h-4" /> Volver a cotizaciones
         </Link>
-        <BotonImprimir />
+        <div className="flex items-center gap-3">
+          <Link href={`/ventas/${params.id}/rotulo`} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition">
+            Imprimir rotulo para cajas
+          </Link>
+          <BotonImprimir />
+        </div>
       </div>
+
+      {/* Formulario de edicion (no se imprime) */}
+      <FormEditarRemision cotizacionId={params.id} ocCliente={cot.oc_cliente ?? ''} observaciones={cot.remision_observaciones ?? ''} />
 
       {/* Documento de remision (imprimible) */}
       <div className="max-w-[210mm] mx-auto my-8 print:my-0 bg-white shadow-lg print:shadow-none p-10 print:p-[15mm]">
