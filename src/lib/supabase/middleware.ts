@@ -15,6 +15,7 @@ const RUTAS_PUBLICAS_PREFIJO = [
   '/contacto',
   '/cotizacion',
   '/cotizar',
+  '/catalogo-pdf',
   '/soluciones',
   '/sectores',
   '/marcas',
