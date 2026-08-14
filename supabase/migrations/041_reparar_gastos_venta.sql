@@ -2,6 +2,13 @@
 -- 041 · REPARAR LOS GASTOS QUE NUNCA LLEGARON A SU VENTA
 -- ============================================================
 --
+-- *** NO HACE FALTA CORRER ESTO A MANO ***
+-- La reparacion ya se hace desde la plataforma: al entrar a /gastos
+-- aparece un aviso con el boton "Reparar ahora" que hace exactamente lo
+-- mismo (ver repararGastosSinVenta en src/app/(dashboard)/gastos/actions.ts).
+-- Este archivo se conserva porque deja dos vistas de auditoria utiles y
+-- porque documenta el arreglo. Es idempotente: correrlo no daña nada.
+--
 -- QUE PASO
 -- --------
 -- Al registrar un gasto y asignarle una venta, el formulario mandaba la

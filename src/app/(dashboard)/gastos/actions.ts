@@ -746,3 +746,175 @@ export async function crearTerceroParaSoporte(formData: FormData): Promise<{
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al crear el tercero.' }
   }
 }
+
+
+// ============================================================
+// REPARAR LOS GASTOS QUE NUNCA LLEGARON A SU VENTA
+// ============================================================
+//
+// POR QUE EXISTE ESTO
+// Durante un tiempo, al asignarle una venta a un gasto, la bandera
+// es_costo_venta se corrompia al guardar ('true' se volvia 'TRUE') y la
+// comparacion fallaba. Resultado: el gasto quedaba como operativo, el
+// vinculo con la venta (gasto_reparto) NUNCA se creaba, y el informe de
+// la cotizacion no mostraba ese costo. La utilidad y el margen de esas
+// ventas quedaron INFLADOS.
+//
+// La causa ya esta corregida. Esto repara lo que quedo mal ANTES, sin
+// tener que correr nada a mano en la base de datos.
+//
+// Se apoya en gastos.cotizacion_id, que si se alcanzaba a guardar.
+// Reutiliza recalcularCostoCotizacion (la misma funcion que usa todo el
+// resto del sistema) para que la utilidad quede identica a la del
+// informe y no haya dos verdades.
+
+export interface GastoPorReparar {
+  id: string
+  concepto: string
+  monto: number
+  cotizacion_numero: string | null
+}
+
+export interface DiagnosticoGastos {
+  /** Gastos que SI se pueden reparar solos */
+  reparables: GastoPorReparar[]
+  /** Gastos que perdieron la venta y hay que reasignar a mano */
+  sinVenta: GastoPorReparar[]
+}
+
+/**
+ * Revisa si hay gastos que deberian estar imputados a una venta pero no
+ * lo estan. No modifica nada.
+ */
+export async function diagnosticarGastosSinVenta(): Promise<DiagnosticoGastos> {
+  const vacio: DiagnosticoGastos = { reparables: [], sinVenta: [] }
+  try {
+    const supabase = createServerSupabaseClient()
+
+    const { data: gastos } = await supabase
+      .from('gastos')
+      .select('id, concepto, monto, cotizacion_id, es_costo_venta, categoria, cotizaciones(numero)')
+      .neq('categoria', 'ACTIVO_FIJO')
+      .limit(500)
+
+    if (!gastos || gastos.length === 0) return vacio
+
+    // Que gastos YA tienen reparto
+    const { data: repartos } = await supabase.from('gasto_reparto').select('gasto_id')
+    const conReparto = new Set((repartos ?? []).map((r) => String(r.gasto_id)))
+
+    const reparables: GastoPorReparar[] = []
+    const sinVenta: GastoPorReparar[] = []
+
+    for (const g of gastos) {
+      const id = String(g.id)
+      if (conReparto.has(id)) continue
+
+      const cot = g.cotizaciones as { numero?: string } | null
+      const fila: GastoPorReparar = {
+        id,
+        concepto: String(g.concepto ?? ''),
+        monto: Number(g.monto ?? 0),
+        cotizacion_numero: cot?.numero ?? null,
+      }
+
+      if (g.cotizacion_id) {
+        // Se puede reconstruir: la venta quedo guardada en la columna vieja
+        reparables.push(fila)
+      } else if (g.es_costo_venta) {
+        // Estaba marcado como costo de venta pero se perdio la venta
+        sinVenta.push(fila)
+      }
+    }
+
+    return { reparables, sinVenta }
+  } catch {
+    return vacio
+  }
+}
+
+/**
+ * Repara de una sola vez todos los gastos reparables: crea el vinculo con
+ * la venta, marca la bandera y recalcula costo, utilidad y margen de cada
+ * venta afectada.
+ */
+export async function repararGastosSinVenta(): Promise<ResultadoAccion> {
+  try {
+    const supabase = createServerSupabaseClient()
+    const { reparables, sinVenta } = await diagnosticarGastosSinVenta()
+
+    if (reparables.length === 0) {
+      if (sinVenta.length > 0) {
+        return {
+          ok: false,
+          mensaje: `No hay nada que reparar solo, pero quedan ${sinVenta.length} gasto(s) que perdieron la venta y hay que asignarsela a mano con el boton Editar.`,
+        }
+      }
+      return { ok: true, mensaje: 'Todo esta en orden: no hay gastos sueltos.' }
+    }
+
+    // Traer la venta y el monto de cada gasto reparable
+    const ids = reparables.map((g) => g.id)
+    const { data: detalle, error: errDetalle } = await supabase
+      .from('gastos')
+      .select('id, monto, cotizacion_id')
+      .in('id', ids)
+
+    if (errDetalle) return { ok: false, mensaje: `No se pudo leer los gastos: ${errDetalle.message}` }
+
+    const filas = (detalle ?? [])
+      .filter((g) => g.cotizacion_id)
+      .map((g) => ({
+        gasto_id: String(g.id),
+        cotizacion_id: String(g.cotizacion_id),
+        monto: Number(g.monto ?? 0),
+      }))
+      .filter((f) => f.monto > 0)
+
+    if (filas.length === 0) return { ok: false, mensaje: 'No se encontro informacion suficiente para reparar.' }
+
+    // 1. Crear el vinculo con la venta
+    const { error: errReparto } = await supabase.from('gasto_reparto').insert(filas)
+    if (errReparto) {
+      return { ok: false, mensaje: `No se pudo crear el vinculo con la venta: ${errReparto.message}. No se cambio nada mas.` }
+    }
+
+    // 2. Marcarlos como costo de venta (si no, el informe los sigue ignorando)
+    const { error: errFlag } = await supabase
+      .from('gastos')
+      .update({ es_costo_venta: true })
+      .in('id', filas.map((f) => f.gasto_id))
+
+    if (errFlag) {
+      // Deshacer el paso 1 para no dejar el dato a medias
+      await supabase.from('gasto_reparto').delete().in('gasto_id', filas.map((f) => f.gasto_id))
+      return { ok: false, mensaje: `No se pudo marcar los gastos como costo de venta: ${errFlag.message}. Se deshizo el cambio.` }
+    }
+
+    // 3. Recalcular utilidad y margen de cada venta afectada
+    const ventas = Array.from(new Set(filas.map((f) => f.cotizacion_id)))
+    for (const cid of ventas) {
+      await recalcularCostoCotizacion(supabase, cid)
+      revalidatePath(`/ventas/${cid}`)
+      revalidatePath(`/ventas/${cid}/informe`)
+    }
+
+    revalidatePath('/gastos')
+    revalidatePath('/ventas')
+    revalidatePath('/obligaciones')
+
+    const fmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
+    const totalReparado = filas.reduce((s, f) => s + f.monto, 0)
+
+    const aviso = sinVenta.length > 0
+      ? ` Quedan ${sinVenta.length} gasto(s) que perdieron la venta: hay que asignarsela a mano con Editar.`
+      : ''
+
+    return {
+      ok: true,
+      mensaje: `Listo: ${filas.length} gasto(s) por ${fmt.format(totalReparado)} ya quedaron imputados a ${ventas.length} venta(s). La utilidad y el margen se recalcularon.${aviso}`,
+    }
+  } catch (e) {
+    return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al reparar.' }
+  }
+}

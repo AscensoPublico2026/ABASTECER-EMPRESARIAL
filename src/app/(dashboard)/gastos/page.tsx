@@ -5,6 +5,8 @@ import { formatCOP, formatFecha } from '@/lib/format'
 import { Wallet, FileWarning, ShieldCheck, Target, FileText, Boxes } from 'lucide-react'
 import FormGasto from './FormGasto'
 import AccionesGasto from './AccionesGasto'
+import AvisoRepararGastos from './AvisoRepararGastos'
+import { diagnosticarGastosSinVenta } from './actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -108,10 +110,16 @@ export default async function GastosPage() {
   const noDeducibles = gastos.filter((g) => !g.deducible)
   const totalNoDeducible = noDeducibles.reduce((s, g) => s + Number(g.monto ?? 0), 0)
 
+  // Gastos que deberian estar imputados a una venta y no lo estan
+  const diagnostico = await diagnosticarGastosSinVenta()
+
   return (
     <>
       <Header title="Gastos" subtitle="Gastos operativos y costos de venta" />
       <div className="p-8 space-y-8">
+
+        {/* Aviso de gastos que no llegaron a su venta (solo si hay) */}
+        <AvisoRepararGastos reparables={diagnostico.reparables} sinVenta={diagnostico.sinVenta} />
 
         {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
