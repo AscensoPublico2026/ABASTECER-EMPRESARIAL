@@ -3,10 +3,16 @@ import { texto, textoOpcional } from './contenido'
 
 /**
  * URL publica del sitio. Se usa para SEO (canonical, sitemap, OpenGraph).
+ *
+ * OJO: va CON www. En Vercel el dominio sin www redirige (308) al de www,
+ * asi que la direccion oficial del sitio para Google es la de www. Si aqui
+ * declaramos la version sin www, Google recibe una canonical que redirige
+ * y puede tratar el sitio como dos distintos, partiendo el posicionamiento.
+ *
  * En Vercel se puede sobreescribir con la variable NEXT_PUBLIC_SITIO_URL.
  */
 export const SITIO_URL = (
-  process.env.NEXT_PUBLIC_SITIO_URL ?? 'https://abastecerempresarial.com'
+  process.env.NEXT_PUBLIC_SITIO_URL ?? 'https://www.abastecerempresarial.com'
 ).replace(/\/$/, '')
 
 /** Menu principal del sitio publico */
