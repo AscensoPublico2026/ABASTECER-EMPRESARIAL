@@ -9,6 +9,14 @@ export const metadata: Metadata = {
 }
 
 /**
+ * OBLIGATORIO: se resuelve en cada visita.
+ * Si Next la deja estatica, el redirect a WhatsApp se guarda como una
+ * respuesta 307 SIN cabecera Location y el visitante ve una pagina en
+ * blanco al escribir la direccion en el navegador.
+ */
+export const dynamic = 'force-dynamic'
+
+/**
  * /cotizar -> redirige directo a WhatsApp.
  *
  * POR QUE NO HAY FORMULARIO:

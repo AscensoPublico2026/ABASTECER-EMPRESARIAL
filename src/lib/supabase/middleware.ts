@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config'
+import { MODO_SITIO } from '@/lib/modo-app'
 
 /**
  * Rutas del SITIO WEB PUBLICO (abastecerempresarial.com).
@@ -36,6 +37,23 @@ export async function updateSession(request: NextRequest) {
   })
 
   const { pathname } = request.nextUrl
+
+  // ============================================================
+  // DESPLIEGUE "SOLO SITIO WEB" (abastecerempresarial.com)
+  // Aqui el ERP no existe. Es IMPOSIBLE que mande a /login:
+  // no se consulta Supabase ni una sola vez.
+  //  - Ruta publica  -> se sirve.
+  //  - Ruta del ERP  -> se manda al inicio del sitio.
+  // ============================================================
+  if (MODO_SITIO) {
+    if (esRutaPublica(pathname) && !pathname.startsWith('/login')) {
+      return response
+    }
+    const url = request.nextUrl.clone()
+    url.pathname = '/'
+    url.search = ''
+    return NextResponse.redirect(url)
+  }
 
   // ============================================================
   // EL SITIO WEB PUBLICO SE SIRVE SIN PREGUNTAR NADA.

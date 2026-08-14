@@ -7,6 +7,7 @@ import { CotizacionProvider } from '@/components/sitio/CotizacionProvider'
 import { obtenerContenidoSitio, obtenerLineasWeb } from '@/lib/queries/sitio'
 import { texto } from '@/lib/sitio/contenido'
 import { SITIO_URL, urlTelefono, urlWhatsapp } from '@/lib/sitio/config'
+import { URL_LOGIN } from '@/lib/modo-app'
 
 /** Tipografia oficial de la marca */
 const montserrat = Montserrat({
@@ -85,6 +86,7 @@ export default async function LayoutSitio({ children }: { children: React.ReactN
           urlWhatsapp={enlaceWhatsapp}
           urlTelefono={urlTelefono(contenido)}
           tagline={texto(contenido, 'marca_tagline')}
+          urlPortal={URL_LOGIN}
         />
 
         <main className="flex-1">{children}</main>

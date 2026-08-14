@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { Menu, X, Phone, Mail, Clock4, ClipboardList, Search } from 'lucide-react'
+import { Menu, X, Phone, Mail, Clock4, ClipboardList, Search, LogIn } from 'lucide-react'
 import LogoAbastecer from './LogoAbastecer'
 import { IconoWhatsapp } from './IconosRedes'
 import { useCotizacion } from './CotizacionProvider'
@@ -17,6 +17,8 @@ interface Props {
   urlWhatsapp: string
   urlTelefono: string
   tagline: string
+  /** Enlace al login del ERP (portal interno del equipo) */
+  urlPortal: string
 }
 
 export default function HeaderSitio({
@@ -26,6 +28,7 @@ export default function HeaderSitio({
   urlWhatsapp,
   urlTelefono,
   tagline,
+  urlPortal,
 }: Props) {
   const pathname = usePathname()
   const [abierto, setAbierto] = useState(false)
@@ -68,6 +71,13 @@ export default function HeaderSitio({
             <a href={`mailto:${correo}`} className="flex items-center gap-1.5 transition hover:text-oro-400">
               <Mail className="h-3.5 w-3.5" />
               {correo}
+            </a>
+            <a
+              href={urlPortal}
+              className="flex items-center gap-1.5 border-l border-white/15 pl-6 font-semibold text-white/70 transition hover:text-oro-400"
+            >
+              <LogIn className="h-3.5 w-3.5" />
+              Ingresar
             </a>
           </div>
         </div>
@@ -188,6 +198,12 @@ export default function HeaderSitio({
                   <Mail className="h-4 w-4" /> Correo
                 </a>
               </div>
+              <a
+                href={urlPortal}
+                className="mt-1 flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-acero-500 transition hover:text-marca-900"
+              >
+                <LogIn className="h-4 w-4" /> Ingresar al portal
+              </a>
             </nav>
           </div>
         ) : null}
