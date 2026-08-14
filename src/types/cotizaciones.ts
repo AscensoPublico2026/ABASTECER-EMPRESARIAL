@@ -51,6 +51,15 @@ export interface Cotizacion {
   descuento_pct: number
   observaciones: string | null
   created_at: string
+  /**
+   * Datos del cobro. Van aca para que el listado sepa si la venta YA se
+   * cobro y deje de ofrecer "Registrar pago" (antes el boton seguia
+   * apareciendo despues de cobrar y no se distinguia lo cobrado de lo
+   * pendiente, con riesgo de registrar el mismo pago dos veces).
+   */
+  fecha_pago: string | null
+  monto_recibido: number
+  retencion_total: number
 }
 
 export interface CotizacionConCliente extends Cotizacion {

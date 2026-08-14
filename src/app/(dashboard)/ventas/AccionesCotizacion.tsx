@@ -11,9 +11,15 @@ interface Props {
   numero: string
   diasCredito?: number
   total?: number
+  /** Fecha en que se cobro. Si viene, la venta YA esta pagada. */
+  fechaPago?: string | null
+  /** Lo que realmente entro (total menos retenciones). */
+  montoRecibidoReal?: number
+  /** Retenciones que le practico el cliente. */
+  retencionTotal?: number
 }
 
-export default function AccionesCotizacion({ cotizacionId, estado, numero, diasCredito = 0, total = 0 }: Props) {
+export default function AccionesCotizacion({ cotizacionId, estado, numero, diasCredito = 0, total = 0, fechaPago = null, montoRecibidoReal = 0, retencionTotal = 0 }: Props) {
   const [pendiente, startTransition] = useTransition()
   const [modalPago, setModalPago] = useState(false)
   const [modalCerrar, setModalCerrar] = useState(false)
@@ -36,6 +42,14 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
   const facturaRef = useRef<HTMLInputElement>(null)
 
   const esCredito = diasCredito > 0
+  /**
+   * La venta ya se cobro. Se mira la fecha de pago y no el estado, porque
+   * el estado sigue avanzando despues de cobrar (FACTURADA, DESPACHADA) y
+   * el boton de "Registrar pago" reaparecia en cada paso, sin forma de
+   * saber que ya se habia cobrado. Registrarlo dos veces duplicaba el
+   * ingreso y las retenciones.
+   */
+  const yaPagada = Boolean(fechaPago)
   const montoRecibidoNum = Number(montoRecibido.replace(/\./g, '').replace(',', '.')) || 0
   const diferenciaRetenida = montoRecibidoNum > 0 ? total - montoRecibidoNum : 0
   const totalRetencionesManuales = (Number(retefuente.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIva.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIca.replace(/\./g, '').replace(',', '.')) || 0)
@@ -217,8 +231,19 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
         </button>
       )}
 
+      {/* Sello de PAGADA: reemplaza al boton en cuanto se cobra */}
+      {yaPagada && (
+        <span
+          title={`Cobrado el ${fechaPago}${retencionTotal > 0 ? ` · retenciones $${retencionTotal.toLocaleString('es-CO')}` : ''}`}
+          className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-semibold"
+        >
+          <CheckCircle2 className="w-3 h-3" />
+          Pagada {montoRecibidoReal > 0 && `· $${montoRecibidoReal.toLocaleString('es-CO')}`}
+        </span>
+      )}
+
       {/* Registrar pago — solo contado (APROBADA y dias_credito = 0) */}
-      {estado === 'APROBADA' && !esCredito && (
+      {!yaPagada && estado === 'APROBADA' && !esCredito && (
         <button onClick={() => setModalPago(true)} disabled={pendiente} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-medium hover:bg-emerald-100 transition disabled:opacity-50">
           <DollarSign className="w-3 h-3" />
           Registrar pago
@@ -226,7 +251,7 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
       )}
 
       {/* Registrar pago — credito (ya facturada o en alistamiento, aun sin cobrar) */}
-      {esCredito && ['EN_ALISTAMIENTO', 'FACTURADA', 'DESPACHADA'].includes(estado) && (
+      {!yaPagada && esCredito && ['EN_ALISTAMIENTO', 'FACTURADA', 'DESPACHADA'].includes(estado) && (
         <button onClick={() => setModalPago(true)} disabled={pendiente} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-medium hover:bg-emerald-100 transition disabled:opacity-50">
           <DollarSign className="w-3 h-3" />
           Registrar pago

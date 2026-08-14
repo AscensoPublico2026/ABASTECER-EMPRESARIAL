@@ -15,6 +15,7 @@ export default function TablaCotizaciones({ cotizaciones, clientes }: Props) {
   const [filtroCliente, setFiltroCliente] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
   const [filtroPago, setFiltroPago] = useState('')
+  const [filtroCobro, setFiltroCobro] = useState('')
   const [busqueda, setBusqueda] = useState('')
 
   const filtradas = cotizaciones.filter((c) => {
@@ -22,6 +23,8 @@ export default function TablaCotizaciones({ cotizaciones, clientes }: Props) {
     if (filtroEstado && c.estado !== filtroEstado) return false
     if (filtroPago === 'CONTADO' && c.dias_credito > 0) return false
     if (filtroPago === 'CREDITO' && c.dias_credito === 0) return false
+    if (filtroCobro === 'PAGADA' && !c.fecha_pago) return false
+    if (filtroCobro === 'PENDIENTE' && c.fecha_pago) return false
     if (busqueda) {
       const q = busqueda.toLowerCase()
       const coincide = (c.numero ?? '').toLowerCase().includes(q)
@@ -32,7 +35,11 @@ export default function TablaCotizaciones({ cotizaciones, clientes }: Props) {
     return true
   })
 
-  const hayFiltros = filtroCliente || filtroEstado || filtroPago || busqueda
+  const hayFiltros = filtroCliente || filtroEstado || filtroPago || filtroCobro || busqueda
+
+  // Cuanto falta por cobrar de lo que se esta viendo
+  const porCobrar = filtradas.filter((c) => !c.fecha_pago).reduce((s, c) => s + c.total, 0)
+  const cobrado = filtradas.filter((c) => c.fecha_pago).reduce((s, c) => s + c.monto_recibido, 0)
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -64,12 +71,29 @@ export default function TablaCotizaciones({ cotizaciones, clientes }: Props) {
           <option value="CONTADO">Solo Contado</option>
           <option value="CREDITO">Solo Credito</option>
         </select>
+        <select value={filtroCobro} onChange={(e) => setFiltroCobro(e.target.value)} className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600">
+          <option value="">Cobradas y sin cobrar</option>
+          <option value="PENDIENTE">Solo SIN cobrar</option>
+          <option value="PAGADA">Solo cobradas</option>
+        </select>
         {hayFiltros && (
-          <button onClick={() => { setFiltroCliente(''); setFiltroEstado(''); setFiltroPago(''); setBusqueda('') }} className="text-xs text-blue-600 hover:underline">
+          <button onClick={() => { setFiltroCliente(''); setFiltroEstado(''); setFiltroPago(''); setFiltroCobro(''); setBusqueda('') }} className="text-xs text-blue-600 hover:underline">
             Limpiar filtros
           </button>
         )}
-        <span className="text-xs text-gray-400 ml-auto">{filtradas.length} resultado{filtradas.length !== 1 ? 's' : ''}</span>
+        <div className="ml-auto flex items-center gap-3 text-xs">
+          {porCobrar > 0 && (
+            <span className="font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+              Por cobrar: {formatCOP(porCobrar)}
+            </span>
+          )}
+          {cobrado > 0 && (
+            <span className="font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1">
+              Cobrado: {formatCOP(cobrado)}
+            </span>
+          )}
+          <span className="text-gray-400">{filtradas.length} resultado{filtradas.length !== 1 ? 's' : ''}</span>
+        </div>
       </div>
 
       {filtradas.length === 0 ? (
@@ -117,7 +141,7 @@ export default function TablaCotizaciones({ cotizaciones, clientes }: Props) {
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${estado.color}`}>{estado.etiqueta}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <AccionesCotizacion cotizacionId={c.id} estado={c.estado} numero={c.numero} diasCredito={c.dias_credito} total={c.total} />
+                      <AccionesCotizacion cotizacionId={c.id} estado={c.estado} numero={c.numero} diasCredito={c.dias_credito} total={c.total} fechaPago={c.fecha_pago} montoRecibidoReal={c.monto_recibido} retencionTotal={c.retencion_total} />
                     </td>
                   </tr>
                 )
