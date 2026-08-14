@@ -1,5 +1,6 @@
 'use server'
 
+import { leerBandera } from '@/lib/uppercase'
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
@@ -13,7 +14,7 @@ export async function agregarPrecioProveedor(formData: FormData): Promise<Result
   const producto_id = String(formData.get('producto_id') ?? '').trim()
   const proveedor_id = String(formData.get('proveedor_id') ?? '').trim()
   const precio = Number(String(formData.get('precio') ?? '0').replace(/\./g, '').replace(',', '.')) || 0
-  const iva_incluido = formData.get('iva_incluido') === 'true'
+  const iva_incluido = leerBandera(formData.get('iva_incluido'))
   const tiempo_entrega = String(formData.get('tiempo_entrega') ?? '').trim()
   const referencia_proveedor = String(formData.get('referencia_proveedor') ?? '').trim()
   const fecha_cotizacion = String(formData.get('fecha_cotizacion') ?? '').trim()
@@ -91,7 +92,7 @@ export async function crearProveedorRapido(formData: FormData): Promise<{ ok: bo
 export async function editarPrecioProveedor(formData: FormData): Promise<ResultadoAccion> {
   const id = String(formData.get('id') ?? '').trim()
   const precio = Number(String(formData.get('precio') ?? '0').replace(/\./g, '').replace(',', '.')) || 0
-  const iva_incluido = formData.get('iva_incluido') === 'true'
+  const iva_incluido = leerBandera(formData.get('iva_incluido'))
   const tiempo_entrega = String(formData.get('tiempo_entrega') ?? '').trim()
   const referencia_proveedor = String(formData.get('referencia_proveedor') ?? '').trim()
   const fecha_cotizacion = String(formData.get('fecha_cotizacion') ?? '').trim()

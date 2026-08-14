@@ -10,7 +10,8 @@
     "validar-sql": "node scripts/validar-sql.mjs supabase/migrations/*.sql supabase/*.sql",
     "probar-migraciones": "node scripts/probar-migraciones.mjs",
     "probar-conciliacion": "node scripts/probar-conciliacion.mjs",
-    "verificar-sql": "npm run validar-sql && npm run probar-migraciones && npm run probar-conciliacion"
+    "probar-gastos-venta": "node scripts/probar-gastos-venta.mjs",
+    "verificar-sql": "npm run validar-sql && npm run probar-migraciones && npm run probar-conciliacion && npm run probar-gastos-venta"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { uppercaseFormData } from '@/lib/uppercase'
+import { uppercaseFormData, leerBandera } from '@/lib/uppercase'
 import { obtenerNombreUsuarioActual } from '@/lib/queries/perfil'
 import { recalcularCostoCotizacion } from '@/lib/queries/costeo'
 
@@ -88,7 +88,9 @@ export async function registrarGasto(formData: FormData): Promise<ResultadoAccio
   }
   const totalRepartido = reparto.reduce((s, r) => s + r.monto, 0)
   const cotizacion_id = reparto[0]?.cotizacion_id ?? ''
-  const es_costo_venta = formData.get('es_costo_venta') === 'on' || formData.get('es_costo_venta') === 'true'
+  // Si hay ventas asignadas, ES un costo de venta, diga lo que diga la
+  // bandera. Asi el vinculo no se puede perder por un valor mal leido.
+  const es_costo_venta = leerBandera(formData.get('es_costo_venta')) || reparto.length > 0
   const tipo_soporte = String(formData.get('tipo_soporte') ?? 'NINGUNO').trim()
   const soporte_url = String(formData.get('soporte_url') ?? '').trim()
 
@@ -497,7 +499,7 @@ export async function editarGasto(formData: FormData): Promise<ResultadoAccion> 
   const fecha = String(formData.get('fecha') ?? '').trim()
   const categoria = String(formData.get('categoria') ?? 'OTROS').trim()
   const cotizacion_id = String(formData.get('cotizacion_id') ?? '').trim()
-  const es_costo_venta = formData.get('es_costo_venta') === 'on' || formData.get('es_costo_venta') === 'true'
+  const banderaCostoVenta = leerBandera(formData.get('es_costo_venta'))
 
   // Reparto multiple (nuevo)
   let reparto: { cotizacion_id: string; monto: number }[] = []
@@ -509,9 +511,15 @@ export async function editarGasto(formData: FormData): Promise<ResultadoAccion> 
         .map((r: unknown) => ({ cotizacion_id: String((r as { cotizacion_id: string }).cotizacion_id), monto: Number((r as { monto: number }).monto) }))
     }
   } catch { /* ignora JSON invalido */ }
-  if (reparto.length === 0 && es_costo_venta && cotizacion_id) {
+  if (reparto.length === 0 && banderaCostoVenta && cotizacion_id) {
     reparto = [{ cotizacion_id, monto: valor }]
   }
+
+  // Si hay ventas asignadas, ES un costo de venta, diga lo que diga la
+  // bandera. Antes esta linea daba false y mas abajo se BORRABA el
+  // reparto sin volverlo a crear: cada edicion destruia el vinculo con
+  // la venta, por eso "volver a asignarla" no arreglaba nada.
+  const es_costo_venta = banderaCostoVenta || reparto.length > 0
 
   const notas = String(formData.get('notas') ?? '').trim()
 

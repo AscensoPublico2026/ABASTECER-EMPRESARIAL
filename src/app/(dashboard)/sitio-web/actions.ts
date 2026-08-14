@@ -1,5 +1,6 @@
 'use server'
 
+import { leerBandera } from '@/lib/uppercase'
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
@@ -106,9 +107,9 @@ export async function guardarProductoWeb(formData: FormData): Promise<ResultadoA
         imagen_url: limpio('imagen_url', 800) || null,
         imagenes,
         categoria_id: limpio('categoria_id', 60) || null,
-        visible_web: formData.get('visible_web') === 'on' || formData.get('visible_web') === 'true',
+        visible_web: leerBandera(formData.get('visible_web')),
         destacado_web:
-          formData.get('destacado_web') === 'on' || formData.get('destacado_web') === 'true',
+          leerBandera(formData.get('destacado_web')),
         orden_web: Number(formData.get('orden_web')) || 0,
       })
       .eq('id', id)
@@ -128,7 +129,7 @@ export async function guardarProductoWeb(formData: FormData): Promise<ResultadoA
 /** Publica u oculta un producto en el catalogo web */
 export async function alternarVisibleWeb(formData: FormData): Promise<ResultadoAccion> {
   const id = String(formData.get('id') ?? '').trim()
-  const publicar = String(formData.get('publicar') ?? '') === 'true'
+  const publicar = leerBandera(formData.get('publicar'))
   if (!id) return { ok: false, mensaje: 'Producto no válido.' }
 
   try {
@@ -156,7 +157,7 @@ export async function alternarVisibleWeb(formData: FormData): Promise<ResultadoA
 /** Marca o desmarca un producto como destacado en la pagina de inicio */
 export async function alternarDestacadoWeb(formData: FormData): Promise<ResultadoAccion> {
   const id = String(formData.get('id') ?? '').trim()
-  const destacar = String(formData.get('destacar') ?? '') === 'true'
+  const destacar = leerBandera(formData.get('destacar'))
   if (!id) return { ok: false, mensaje: 'Producto no válido.' }
 
   try {
@@ -216,7 +217,7 @@ export async function guardarLineaWeb(formData: FormData): Promise<ResultadoAcci
         descripcion_web: limpio('descripcion_web', 1200) || null,
         icono: limpio('icono', 40) || 'caja',
         imagen_url: limpio('imagen_url', 800) || null,
-        visible_web: formData.get('visible_web') === 'on' || formData.get('visible_web') === 'true',
+        visible_web: leerBandera(formData.get('visible_web')),
         orden: Number(formData.get('orden')) || 0,
       })
       .eq('id', id)

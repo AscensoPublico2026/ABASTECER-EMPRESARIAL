@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { uppercaseFormData } from '@/lib/uppercase'
+import { uppercaseFormData, leerBandera } from '@/lib/uppercase'
 
 export async function actualizarCliente(formData: FormData) {
   uppercaseFormData(formData)
@@ -25,7 +25,10 @@ export async function actualizarCliente(formData: FormData) {
       direccion_entrega: formData.get('direccion_entrega') || null,
       sector: formData.get('sector') || null,
       estado: formData.get('estado') || 'ACTIVO',
-      tiene_credito: formData.get('tiene_credito') === 'true',
+      // leerBandera y no === 'true': uppercaseFormData volvia el valor
+      // 'TRUE' y la comparacion fallaba, asi que CADA edicion de un
+      // cliente le apagaba el credito sin avisar.
+      tiene_credito: leerBandera(formData.get('tiene_credito')),
       dias_credito: Number(formData.get('dias_credito')) || 0,
       cupo_credito: Number(formData.get('cupo_credito')) || 0,
       notas: formData.get('notas') || null,

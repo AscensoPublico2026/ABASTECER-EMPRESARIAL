@@ -1,5 +1,6 @@
 'use server'
 
+import { leerBandera } from '@/lib/uppercase'
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
@@ -62,7 +63,7 @@ export async function editarPerfil(formData: FormData): Promise<ResultadoAccion>
   const cargo = String(formData.get('cargo') ?? '').trim()
   const rol = String(formData.get('rol') ?? 'EMPLEADO').trim()
   const modulosJson = String(formData.get('modulos') ?? '[]')
-  const activo = formData.get('activo') === 'true'
+  const activo = leerBandera(formData.get('activo'))
 
   if (!id) return { ok: false, mensaje: 'ID invalido.' }
   if (!nombre) return { ok: false, mensaje: 'El nombre es obligatorio.' }
