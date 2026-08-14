@@ -475,7 +475,6 @@ export async function registrarFacturaCompra(formData: FormData): Promise<Result
 
     revalidatePath('/compras')
     revalidatePath('/inventario')
-    revalidatePath('/financiero')
     revalidatePath('/ventas')
     revalidatePath('/panel')
 
@@ -678,7 +677,6 @@ export async function editarFacturaCompra(formData: FormData): Promise<Resultado
 
     revalidatePath('/compras')
     revalidatePath('/inventario')
-    revalidatePath('/financiero')
     revalidatePath('/ventas')
     revalidatePath('/panel')
     revalidatePath('/')
@@ -768,7 +766,6 @@ export async function anularFacturaCompra(formData: FormData): Promise<Resultado
 
     revalidatePath('/compras')
     revalidatePath('/inventario')
-    revalidatePath('/financiero')
     revalidatePath('/ventas')
     revalidatePath('/panel')
 
@@ -849,7 +846,6 @@ export async function asignarCostosCompra(formData: FormData): Promise<Resultado
 
     revalidatePath('/compras')
     revalidatePath('/ventas')
-    revalidatePath('/financiero')
 
     return { ok: true, mensaje: `${cantidad} unidades asignadas correctamente.` }
   } catch (e) {
@@ -898,7 +894,6 @@ export async function pagarFacturaCompra(formData: FormData): Promise<ResultadoA
     }
 
     revalidatePath('/compras')
-    revalidatePath('/financiero')
     revalidatePath('/panel')
 
     const avisoRetencion = retencion > 0

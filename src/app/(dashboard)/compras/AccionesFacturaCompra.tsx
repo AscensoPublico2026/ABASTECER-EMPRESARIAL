@@ -63,8 +63,6 @@ export default function AccionesFacturaCompra({
 }: Props) {
   const [pendiente, startTransition] = useTransition()
   const [modal, setModal] = useState<null | 'editar' | 'pagar' | 'anular'>(null)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const cuentasOperativas: { id: string; nombre: string }[] = []
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
   const [pdf, setPdf] = useState<File | null>(null)
   const [subiendo, setSubiendo] = useState(false)
@@ -78,7 +76,6 @@ export default function AccionesFacturaCompra({
   const [fechaFactura, setFechaFactura] = useState(factura.fecha_factura?.slice(0, 10) ?? hoy())
   const [formaPago, setFormaPago] = useState(factura.forma_pago)
   const [notas, setNotas] = useState('')
-  const [cuentaId, setCuentaId] = useState('')
   const [tieneRetencion, setTieneRetencion] = useState(false)
   const [retefuente, setRetefuente] = useState('')
   const [reteiva, setReteiva] = useState('')
@@ -87,7 +84,6 @@ export default function AccionesFacturaCompra({
   const anulada = factura.estado === 'ANULADA'
   const pagada = factura.estado === 'PAGADA'
   const ocupado = pendiente || subiendo
-  const esContado = !formaPago.includes('Credito')
 
   function cerrar() {
     setModal(null)
@@ -242,7 +238,6 @@ export default function AccionesFacturaCompra({
     formData.set('forma_pago', formaPago)
     formData.set('notas', notas)
     formData.set('items', JSON.stringify(itemsParseados))
-    if (cuentaId) formData.set('cuenta_id', cuentaId)
     formData.set('retencion_retefuente', tieneRetencion ? (retefuente || '0') : '0')
     formData.set('retencion_reteiva', tieneRetencion ? (reteiva || '0') : '0')
     formData.set('retencion_reteica', tieneRetencion ? (reteica || '0') : '0')
@@ -437,26 +432,6 @@ export default function AccionesFacturaCompra({
                     </select>
                   </div>
                 </div>
-
-                {/* Cuenta si es contado */}
-                {esContado && false && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Cuenta de donde salio el dinero
-                    </label>
-                    <select
-                      value={cuentaId}
-                      onChange={(e) => setCuentaId(e.target.value)}
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
-                    >
-                      <option value="">Dejar la cuenta que ya tenia</option>
-                      {null}
-                    </select>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Solo cambialo si el pago salio de otra cuenta
-                    </p>
-                  </div>
-                )}
 
                 {/* ITEMS */}
                 <div>
@@ -792,7 +767,7 @@ export default function AccionesFacturaCompra({
             <form action={handlePagar} className="p-6 space-y-4">
               <div className="bg-emerald-50 rounded-xl p-3">
                 <p className="text-sm text-emerald-800 font-medium">
-                  Se registra la salida de {formatCOP((factura.retencion_total ?? 0) > 0 ? factura.total - (factura.retencion_total ?? 0) : factura.total)} de la cuenta que elijas.
+                  Se marca como pagada por {formatCOP((factura.retencion_total ?? 0) > 0 ? factura.total - (factura.retencion_total ?? 0) : factura.total)}.
                 </p>
                 {(factura.retencion_total ?? 0) > 0 && (
                   <p className="text-xs text-emerald-700 mt-1">
@@ -802,13 +777,11 @@ export default function AccionesFacturaCompra({
                 )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta de donde sale *</label>
-                <select name="cuenta_id" required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
-                  <option value="">Seleccionar cuenta</option>
-                  {null}
-                </select>
-              </div>
+              {/* Se quito el select "Cuenta de donde sale": era un campo
+                  obligatorio con la lista vacia, asi que el navegador ni
+                  siquiera dejaba enviar el formulario y era imposible
+                  marcar una compra como pagada. La accion del servidor
+                  nunca usaba ese dato. */}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

@@ -11,10 +11,9 @@ interface Props {
   numero: string
   diasCredito?: number
   total?: number
-  cuentas?: { id: string; nombre: string; es_reserva: boolean }[]
 }
 
-export default function AccionesCotizacion({ cotizacionId, estado, numero, diasCredito = 0, total = 0, cuentas = [] }: Props) {
+export default function AccionesCotizacion({ cotizacionId, estado, numero, diasCredito = 0, total = 0 }: Props) {
   const [pendiente, startTransition] = useTransition()
   const [modalPago, setModalPago] = useState(false)
   const [modalCerrar, setModalCerrar] = useState(false)
@@ -37,7 +36,6 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
   const facturaRef = useRef<HTMLInputElement>(null)
 
   const esCredito = diasCredito > 0
-  const cuentasOperativas = cuentas.filter((c) => !c.es_reserva)
   const montoRecibidoNum = Number(montoRecibido.replace(/\./g, '').replace(',', '.')) || 0
   const diferenciaRetenida = montoRecibidoNum > 0 ? total - montoRecibidoNum : 0
   const totalRetencionesManuales = (Number(retefuente.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIva.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIca.replace(/\./g, '').replace(',', '.')) || 0)
@@ -389,28 +387,13 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
                 <p className="text-xs text-emerald-600 mt-1">Al registrar el pago, pasa a &quot;En alistamiento&quot; (comprar/preparar productos).</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de pago *</label>
-                  <input name="fecha_pago" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
-                </div>
-                {/* La cuenta es OBLIGATORIA. Antes este select se ocultaba
-                    si no habia cuentas operativas, y tenia una opcion "No
-                    registrar en caja": el pago quedaba en la venta pero la
-                    plata nunca entraba al banco y se volvia invisible. */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">A que cuenta entro *</label>
-                  {cuentasOperativas.length > 0 ? (
-                    <select name="cuenta_id" required defaultValue={cuentasOperativas[0]?.id ?? ''} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm">
-                      {cuentasOperativas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                    </select>
-                  ) : (
-                    <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
-                      No tienes ninguna cuenta activa. Crea la cuenta en Tesoreria antes de
-                      registrar el pago, si no la plata no queda en ningun lado.
-                    </p>
-                  )}
-                </div>
+              {/* Ya no se pregunta "a que cuenta entro": el modulo de
+                  tesoreria se elimino y la conciliacion bancaria se lleva
+                  aparte. Pedir la cuenta aqui dejaba el pago imposible de
+                  registrar, porque no habia forma de crear cuentas. */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de pago *</label>
+                <input name="fecha_pago" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
               </div>
 
               {/* Monto recibido → calcula retenciones automaticamente */}

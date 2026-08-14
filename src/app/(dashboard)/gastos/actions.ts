@@ -234,7 +234,6 @@ export async function registrarGasto(formData: FormData): Promise<ResultadoAccio
     }
 
     revalidatePath('/gastos')
-    revalidatePath('/financiero')
     revalidatePath('/ventas')
     revalidatePath('/panel')
 
@@ -311,7 +310,6 @@ export async function eliminarGasto(formData: FormData): Promise<ResultadoAccion
     }
 
     revalidatePath('/gastos')
-    revalidatePath('/financiero')
     revalidatePath('/panel')
 
     return { ok: true, mensaje: `Gasto "${gasto.concepto}" eliminado.` }
@@ -387,7 +385,6 @@ export async function completarDocumentoSoporte(formData: FormData): Promise<Res
       .eq('id', gasto_id)
 
     revalidatePath('/gastos')
-    revalidatePath('/financiero')
     if (gasto.cotizacion_id) revalidatePath(`/ventas/${gasto.cotizacion_id}`)
 
     return { ok: true, mensaje: `Documento soporte ${ds.numero} generado. El gasto ya es deducible.` }
@@ -615,7 +612,6 @@ export async function editarGasto(formData: FormData): Promise<ResultadoAccion> 
     }
 
     revalidatePath('/gastos')
-    revalidatePath('/financiero')
     revalidatePath('/ventas')
     revalidatePath('/panel')
     revalidatePath('/')

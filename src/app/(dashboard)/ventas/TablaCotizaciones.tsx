@@ -9,10 +9,9 @@ import AccionesCotizacion from './AccionesCotizacion'
 interface Props {
   cotizaciones: CotizacionConCliente[]
   clientes: string[] // Lista de nombres de clientes unicos para el filtro
-  cuentas?: { id: string; nombre: string; es_reserva: boolean }[]
 }
 
-export default function TablaCotizaciones({ cotizaciones, clientes, cuentas = [] }: Props) {
+export default function TablaCotizaciones({ cotizaciones, clientes }: Props) {
   const [filtroCliente, setFiltroCliente] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
   const [filtroPago, setFiltroPago] = useState('')
@@ -118,7 +117,7 @@ export default function TablaCotizaciones({ cotizaciones, clientes, cuentas = []
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${estado.color}`}>{estado.etiqueta}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <AccionesCotizacion cotizacionId={c.id} estado={c.estado} numero={c.numero} diasCredito={c.dias_credito} total={c.total} cuentas={cuentas} />
+                      <AccionesCotizacion cotizacionId={c.id} estado={c.estado} numero={c.numero} diasCredito={c.dias_credito} total={c.total} />
                     </td>
                   </tr>
                 )

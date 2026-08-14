@@ -222,7 +222,6 @@ export async function cerrarVenta(formData: FormData): Promise<ResultadoAccion> 
     }
 
     revalidatePath('/ventas')
-    revalidatePath('/financiero')
     return { ok: true, mensaje: `Venta cerrada. Factura DIAN: ${numero_factura_dian}. ${cot.dias_credito > 0 ? 'Cuenta por cobrar registrada.' : 'Cobrada (contado).'}` }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al cerrar venta.' } }
 }
@@ -284,7 +283,6 @@ export async function ventaDirecta(formData: FormData): Promise<ResultadoAccion>
     if (errorItems) return { ok: false, mensaje: errorItems.message }
 
     revalidatePath('/ventas')
-    revalidatePath('/financiero')
     return { ok: true, mensaje: `Venta directa registrada: ${fmt.format(total)} | Utilidad: ${fmt.format(utilidad)} (${margen_pct}%)` }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
@@ -381,18 +379,11 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
   const retefuente = Number(formData.get('retefuente') ?? 0)
   const rete_iva = Number(formData.get('rete_iva') ?? 0)
   const rete_ica = Number(formData.get('rete_ica') ?? 0)
-  const cuenta_id = String(formData.get('cuenta_id') ?? '').trim()
-
   if (!factura_venta_id) return { ok: false, mensaje: 'Factura no valida.' }
   if (!fecha_pago) return { ok: false, mensaje: 'Selecciona la fecha en que se recibio el pago.' }
-  // Mismo bug que en el pago de contado: sin cuenta, el cobro quedaba
-  // escrito en la factura pero la plata nunca entraba al banco.
-  if (!cuenta_id) {
-    return {
-      ok: false,
-      mensaje: 'Selecciona a que cuenta entro el dinero. Sin cuenta el cobro no queda registrado en el banco y el saldo no cuadra.',
-    }
-  }
+  // Ya no se exige cuenta: el modulo de tesoreria se elimino y la
+  // conciliacion bancaria se lleva por fuera. Exigirla dejaba el cobro
+  // imposible de registrar, porque no habia forma de crear cuentas.
 
   const total_retenciones = retefuente + rete_iva + rete_ica
 
@@ -451,7 +442,6 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
       .eq('id', factura_venta_id)
       .single()
 
-    let avisoCaja = ''
     if (fvData) {
       const montoNeto = Number(fvData.total) - total_retenciones
 
@@ -467,44 +457,8 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
           : null,
       })
 
-      // Registrar la entrada de dinero en tesoreria.
-      // La cuenta es obligatoria (se valida al inicio): sin ella el cobro
-      // quedaba escrito en la factura pero la plata nunca entraba al banco.
-      {
-        const usuario = await obtenerNombreUsuarioActual()
-        const { error: errCaja } = await supabase.from('movimientos_tesoreria').insert({
-          cuenta_id,
-          fecha: fecha_pago,
-          tipo: 'INGRESO',
-          categoria: 'COBRO_CLIENTE',
-          monto: montoNeto,
-          concepto: `Cobro factura ${fvData.numero_factura_dian ?? ''}`.trim(),
-          factura_venta_id,
-          cotizacion_id: fvData.cotizacion_id,
-          medio_pago: 'Transferencia',
-          soporte_url: soporte_url || null,
-          notas: total_retenciones > 0
-            ? `Retenciones: Rtefte ${retefuente} | RteIVA ${rete_iva} | RteICA ${rete_ica}`
-            : null,
-          creado_por_id: usuario.id,
-          creado_por_nombre: usuario.nombre,
-        })
-        if (errCaja) {
-          // Devolver la factura a EMITIDA para que se pueda reintentar.
-          // Si la dejamos COBRADA, el guard de idempotencia bloquea el
-          // reintento y la plata nunca queda en el banco.
-          await supabase
-            .from('facturas_venta')
-            .update({ estado: 'EMITIDA' })
-            .eq('id', factura_venta_id)
-
-          return {
-            ok: false,
-            mensaje: `No se pudo registrar la entrada de dinero en la cuenta (${errCaja.message}). La factura sigue como EMITIDA para que no quede plata fantasma. Corrige y vuelve a intentar.`,
-          }
-        }
-        avisoCaja = ' El dinero entro a la cuenta.'
-      }
+      // El movimiento de tesoreria ya no se registra: ese modulo se
+      // elimino y el saldo del banco se controla en la conciliacion.
 
       // Reflejar el cobro y las retenciones en la cotizacion.
       // CADENA ROTA que esto arregla: los calculos de impuestos leen de
@@ -541,12 +495,11 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
 
     revalidatePath('/ventas')
     revalidatePath('/facturacion')
-    revalidatePath('/financiero')
     revalidatePath('/')
     const montoRecibido = fvData ? Number(fvData.total) - total_retenciones : 0
     return { ok: true, mensaje: total_retenciones > 0
-      ? `Cobro registrado. Recibido: $${montoRecibido.toLocaleString('es-CO')} (retenciones: $${total_retenciones.toLocaleString('es-CO')}).${avisoCaja}`
-      : `Cobro registrado: $${montoRecibido.toLocaleString('es-CO')}.${avisoCaja}`
+      ? `Cobro registrado. Recibido: $${montoRecibido.toLocaleString('es-CO')} (retenciones: $${total_retenciones.toLocaleString('es-CO')}).`
+      : `Cobro registrado: $${montoRecibido.toLocaleString('es-CO')}.`
     }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
@@ -561,25 +514,17 @@ export async function registrarPagoContado(formData: FormData): Promise<Resultad
   const retefuente = Number(formData.get('retefuente') ?? 0)
   const rete_iva = Number(formData.get('rete_iva') ?? 0)
   const rete_ica = Number(formData.get('rete_ica') ?? 0)
-  const cuenta_id = String(formData.get('cuenta_id') ?? '').trim()
-
   if (!cotizacion_id) return { ok: false, mensaje: 'Cotizacion no valida.' }
   if (!fecha_pago) return { ok: false, mensaje: 'Fecha de pago obligatoria.' }
   if (!soporte_url) return { ok: false, mensaje: 'Soporte de pago obligatorio.' }
-  // La cuenta es OBLIGATORIA.
+  // Ya no se exige cuenta bancaria.
   //
-  // BUG QUE ESTO ARREGLA: antes el insert en tesoreria estaba dentro de
-  // un `if (cuenta_id)`. Si venia vacio, el pago se guardaba en la
-  // cotizacion (monto_recibido, fecha_pago, estado) pero NUNCA entraba
-  // al banco, y la accion devolvia OK en verde. La plata quedaba
-  // registrada en la venta y era invisible en Tesoreria, en el saldo y
-  // en la trazabilidad. Un pago que no entra a una cuenta no es un pago.
-  if (!cuenta_id) {
-    return {
-      ok: false,
-      mensaje: 'Selecciona a que cuenta entro el dinero. Sin cuenta el pago no queda registrado en el banco y el saldo no cuadra.',
-    }
-  }
+  // Al eliminar el modulo de tesoreria se quedo este requisito sin la
+  // pantalla que permitia crear cuentas, asi que el select siempre salia
+  // vacio y NINGUN pago se podia registrar. El control del dinero pasa
+  // por la conciliacion bancaria; aqui lo que importa es el soporte de
+  // pago, el monto recibido y las retenciones, que son los datos que
+  // alimentan el modulo de Obligaciones (IVA y Simple).
 
   const total_retenciones = retefuente + rete_iva + rete_ica
 
@@ -650,58 +595,15 @@ export async function registrarPagoContado(formData: FormData): Promise<Resultad
       url_archivo: soporte_url,
     })
 
-    // Registrar la entrada de dinero en tesoreria.
-    // Si esto falla NO se puede dejar la venta marcada como pagada: seria
-    // plata fantasma. Se revierte la cotizacion y se devuelve el error,
-    // asi el usuario puede reintentar (el guard de fecha_pago lo dejaria
-    // bloqueado para siempre si no revertimos).
-    const usuario = await obtenerNombreUsuarioActual()
-    const { error: errCaja } = await supabase.from('movimientos_tesoreria').insert({
-      cuenta_id,
-      fecha: fecha_pago,
-      tipo: 'INGRESO',
-      categoria: 'COBRO_CLIENTE',
-      monto: monto_recibido,
-      concepto: `Pago de cliente ${cot.numero}`,
-      cotizacion_id,
-      medio_pago: 'Transferencia',
-      soporte_url,
-      notas: total_retenciones > 0
-        ? `Retenciones: Rtefte ${retefuente} | RteIVA ${rete_iva} | RteICA ${rete_ica}`
-        : null,
-      creado_por_id: usuario.id,
-      creado_por_nombre: usuario.nombre,
-    })
-
-    if (errCaja) {
-      await supabase
-        .from('cotizaciones')
-        .update({
-          estado: cot.estado,
-          fecha_pago: null,
-          monto_recibido: 0,
-          retencion_retefuente: 0,
-          retencion_reteiva: 0,
-          retencion_reteica: 0,
-          retencion_total: 0,
-          soporte_pago_url: null,
-        })
-        .eq('id', cotizacion_id)
-
-      return {
-        ok: false,
-        mensaje: `No se pudo registrar la entrada de dinero en la cuenta (${errCaja.message}). No se marco la venta como pagada para que no quede plata fantasma. Corrige y vuelve a intentar.`,
-      }
-    }
-
-    const avisoCaja = ' El dinero entro a la cuenta.'
+    // Ya no se registra movimiento de tesoreria: ese modulo se elimino y
+    // el saldo del banco se controla en la conciliacion bancaria.
 
     revalidatePath('/ventas')
-    revalidatePath('/financiero')
+    revalidatePath('/obligaciones')
     revalidatePath('/compras')
     revalidatePath('/')
 
-    return { ok: true, mensaje: `Pago registrado: ${fmt.format(monto_recibido)} recibido.${total_retenciones > 0 ? ` Retenciones: ${fmt.format(total_retenciones)}.` : ''}${avisoCaja} → En alistamiento.` }
+    return { ok: true, mensaje: `Pago registrado: ${fmt.format(monto_recibido)} recibido.${total_retenciones > 0 ? ` Retenciones: ${fmt.format(total_retenciones)}.` : ''} → En alistamiento.` }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
 
@@ -1068,9 +970,7 @@ export async function revertirEstadoCotizacion(formData: FormData): Promise<Resu
     // seguia mostrando el pago viejo hasta recargar a mano.
     revalidatePath('/ventas')
     revalidatePath('/compras')
-    revalidatePath('/financiero')
     revalidatePath('/inventario')
-    revalidatePath('/indicadores')
     revalidatePath('/panel')
     revalidatePath('/')
 
