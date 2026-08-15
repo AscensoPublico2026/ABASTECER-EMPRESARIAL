@@ -6,7 +6,8 @@ import { Wallet, FileWarning, ShieldCheck, Target, FileText, Boxes } from 'lucid
 import FormGasto from './FormGasto'
 import AccionesGasto from './AccionesGasto'
 import AvisoRepararGastos from './AvisoRepararGastos'
-import { diagnosticarGastosSinVenta } from './actions'
+import CostosPorVenta from './CostosPorVenta'
+import { diagnosticarGastosSinVenta, obtenerGastosImputados } from './actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -112,6 +113,8 @@ export default async function GastosPage() {
 
   // Gastos que deberian estar imputados a una venta y no lo estan
   const diagnostico = await diagnosticarGastosSinVenta()
+  // Que gastos esta cargando cada venta (para poder quitar los que no van)
+  const imputados = await obtenerGastosImputados()
 
   return (
     <>
@@ -120,6 +123,9 @@ export default async function GastosPage() {
 
         {/* Aviso de gastos que no llegaron a su venta (solo si hay) */}
         <AvisoRepararGastos reparables={diagnostico.reparables} sinVenta={diagnostico.sinVenta} />
+
+        {/* Que gastos carga cada venta, con boton para quitar los que no van */}
+        <CostosPorVenta imputados={imputados} />
 
         {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

@@ -838,19 +838,23 @@ export async function diagnosticarGastosSinVenta(): Promise<DiagnosticoGastos> {
  * la venta, marca la bandera y recalcula costo, utilidad y margen de cada
  * venta afectada.
  */
-export async function repararGastosSinVenta(): Promise<ResultadoAccion> {
+export async function repararGastosSinVenta(idsElegidos?: string[]): Promise<ResultadoAccion> {
   try {
     const supabase = createServerSupabaseClient()
-    const { reparables, sinVenta } = await diagnosticarGastosSinVenta()
+    const diag = await diagnosticarGastosSinVenta()
+    const sinVenta = diag.sinVenta
+
+    // SOLO los que el dueno marco. Antes se reparaban TODOS de una, y eso
+    // imputo a una venta gastos que ya no le correspondian: el costo se
+    // infla y la utilidad puede quedar en negativo. Solo el dueno sabe
+    // cual gasto es realmente costo de cual venta.
+    const elegidos = new Set(idsElegidos ?? [])
+    const reparables = idsElegidos && idsElegidos.length > 0
+      ? diag.reparables.filter((g) => elegidos.has(g.id))
+      : []
 
     if (reparables.length === 0) {
-      if (sinVenta.length > 0) {
-        return {
-          ok: false,
-          mensaje: `No hay nada que reparar solo, pero quedan ${sinVenta.length} gasto(s) que perdieron la venta y hay que asignarsela a mano con el boton Editar.`,
-        }
-      }
-      return { ok: true, mensaje: 'Todo esta en orden: no hay gastos sueltos.' }
+      return { ok: false, mensaje: 'Marca primero cuales gastos SI son costo de esa venta.' }
     }
 
     // Traer la venta y el monto de cada gasto reparable
@@ -916,5 +920,98 @@ export async function repararGastosSinVenta(): Promise<ResultadoAccion> {
     }
   } catch (e) {
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al reparar.' }
+  }
+}
+
+
+/**
+ * Quita un gasto de una venta.
+ *
+ * Existe porque la reparacion automatica imputaba el 100% de cualquier
+ * gasto que tuviera una venta guardada en la columna vieja, y algunos de
+ * esos gastos ya NO correspondian a esa venta. Eso infla el costo y puede
+ * dejar la utilidad en negativo. Con esto se corrige en un clic.
+ *
+ * Al quitarlo se recalcula la utilidad y el margen de la venta, y si el
+ * gasto no queda imputado a ninguna otra venta se marca como operativo y
+ * se limpia la columna vieja, para que la reparacion no lo vuelva a
+ * proponer.
+ */
+export async function quitarGastoDeVenta(gastoId: string, cotizacionId: string): Promise<ResultadoAccion> {
+  if (!gastoId || !cotizacionId) return { ok: false, mensaje: 'Datos incompletos.' }
+  try {
+    const supabase = createServerSupabaseClient()
+
+    const { error } = await supabase
+      .from('gasto_reparto')
+      .delete()
+      .eq('gasto_id', gastoId)
+      .eq('cotizacion_id', cotizacionId)
+
+    if (error) return { ok: false, mensaje: `No se pudo quitar: ${error.message}` }
+
+    // Si ya no esta en ninguna venta, vuelve a ser gasto operativo
+    const { data: quedan } = await supabase
+      .from('gasto_reparto')
+      .select('id')
+      .eq('gasto_id', gastoId)
+      .limit(1)
+
+    if (!quedan || quedan.length === 0) {
+      await supabase
+        .from('gastos')
+        .update({ es_costo_venta: false, cotizacion_id: null })
+        .eq('id', gastoId)
+    }
+
+    await recalcularCostoCotizacion(supabase, cotizacionId)
+
+    revalidatePath('/gastos')
+    revalidatePath('/ventas')
+    revalidatePath(`/ventas/${cotizacionId}`)
+    revalidatePath(`/ventas/${cotizacionId}/informe`)
+    revalidatePath('/obligaciones')
+
+    return { ok: true, mensaje: 'Gasto quitado de la venta. La utilidad se recalculo.' }
+  } catch (e) {
+    return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' }
+  }
+}
+
+export interface GastoImputado {
+  gasto_id: string
+  cotizacion_id: string
+  cotizacion_numero: string
+  concepto: string
+  monto: number
+}
+
+/**
+ * Que gastos esta cargando cada venta. Se usa para poder ver el detalle y
+ * quitar lo que no corresponda: antes el informe solo mostraba un TOTAL
+ * de gastos, sin decir cuales, asi que un costo mal imputado era
+ * imposible de encontrar.
+ */
+export async function obtenerGastosImputados(): Promise<GastoImputado[]> {
+  try {
+    const supabase = createServerSupabaseClient()
+    const { data } = await supabase
+      .from('gasto_reparto')
+      .select('gasto_id, cotizacion_id, monto, gastos(concepto), cotizaciones(numero)')
+      .limit(500)
+
+    return (data ?? []).map((r) => {
+      const g = r.gastos as { concepto?: string } | null
+      const c = r.cotizaciones as { numero?: string } | null
+      return {
+        gasto_id: String(r.gasto_id),
+        cotizacion_id: String(r.cotizacion_id),
+        cotizacion_numero: c?.numero ?? '',
+        concepto: g?.concepto ?? '',
+        monto: Number(r.monto ?? 0),
+      }
+    })
+  } catch {
+    return []
   }
 }
