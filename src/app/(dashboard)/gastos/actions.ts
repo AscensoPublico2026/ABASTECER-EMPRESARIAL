@@ -824,6 +824,12 @@ export async function diagnosticarGastosSinVenta(): Promise<DiagnosticoGastos> {
       } else if (g.es_costo_venta) {
         // Estaba marcado como costo de venta pero se perdio la venta
         sinVenta.push(fila)
+      } else if (/\bCOT\b|COTIZACION/i.test(fila.concepto)) {
+        // El concepto nombra una cotizacion (ej: "DOMICILIO VENTAS COT 11 - 15")
+        // pero el gasto quedo como operativo. Es el caso tipico del gasto
+        // que perdio el vinculo: el dato de la venta se borro y solo
+        // sobrevive en el texto. Hay que reasignarlo a mano.
+        sinVenta.push(fila)
       }
     }
 
@@ -1013,5 +1019,162 @@ export async function obtenerGastosImputados(): Promise<GastoImputado[]> {
     })
   } catch {
     return []
+  }
+}
+
+
+// ============================================================
+// DE DONDE SALE EL COSTO DE CADA VENTA
+// ============================================================
+//
+// POR QUE EXISTE
+// Una venta aparecio con utilidad de -2.265.004 y margen de -259%, y NO
+// habia forma de ver de donde venia ese costo: el informe solo mostraba
+// totales. El costo de una venta tiene DOS fuentes y hay que poder ver
+// las dos, linea por linea:
+//   1. COMPRAS asignadas a la venta (tabla asignacion_costos)
+//   2. GASTOS imputados a la venta  (tabla gasto_reparto)
+// Si algo esta mal asignado, se quita desde aca y la utilidad se
+// recalcula sola.
+
+export interface LineaCosto {
+  /** id de la fila de asignacion_costos o de gasto_reparto */
+  id: string
+  descripcion: string
+  monto: number
+  origen: 'COMPRA' | 'GASTO'
+  /** solo para gastos: se necesita el id del gasto para quitarlo */
+  gasto_id?: string
+}
+
+export interface CostoDeVenta {
+  cotizacion_id: string
+  numero: string
+  subtotal: number
+  costo_total: number
+  utilidad: number
+  margen_pct: number
+  lineas: LineaCosto[]
+  /** suma de las lineas: si no coincide con costo_total, algo esta raro */
+  suma_lineas: number
+}
+
+export async function obtenerCostosPorVenta(): Promise<CostoDeVenta[]> {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    const [cotRes, compraRes, gastoRes] = await Promise.all([
+      supabase
+        .from('cotizaciones')
+        .select('id, numero, subtotal, costo_total, utilidad_estimada, margen_pct')
+        .order('numero', { ascending: false })
+        .limit(100),
+      supabase
+        .from('asignacion_costos')
+        .select('id, cotizacion_id, cantidad, subtotal, productos(nombre), facturas_compra(numero_factura)')
+        .eq('destino', 'VENTA')
+        .not('cotizacion_id', 'is', null)
+        .limit(500),
+      supabase
+        .from('gasto_reparto')
+        .select('id, gasto_id, cotizacion_id, monto, gastos(concepto)')
+        .limit(500),
+    ])
+
+    const porVenta = new Map<string, LineaCosto[]>()
+    const agregar = (cid: string, linea: LineaCosto) => {
+      const arr = porVenta.get(cid) ?? []
+      arr.push(linea)
+      porVenta.set(cid, arr)
+    }
+
+    for (const a of compraRes.data ?? []) {
+      const prod = a.productos as { nombre?: string } | null
+      const fac = a.facturas_compra as { numero_factura?: string } | null
+      const cant = Number(a.cantidad ?? 0)
+      agregar(String(a.cotizacion_id), {
+        id: String(a.id),
+        descripcion: `${prod?.nombre ?? 'Producto'}${cant ? ` x${cant}` : ''}${fac?.numero_factura ? ` · factura ${fac.numero_factura}` : ''}`,
+        monto: Number(a.subtotal ?? 0),
+        origen: 'COMPRA',
+      })
+    }
+
+    for (const r of gastoRes.data ?? []) {
+      const g = r.gastos as { concepto?: string } | null
+      agregar(String(r.cotizacion_id), {
+        id: String(r.id),
+        descripcion: g?.concepto ?? 'Gasto',
+        monto: Number(r.monto ?? 0),
+        origen: 'GASTO',
+        gasto_id: String(r.gasto_id),
+      })
+    }
+
+    const salida: CostoDeVenta[] = []
+    for (const c of cotRes.data ?? []) {
+      const lineas = porVenta.get(String(c.id)) ?? []
+      if (lineas.length === 0 && Number(c.costo_total ?? 0) === 0) continue
+      salida.push({
+        cotizacion_id: String(c.id),
+        numero: String(c.numero ?? ''),
+        subtotal: Number(c.subtotal ?? 0),
+        costo_total: Number(c.costo_total ?? 0),
+        utilidad: Number(c.utilidad_estimada ?? 0),
+        margen_pct: Number(c.margen_pct ?? 0),
+        lineas,
+        suma_lineas: lineas.reduce((s, l) => s + l.monto, 0),
+      })
+    }
+    return salida
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Quita una compra asignada a una venta. Se usa cuando una factura de
+ * compra quedo cargada a la venta equivocada e inflo su costo.
+ */
+export async function quitarCompraDeVenta(asignacionId: string, cotizacionId: string): Promise<ResultadoAccion> {
+  if (!asignacionId || !cotizacionId) return { ok: false, mensaje: 'Datos incompletos.' }
+  try {
+    const supabase = createServerSupabaseClient()
+
+    const { error } = await supabase.from('asignacion_costos').delete().eq('id', asignacionId)
+    if (error) return { ok: false, mensaje: `No se pudo quitar: ${error.message}` }
+
+    await recalcularCostoCotizacion(supabase, cotizacionId)
+
+    revalidatePath('/gastos')
+    revalidatePath('/ventas')
+    revalidatePath('/compras')
+    revalidatePath(`/ventas/${cotizacionId}`)
+    revalidatePath(`/ventas/${cotizacionId}/informe`)
+    revalidatePath('/obligaciones')
+
+    return { ok: true, mensaje: 'Compra quitada de la venta. La utilidad se recalculo.' }
+  } catch (e) {
+    return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' }
+  }
+}
+
+/**
+ * Fuerza el recalculo de la utilidad de una venta.
+ * Sirve cuando el costo guardado quedo desactualizado (por ejemplo si se
+ * editaron los items de la cotizacion despues de asignarle costos).
+ */
+export async function recalcularVenta(cotizacionId: string): Promise<ResultadoAccion> {
+  if (!cotizacionId) return { ok: false, mensaje: 'Venta no valida.' }
+  try {
+    const supabase = createServerSupabaseClient()
+    await recalcularCostoCotizacion(supabase, cotizacionId)
+    revalidatePath('/gastos')
+    revalidatePath('/ventas')
+    revalidatePath(`/ventas/${cotizacionId}`)
+    revalidatePath(`/ventas/${cotizacionId}/informe`)
+    return { ok: true, mensaje: 'Utilidad y margen recalculados.' }
+  } catch (e) {
+    return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' }
   }
 }

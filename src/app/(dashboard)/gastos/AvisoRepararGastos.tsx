@@ -72,9 +72,9 @@ export default function AvisoRepararGastos({ reparables, sinVenta }: Props) {
             Hay gastos que no estan entrando a ninguna venta
           </h3>
           <p className="mt-1 text-sm text-amber-800">
-            Estos gastos se registraron con una venta asignada, pero el vinculo no
-            se guardo bien. Por eso <strong>no aparecen en el informe de la venta</strong> y
-            la utilidad de esas ventas esta mas alta de lo real.
+            Estos gastos parecen ser costo de una venta, pero no estan imputados a
+            ninguna. Por eso <strong>no aparecen en el informe de la venta</strong> y la
+            utilidad de esas ventas esta mas alta de lo real.
           </p>
 
           {reparables.length > 0 && (
@@ -115,8 +115,9 @@ export default function AvisoRepararGastos({ reparables, sinVenta }: Props) {
           {sinVenta.length > 0 && (
             <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-3">
               <p className="text-xs font-semibold text-red-800">
-                {sinVenta.length} gasto(s) perdieron la venta y hay que asignarsela a mano
-                (boton Editar en la tabla de abajo):
+                {sinVenta.length} gasto(s) perdieron la venta. Asignasela con el boton
+                <strong> Editar</strong> (el lapiz) en la tabla de abajo: marca &quot;es costo de
+                venta&quot;, elige la venta y reparte el monto. Ya quedan bien guardados.
               </p>
               <ul className="mt-1.5 space-y-1">
                 {sinVenta.slice(0, 8).map((g) => (
