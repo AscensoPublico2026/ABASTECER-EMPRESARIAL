@@ -145,9 +145,29 @@ export async function cerrarVenta(formData: FormData): Promise<ResultadoAccion> 
       }
     }
 
-    // Verificar OC obligatoria para credito
-    if (cot.dias_credito > 0 && !oc_cliente) {
-      return { ok: false, mensaje: 'Para clientes a credito, la Orden de Compra es obligatoria (Decision #019). Sin OC no se despacha.' }
+    // OC obligatoria para credito (Decision #019).
+    //
+    // BUG QUE ESTO ARREGLA: solo se miraba la OC que venia del formulario,
+    // y el modal de facturar NO tenia campo de OC. Resultado: era
+    // IMPOSIBLE facturar cualquier venta a credito, incluso las que ya
+    // tenian la OC guardada desde la aprobacion o desde la remision.
+    // Ahora se acepta la OC que ya esta en la cotizacion.
+    const ocFinal = oc_cliente || String(cot.oc_cliente ?? '').trim()
+
+    if (cot.dias_credito > 0 && !ocFinal) {
+      return {
+        ok: false,
+        mensaje: 'Para clientes a credito la Orden de Compra es obligatoria (Decision #019). Escribe el numero de la OC en este mismo formulario y vuelve a intentar.',
+      }
+    }
+
+    // Si la OC llego por el formulario y la cotizacion no la tenia (o era
+    // distinta), guardarla: la remision y el informe la leen de ahi.
+    if (oc_cliente && oc_cliente !== String(cot.oc_cliente ?? '').trim()) {
+      await supabase
+        .from('cotizaciones')
+        .update({ oc_cliente })
+        .eq('id', cotizacion_id)
     }
 
     // Calcular fecha vencimiento

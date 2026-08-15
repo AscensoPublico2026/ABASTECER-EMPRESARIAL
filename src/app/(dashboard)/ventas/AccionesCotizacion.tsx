@@ -17,9 +17,11 @@ interface Props {
   montoRecibidoReal?: number
   /** Retenciones que le practico el cliente. */
   retencionTotal?: number
+  /** Orden de compra ya registrada en la venta, si la hay. */
+  ocActual?: string | null
 }
 
-export default function AccionesCotizacion({ cotizacionId, estado, numero, diasCredito = 0, total = 0, fechaPago = null, montoRecibidoReal = 0, retencionTotal = 0 }: Props) {
+export default function AccionesCotizacion({ cotizacionId, estado, numero, diasCredito = 0, total = 0, fechaPago = null, montoRecibidoReal = 0, retencionTotal = 0, ocActual = null }: Props) {
   const [pendiente, startTransition] = useTransition()
   const [modalPago, setModalPago] = useState(false)
   const [modalCerrar, setModalCerrar] = useState(false)
@@ -534,6 +536,29 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
                 </div>
                 <input ref={facturaRef} type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setFacturaPdf(e.target.files?.[0] ?? null)} className="hidden" />
               </div>
+
+              {/* Orden de compra: obligatoria a credito (Decision #019).
+                  Antes este campo no existia y por eso NINGUNA venta a
+                  credito se podia facturar. */}
+              {esCredito && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Orden de compra del cliente *
+                  </label>
+                  <input
+                    name="oc_cliente"
+                    required={!ocActual}
+                    defaultValue={ocActual ?? ''}
+                    placeholder="Numero de la OC"
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
+                  />
+                  <p className="mt-1 text-xs text-gray-400">
+                    {ocActual
+                      ? 'Ya registrada. Puedes corregirla aqui si cambio.'
+                      : 'A credito la OC es obligatoria. Queda guardada en la venta y sale en la remision.'}
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
