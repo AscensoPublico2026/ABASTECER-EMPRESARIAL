@@ -618,12 +618,78 @@ export async function registrarPagoContado(formData: FormData): Promise<Resultad
     // Ya no se registra movimiento de tesoreria: ese modulo se elimino y
     // el saldo del banco se controla en la conciliacion bancaria.
 
+    // ------------------------------------------------------------
+    // SINCRONIZAR LA FACTURA DIAN
+    // ------------------------------------------------------------
+    // CADENA ROTA QUE ESTO ARREGLA: el pago se guardaba SOLO en la
+    // cotizacion. Si la venta ya tenia factura emitida, esa factura
+    // seguia apareciendo como "Pendiente" en Facturacion aunque el
+    // dinero ya hubiera entrado y el soporte estuviera cargado. Habia
+    // dos verdades sobre el mismo pago y no coincidian.
+    let avisoFactura = ''
+    const { data: fv } = await supabase
+      .from('facturas_venta')
+      .select('id, numero_factura_dian, cliente_id, estado')
+      .eq('cotizacion_id', cotizacion_id)
+      .neq('estado', 'ANULADA')
+      .limit(1)
+      .maybeSingle()
+
+    if (fv && fv.estado !== 'COBRADA') {
+      const { error: errFv } = await supabase
+        .from('facturas_venta')
+        .update({
+          estado: 'COBRADA',
+          retencion_total: total_retenciones,
+          retencion_retefuente: retefuente,
+          retencion_reteiva: rete_iva,
+          retencion_reteica: rete_ica,
+          notas: total_retenciones > 0
+            ? `Pago: ${fecha_pago} | Retenciones: Rtefte $${retefuente}, RteIVA $${rete_iva}, RteICA $${rete_ica} | Total retenido: $${total_retenciones}`
+            : `Pago recibido: ${fecha_pago}`,
+        })
+        .eq('id', fv.id as string)
+
+      if (errFv) {
+        avisoFactura = ` OJO: la factura ${fv.numero_factura_dian ?? ''} NO quedo marcada como cobrada (${errFv.message}). Revisala en Facturacion.`
+      } else {
+        // El cobro tambien va al libro de pagos, igual que en el flujo
+        // de "marcar factura cobrada", para que no haya dos caminos que
+        // dejen datos distintos.
+        await supabase.from('pagos').insert({
+          tipo: 'COBRO_CLIENTE',
+          cliente_id: fv.cliente_id,
+          factura_venta_id: fv.id,
+          monto: monto_recibido,
+          fecha: fecha_pago,
+          medio_pago: 'Transferencia',
+          notas: total_retenciones > 0
+            ? `Retefuente: $${retefuente} | ReteIVA: $${rete_iva} | ReteICA: $${rete_ica}`
+            : null,
+        })
+
+        // El soporte de pago tambien queda colgado de la factura
+        if (soporte_url) {
+          await supabase.from('documentos').insert({
+            entidad_tipo: 'FACTURA_VENTA',
+            entidad_id: fv.id,
+            tipo_documento: 'SOPORTE_PAGO',
+            nombre_archivo: 'soporte_pago.pdf',
+            url_archivo: soporte_url,
+          })
+        }
+
+        avisoFactura = ` La factura ${fv.numero_factura_dian ?? ''} quedo como Cobrada.`
+      }
+    }
+
     revalidatePath('/ventas')
+    revalidatePath('/facturacion')
     revalidatePath('/obligaciones')
     revalidatePath('/compras')
     revalidatePath('/')
 
-    return { ok: true, mensaje: `Pago registrado: ${fmt.format(monto_recibido)} recibido.${total_retenciones > 0 ? ` Retenciones: ${fmt.format(total_retenciones)}.` : ''} → En alistamiento.` }
+    return { ok: true, mensaje: `Pago registrado: ${fmt.format(monto_recibido)} recibido.${total_retenciones > 0 ? ` Retenciones: ${fmt.format(total_retenciones)}.` : ''}${avisoFactura} → En alistamiento.` }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }
 
@@ -1104,5 +1170,149 @@ export async function editarRemision(formData: FormData): Promise<ResultadoAccio
     return { ok: true, mensaje: 'Remision actualizada.' }
   } catch (e) {
     return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al editar.' }
+  }
+}
+
+
+// ============================================================
+// SINCRONIZAR FACTURAS CON EL PAGO YA REGISTRADO
+// ============================================================
+//
+// POR QUE EXISTE
+// El pago se registraba solo en la cotizacion. Si la venta ya tenia
+// factura emitida, la factura seguia como "Pendiente" en Facturacion
+// aunque el dinero hubiera entrado y el soporte estuviera cargado.
+// La causa ya esta corregida en registrarPagoContado; esto arregla las
+// facturas que quedaron desfasadas ANTES, sin volver a digitar nada:
+// copia el pago que ya esta en la cotizacion.
+
+export interface FacturaDesfasada {
+  id: string
+  numero: string
+  cliente: string
+  total: number
+  fecha_pago: string
+}
+
+/** Facturas que siguen pendientes aunque su venta ya esta pagada */
+export async function facturasDesfasadas(): Promise<FacturaDesfasada[]> {
+  try {
+    const supabase = createServerSupabaseClient()
+    const { data } = await supabase
+      .from('facturas_venta')
+      .select('id, numero_factura_dian, total, cotizacion_id, estado, clientes(razon_social), cotizaciones(fecha_pago)')
+      .not('estado', 'in', '("COBRADA","ANULADA")')
+      .not('cotizacion_id', 'is', null)
+      .limit(200)
+
+    return (data ?? [])
+      .filter((fv) => {
+        const c = fv.cotizaciones as { fecha_pago?: string | null } | null
+        return Boolean(c?.fecha_pago)
+      })
+      .map((fv) => {
+        const c = fv.cotizaciones as { fecha_pago?: string | null } | null
+        const cli = fv.clientes as { razon_social?: string } | null
+        return {
+          id: String(fv.id),
+          numero: String(fv.numero_factura_dian ?? ''),
+          cliente: cli?.razon_social ?? '',
+          total: Number(fv.total ?? 0),
+          fecha_pago: String(c?.fecha_pago ?? ''),
+        }
+      })
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Marca como cobradas las facturas cuya venta ya tiene el pago
+ * registrado, copiando fecha y retenciones de la cotizacion.
+ */
+export async function sincronizarFacturasConPago(): Promise<ResultadoAccion> {
+  try {
+    const supabase = createServerSupabaseClient()
+    const pendientes = await facturasDesfasadas()
+
+    if (pendientes.length === 0) {
+      return { ok: true, mensaje: 'Todas las facturas ya estan al dia con sus pagos.' }
+    }
+
+    let arregladas = 0
+    const fallos: string[] = []
+
+    for (const p of pendientes) {
+      // Traer el pago tal como quedo en la cotizacion: es la fuente
+      const { data: fvFull } = await supabase
+        .from('facturas_venta')
+        .select('id, cliente_id, cotizacion_id, total')
+        .eq('id', p.id)
+        .single()
+      if (!fvFull) continue
+
+      const { data: cot } = await supabase
+        .from('cotizaciones')
+        .select('fecha_pago, monto_recibido, retencion_total, retencion_retefuente, retencion_reteiva, retencion_reteica, soporte_pago_url')
+        .eq('id', fvFull.cotizacion_id as string)
+        .single()
+      if (!cot?.fecha_pago) continue
+
+      const ret = Number(cot.retencion_total ?? 0)
+      const { error } = await supabase
+        .from('facturas_venta')
+        .update({
+          estado: 'COBRADA',
+          retencion_total: ret,
+          retencion_retefuente: Number(cot.retencion_retefuente ?? 0),
+          retencion_reteiva: Number(cot.retencion_reteiva ?? 0),
+          retencion_reteica: Number(cot.retencion_reteica ?? 0),
+          notas: ret > 0
+            ? `Pago: ${cot.fecha_pago} | Total retenido: $${ret}`
+            : `Pago recibido: ${cot.fecha_pago}`,
+        })
+        .eq('id', p.id)
+
+      if (error) {
+        fallos.push(`${p.numero}: ${error.message}`)
+        continue
+      }
+
+      // Registrar el cobro en el libro de pagos si no estaba
+      const { data: yaPago } = await supabase
+        .from('pagos')
+        .select('id')
+        .eq('factura_venta_id', p.id)
+        .limit(1)
+        .maybeSingle()
+
+      if (!yaPago) {
+        await supabase.from('pagos').insert({
+          tipo: 'COBRO_CLIENTE',
+          cliente_id: fvFull.cliente_id,
+          factura_venta_id: p.id,
+          monto: Number(cot.monto_recibido ?? 0) || Number(fvFull.total ?? 0) - ret,
+          fecha: cot.fecha_pago,
+          medio_pago: 'Transferencia',
+        })
+      }
+
+      arregladas++
+    }
+
+    revalidatePath('/facturacion')
+    revalidatePath('/ventas')
+    revalidatePath('/obligaciones')
+
+    if (fallos.length > 0) {
+      return {
+        ok: arregladas > 0,
+        mensaje: `${arregladas} factura(s) quedaron como Cobradas. No se pudo con: ${fallos.join(' | ')}`,
+      }
+    }
+
+    return { ok: true, mensaje: `${arregladas} factura(s) quedaron marcadas como Cobradas, con su fecha de pago y sus retenciones.` }
+  } catch (e) {
+    return { ok: false, mensaje: e instanceof Error ? e.message : 'Error al sincronizar.' }
   }
 }

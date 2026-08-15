@@ -2,6 +2,8 @@ import Header from '@/components/layout/Header'
 import { obtenerFacturasVenta } from '@/lib/queries/facturasVenta'
 import { formatCOP } from '@/lib/format'
 import TablaFacturacion from './TablaFacturacion'
+import AvisoSincronizarPagos from './AvisoSincronizarPagos'
+import { facturasDesfasadas } from '../ventas/actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +25,9 @@ export default async function FacturacionPage() {
   const totalMora = enMora.reduce((s, fv) => s + fv.total, 0)
 
   const nombresClientes = Array.from(new Set(facturas.map((fv) => fv.cliente_nombre).filter(Boolean))) as string[]
+
+  // Facturas que dicen Pendiente aunque su venta ya esta pagada
+  const desfasadas = await facturasDesfasadas()
 
   return (
     <>
@@ -53,6 +58,8 @@ export default async function FacturacionPage() {
         </div>
 
         {/* Tabla completa */}
+        <AvisoSincronizarPagos desfasadas={desfasadas} />
+
         <TablaFacturacion facturas={facturas} clientes={nombresClientes} />
       </div>
     </>
