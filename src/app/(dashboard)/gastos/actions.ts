@@ -1059,7 +1059,24 @@ export interface CostoDeVenta {
   suma_lineas: number
 }
 
-export async function obtenerCostosPorVenta(): Promise<CostoDeVenta[]> {
+export interface ResultadoCostos {
+  ventas: CostoDeVenta[]
+  /** Si algo fallo, aca queda dicho. NUNCA se devuelve vacio en silencio. */
+  error: string | null
+  /** Que encontro, para poder entender por que no sale nada */
+  leido: { cotizaciones: number; compras: number; gastos: number }
+}
+
+/**
+ * NUNCA devuelve vacio en silencio.
+ *
+ * Antes, cualquier error de consulta caia en un catch que retornaba una
+ * lista vacia. La tarjeta simplemente no aparecia y no habia forma de
+ * saber si era que no habia datos, que la consulta fallo o que el
+ * despliegue no habia llegado. Eso hizo perder tiempo dos veces.
+ */
+export async function obtenerCostosPorVenta(): Promise<ResultadoCostos> {
+  const vacio: ResultadoCostos = { ventas: [], error: null, leido: { cotizaciones: 0, compras: 0, gastos: 0 } }
   try {
     const supabase = createServerSupabaseClient()
 
@@ -1080,6 +1097,19 @@ export async function obtenerCostosPorVenta(): Promise<CostoDeVenta[]> {
         .select('id, gasto_id, cotizacion_id, monto, gastos(concepto)')
         .limit(500),
     ])
+
+    // Si una consulta fallo hay que DECIRLO, no devolver vacio
+    const errores = [
+      cotRes.error ? `ventas: ${cotRes.error.message}` : null,
+      compraRes.error ? `compras asignadas: ${compraRes.error.message}` : null,
+      gastoRes.error ? `gastos imputados: ${gastoRes.error.message}` : null,
+    ].filter(Boolean)
+
+    const leido = {
+      cotizaciones: cotRes.data?.length ?? 0,
+      compras: compraRes.data?.length ?? 0,
+      gastos: gastoRes.data?.length ?? 0,
+    }
 
     const porVenta = new Map<string, LineaCosto[]>()
     const agregar = (cid: string, linea: LineaCosto) => {
@@ -1114,7 +1144,12 @@ export async function obtenerCostosPorVenta(): Promise<CostoDeVenta[]> {
     const salida: CostoDeVenta[] = []
     for (const c of cotRes.data ?? []) {
       const lineas = porVenta.get(String(c.id)) ?? []
-      if (lineas.length === 0 && Number(c.costo_total ?? 0) === 0) continue
+      // Se muestra si tiene costo asignado O si tiene un costo guardado O
+      // si la utilidad quedo negativa. Ese ultimo caso es el importante:
+      // es justo la venta que hay que revisar.
+      const costo = Number(c.costo_total ?? 0)
+      const utilidad = Number(c.utilidad_estimada ?? 0)
+      if (lineas.length === 0 && costo === 0 && utilidad >= 0) continue
       salida.push({
         cotizacion_id: String(c.id),
         numero: String(c.numero ?? ''),
@@ -1126,9 +1161,14 @@ export async function obtenerCostosPorVenta(): Promise<CostoDeVenta[]> {
         suma_lineas: lineas.reduce((s, l) => s + l.monto, 0),
       })
     }
-    return salida
-  } catch {
-    return []
+
+    return {
+      ventas: salida,
+      error: errores.length > 0 ? `No se pudo leer ${errores.join(' | ')}` : null,
+      leido,
+    }
+  } catch (e) {
+    return { ...vacio, error: e instanceof Error ? e.message : 'Error inesperado leyendo los costos.' }
   }
 }
 

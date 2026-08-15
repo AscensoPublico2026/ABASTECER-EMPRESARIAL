@@ -2,8 +2,9 @@
 
 import { useState, useTransition, useRef } from 'react'
 import { aprobarCotizacion, registrarPagoContado, pasarAlistamiento, cerrarVenta, generarRemision, revertirEstadoCotizacion, eliminarCotizacion } from './actions'
+import { recalcularVenta } from '../gastos/actions'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle2, FileText, Loader2, AlertCircle, X, Upload, FileCheck, Pencil, Package, Truck, DollarSign, Undo2, ClipboardList, Trash2 } from 'lucide-react'
+import { CheckCircle2, FileText, Loader2, AlertCircle, X, Upload, FileCheck, Pencil, Package, Truck, DollarSign, Undo2, ClipboardList, Trash2, RefreshCw } from 'lucide-react'
 
 interface Props {
   cotizacionId: string
@@ -19,9 +20,11 @@ interface Props {
   retencionTotal?: number
   /** Orden de compra ya registrada en la venta, si la hay. */
   ocActual?: string | null
+  /** Utilidad guardada. Si es negativa se ofrece recalcular. */
+  utilidad?: number
 }
 
-export default function AccionesCotizacion({ cotizacionId, estado, numero, diasCredito = 0, total = 0, fechaPago = null, montoRecibidoReal = 0, retencionTotal = 0, ocActual = null }: Props) {
+export default function AccionesCotizacion({ cotizacionId, estado, numero, diasCredito = 0, total = 0, fechaPago = null, montoRecibidoReal = 0, retencionTotal = 0, ocActual = null, utilidad = 0 }: Props) {
   const [pendiente, startTransition] = useTransition()
   const [modalPago, setModalPago] = useState(false)
   const [modalCerrar, setModalCerrar] = useState(false)
@@ -52,6 +55,17 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
    * ingreso y las retenciones.
    */
   const yaPagada = Boolean(fechaPago)
+  /** Utilidad negativa: siempre es un costo mal asignado o desactualizado */
+  const utilidadEnRojo = utilidad < 0
+
+  function handleRecalcular() {
+    startTransition(async () => {
+      const res = await recalcularVenta(cotizacionId)
+      setResultado(res)
+      setTimeout(() => setResultado(null), 4000)
+    })
+  }
+
   const montoRecibidoNum = Number(montoRecibido.replace(/\./g, '').replace(',', '.')) || 0
   const diferenciaRetenida = montoRecibidoNum > 0 ? total - montoRecibidoNum : 0
   const totalRetencionesManuales = (Number(retefuente.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIva.replace(/\./g, '').replace(',', '.')) || 0) + (Number(reteIca.replace(/\./g, '').replace(',', '.')) || 0)
@@ -230,6 +244,21 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
         <button onClick={handleAprobar} disabled={pendiente} className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-medium hover:bg-green-100 transition disabled:opacity-50">
           {pendiente ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
           Aprobar
+        </button>
+      )}
+
+      {/* Recalcular: aparece cuando la utilidad quedo negativa, que casi
+          siempre es un costo mal asignado o un costo guardado viejo
+          (pasa si se editaron los items despues de asignar los costos). */}
+      {utilidadEnRojo && (
+        <button
+          onClick={handleRecalcular}
+          disabled={pendiente}
+          title="La utilidad quedo negativa. Recalcular el costo de esta venta."
+          className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-medium hover:bg-red-100 transition disabled:opacity-50"
+        >
+          {pendiente ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+          Recalcular
         </button>
       )}
 

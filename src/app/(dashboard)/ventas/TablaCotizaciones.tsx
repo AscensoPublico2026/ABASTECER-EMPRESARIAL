@@ -141,7 +141,7 @@ export default function TablaCotizaciones({ cotizaciones, clientes }: Props) {
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${estado.color}`}>{estado.etiqueta}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <AccionesCotizacion cotizacionId={c.id} estado={c.estado} numero={c.numero} diasCredito={c.dias_credito} total={c.total} fechaPago={c.fecha_pago} montoRecibidoReal={c.monto_recibido} retencionTotal={c.retencion_total} ocActual={c.oc_cliente} />
+                      <AccionesCotizacion cotizacionId={c.id} estado={c.estado} numero={c.numero} diasCredito={c.dias_credito} total={c.total} fechaPago={c.fecha_pago} montoRecibidoReal={c.monto_recibido} retencionTotal={c.retencion_total} ocActual={c.oc_cliente} utilidad={c.utilidad_estimada} />
                     </td>
                   </tr>
                 )

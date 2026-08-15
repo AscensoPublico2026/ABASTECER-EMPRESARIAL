@@ -12,6 +12,8 @@ import { Loader2, X, Calculator, AlertTriangle, RefreshCw, ShoppingCart, Receipt
 
 interface Props {
   ventas: CostoDeVenta[]
+  error: string | null
+  leido: { cotizaciones: number; compras: number; gastos: number }
 }
 
 /**
@@ -24,13 +26,16 @@ interface Props {
  * totales. El costo tiene dos fuentes (compras asignadas y gastos
  * imputados) y las dos hay que poder verlas y corregirlas.
  */
-export default function CostosPorVenta({ ventas }: Props) {
+export default function CostosPorVenta({ ventas, error, leido }: Props) {
   const [pendiente, startTransition] = useTransition()
   const [ocupado, setOcupado] = useState<string | null>(null)
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null)
   const [abierta, setAbierta] = useState<string | null>(null)
 
-  if (ventas.length === 0) return null
+  // OJO: esta tarjeta se muestra SIEMPRE, incluso sin datos.
+  // Antes se devolvia null cuando no habia nada y el dueno veia "no
+  // aparece" sin saber si era falta de datos, un error de consulta o un
+  // despliegue que no habia llegado. Nunca mas en silencio.
 
   // Primero las que tienen la utilidad en rojo: ahi esta el problema
   const ordenadas = [...ventas].sort((a, b) => a.margen_pct - b.margen_pct)
@@ -74,6 +79,15 @@ export default function CostosPorVenta({ ventas }: Props) {
         </div>
       )}
 
+      {error && (
+        <div className="mx-6 mt-4 flex items-start gap-2 rounded-xl border border-red-300 bg-red-50 px-3 py-2">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+          <p className="text-xs text-red-800">
+            <strong>No se pudo leer la informacion:</strong> {error}
+          </p>
+        </div>
+      )}
+
       {resultado && (
         <div
           className={`mx-6 mt-4 rounded-xl px-3 py-2 text-sm ${
@@ -83,6 +97,24 @@ export default function CostosPorVenta({ ventas }: Props) {
           }`}
         >
           {resultado.mensaje}
+        </div>
+      )}
+
+      {ventas.length === 0 && !error && (
+        <div className="px-6 py-5">
+          <p className="text-sm text-gray-600">
+            Ninguna venta tiene costos asignados ni utilidad negativa.
+          </p>
+          <p className="mt-1.5 text-xs text-gray-400">
+            Revise {leido.cotizaciones} venta(s), {leido.compras} compra(s) asignada(s) a
+            ventas y {leido.gastos} gasto(s) imputado(s) a ventas.
+            {leido.compras === 0 && leido.gastos === 0 && (
+              <>
+                {' '}Si una venta te muestra utilidad rara, es que su costo guardado quedo
+                viejo: abrela desde Cotizaciones y usa Recalcular.
+              </>
+            )}
+          </p>
         </div>
       )}
 

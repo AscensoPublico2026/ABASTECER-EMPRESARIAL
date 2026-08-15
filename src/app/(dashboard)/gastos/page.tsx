@@ -126,7 +126,11 @@ export default async function GastosPage() {
         <AvisoRepararGastos reparables={diagnostico.reparables} sinVenta={diagnostico.sinVenta} />
 
         {/* De donde sale el costo de cada venta, con boton para quitar lo mal asignado */}
-        <CostosPorVenta ventas={costosPorVenta} />
+        <CostosPorVenta
+          ventas={costosPorVenta.ventas}
+          error={costosPorVenta.error}
+          leido={costosPorVenta.leido}
+        />
 
         {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
