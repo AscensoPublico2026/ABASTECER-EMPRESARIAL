@@ -2,14 +2,14 @@
  * Utilidades de formato para Colombia (COP, es-CO)
  */
 
-/** Formatea un valor como pesos colombianos sin decimales: $1.500.000 */
+/** Formatea un valor como pesos colombianos con dos decimales: $1.500.000,00 */
 export function formatCOP(valor: number | null | undefined): string {
   const n = Number(valor ?? 0)
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(n)
 }
 

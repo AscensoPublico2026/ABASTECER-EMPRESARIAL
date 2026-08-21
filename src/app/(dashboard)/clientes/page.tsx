@@ -126,7 +126,7 @@ export default async function ClientesPage() {
                             </p>
                             {c.cupo_credito > 0 && (
                               <p className="text-xs text-gray-500 mt-0.5">
-                                Cupo: ${c.cupo_credito.toLocaleString()}
+                                Cupo: ${c.cupo_credito.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </p>
                             )}
                           </>

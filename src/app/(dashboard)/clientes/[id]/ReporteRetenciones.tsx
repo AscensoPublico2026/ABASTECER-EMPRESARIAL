@@ -86,18 +86,18 @@ export default function ReporteRetenciones({ retenciones, clienteNombre }: Props
               <tr key={i} className="border-b border-gray-50">
                 <td className="px-4 py-2 font-mono text-xs">{r.numero_factura}</td>
                 <td className="px-4 py-2 text-xs text-gray-500">{r.fecha_pago ?? '-'}</td>
-                <td className="px-4 py-2 text-right tabular-nums text-xs">${r.retefuente.toLocaleString('es-CO')}</td>
-                <td className="px-4 py-2 text-right tabular-nums text-xs">${r.reteiva.toLocaleString('es-CO')}</td>
-                <td className="px-4 py-2 text-right tabular-nums text-xs">${r.reteica.toLocaleString('es-CO')}</td>
-                <td className="px-4 py-2 text-right tabular-nums text-xs font-medium">${r.total_retenido.toLocaleString('es-CO')}</td>
+                <td className="px-4 py-2 text-right tabular-nums text-xs">${r.retefuente.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td className="px-4 py-2 text-right tabular-nums text-xs">${r.reteiva.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td className="px-4 py-2 text-right tabular-nums text-xs">${r.reteica.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td className="px-4 py-2 text-right tabular-nums text-xs font-medium">${r.total_retenido.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
               </tr>
             ))}
             <tr className="bg-amber-50 font-medium">
               <td className="px-4 py-2 text-xs" colSpan={2}>TOTAL AÑO</td>
-              <td className="px-4 py-2 text-right tabular-nums text-xs">${totalRetefuente.toLocaleString('es-CO')}</td>
-              <td className="px-4 py-2 text-right tabular-nums text-xs">${totalReteiva.toLocaleString('es-CO')}</td>
-              <td className="px-4 py-2 text-right tabular-nums text-xs">${totalReteica.toLocaleString('es-CO')}</td>
-              <td className="px-4 py-2 text-right tabular-nums text-xs font-bold">${totalRetenido.toLocaleString('es-CO')}</td>
+              <td className="px-4 py-2 text-right tabular-nums text-xs">${totalRetefuente.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              <td className="px-4 py-2 text-right tabular-nums text-xs">${totalReteiva.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              <td className="px-4 py-2 text-right tabular-nums text-xs">${totalReteica.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              <td className="px-4 py-2 text-right tabular-nums text-xs font-bold">${totalRetenido.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
             </tr>
           </tbody>
         </table>

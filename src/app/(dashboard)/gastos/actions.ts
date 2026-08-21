@@ -18,7 +18,7 @@ function monto(v: FormDataEntryValue | null): number {
 const _fmt = new Intl.NumberFormat('es-CO', {
   style: 'currency',
   currency: 'COP',
-  minimumFractionDigits: 0,
+  minimumFractionDigits: 2, maximumFractionDigits: 2,
 })
 
 function fmtCop(v: number): string {
@@ -913,7 +913,7 @@ export async function repararGastosSinVenta(idsElegidos?: string[]): Promise<Res
     revalidatePath('/ventas')
     revalidatePath('/obligaciones')
 
-    const fmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
+    const fmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 })
     const totalReparado = filas.reduce((s, f) => s + f.monto, 0)
 
     const aviso = sinVenta.length > 0

@@ -13,7 +13,7 @@ export interface ResultadoAccion {
 const fmt = new Intl.NumberFormat('es-CO', {
   style: 'currency',
   currency: 'COP',
-  minimumFractionDigits: 0,
+  minimumFractionDigits: 2, maximumFractionDigits: 2,
 })
 
 interface ItemInput {
@@ -518,8 +518,8 @@ export async function marcarFacturaCobrada(formData: FormData): Promise<Resultad
     revalidatePath('/')
     const montoRecibido = fvData ? Number(fvData.total) - total_retenciones : 0
     return { ok: true, mensaje: total_retenciones > 0
-      ? `Cobro registrado. Recibido: $${montoRecibido.toLocaleString('es-CO')} (retenciones: $${total_retenciones.toLocaleString('es-CO')}).`
-      : `Cobro registrado: $${montoRecibido.toLocaleString('es-CO')}.`
+      ? `Cobro registrado. Recibido: $${montoRecibido.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (retenciones: $${total_retenciones.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).`
+      : `Cobro registrado: $${montoRecibido.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`
     }
   } catch (e) { return { ok: false, mensaje: e instanceof Error ? e.message : 'Error.' } }
 }

@@ -36,7 +36,7 @@ interface ItemInput {
 const fmt = new Intl.NumberFormat('es-CO', {
   style: 'currency',
   currency: 'COP',
-  minimumFractionDigits: 0,
+  minimumFractionDigits: 2, maximumFractionDigits: 2,
 })
 
 function montoDesdeCampo(v: FormDataEntryValue | null): number {

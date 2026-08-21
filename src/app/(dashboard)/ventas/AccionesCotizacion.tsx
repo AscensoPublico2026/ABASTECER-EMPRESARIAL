@@ -150,7 +150,7 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
       return
     }
     if (hayRetencion && !retencionCuadra) {
-      setResultado({ ok: false, mensaje: `Las retenciones ingresadas ($${totalRetencionesManuales.toLocaleString('es-CO')}) no coinciden con la diferencia ($${diferenciaRetenida.toLocaleString('es-CO')}). Verifica los valores.` })
+      setResultado({ ok: false, mensaje: `Las retenciones ingresadas ($${totalRetencionesManuales.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) no coinciden con la diferencia ($${diferenciaRetenida.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). Verifica los valores.` })
       return
     }
     formData.set('cotizacion_id', cotizacionId)
@@ -265,11 +265,11 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
       {/* Sello de PAGADA: reemplaza al boton en cuanto se cobra */}
       {yaPagada && (
         <span
-          title={`Cobrado el ${fechaPago}${retencionTotal > 0 ? ` · retenciones $${retencionTotal.toLocaleString('es-CO')}` : ''}`}
+          title={`Cobrado el ${fechaPago}${retencionTotal > 0 ? ` · retenciones $${retencionTotal.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}`}
           className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-semibold"
         >
           <CheckCircle2 className="w-3 h-3" />
-          Pagada {montoRecibidoReal > 0 && `· $${montoRecibidoReal.toLocaleString('es-CO')}`}
+          Pagada {montoRecibidoReal > 0 && `· $${montoRecibidoReal.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         </span>
       )}
 
@@ -431,7 +431,7 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl z-10">
               <div>
                 <h3 className="font-semibold text-gray-800">Registrar pago del cliente</h3>
-                <p className="text-xs text-gray-500 mt-0.5">{numero} · Contado · Total: ${total.toLocaleString('es-CO')}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{numero} · Contado · Total: ${total.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
               <button onClick={() => { setModalPago(false); setResultado(null); setSoportePdf(null) }} className="p-1.5 rounded-lg hover:bg-gray-100">
                 <X className="w-5 h-5 text-gray-400" />
@@ -456,16 +456,16 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Monto recibido (lo que entro a Bold) *</label>
                 <input value={montoRecibido} onChange={(e) => setMontoRecibido(e.target.value)} inputMode="numeric" placeholder={String(total)} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
-                <p className="text-xs text-gray-400 mt-1">Total de la factura: ${total.toLocaleString('es-CO')}</p>
+                <p className="text-xs text-gray-400 mt-1">Total de la factura: ${total.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
 
               {/* Si hay diferencia = retenciones */}
               {hayRetencion && (
                 <div className="bg-amber-50 rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-amber-800">Te retuvieron: ${diferenciaRetenida.toLocaleString('es-CO')}</p>
+                    <p className="text-sm font-medium text-amber-800">Te retuvieron: ${diferenciaRetenida.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                   </div>
-                  <p className="text-xs text-amber-600">Selecciona que retenciones te aplicaron. La suma debe coincidir con ${diferenciaRetenida.toLocaleString('es-CO')}.</p>
+                  <p className="text-xs text-amber-600">Selecciona que retenciones te aplicaron. La suma debe coincidir con ${diferenciaRetenida.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.</p>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label className="block text-xs text-amber-700 mb-1">Retefuente</label>
@@ -484,12 +484,12 @@ export default function AccionesCotizacion({ cotizacionId, estado, numero, diasC
                     <div className="flex justify-between text-xs">
                       <span className="text-amber-700">Suma retenciones:</span>
                       <span className={`font-bold ${!mostrarValidacion ? 'text-gray-400' : retencionCuadra ? 'text-green-600' : 'text-red-600'}`}>
-                        ${totalRetencionesManuales.toLocaleString('es-CO')} {mostrarValidacion && (retencionCuadra ? '✓ Cuadra' : '✗ No cuadra')}
+                        ${totalRetencionesManuales.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {mostrarValidacion && (retencionCuadra ? '✓ Cuadra' : '✗ No cuadra')}
                       </span>
                     </div>
                     <div className="flex justify-between text-xs mt-1">
                       <span className="text-amber-700">Diferencia esperada:</span>
-                      <span className="text-amber-800 font-medium">${diferenciaRetenida.toLocaleString('es-CO')}</span>
+                      <span className="text-amber-800 font-medium">${diferenciaRetenida.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                   </div>
                 </div>
