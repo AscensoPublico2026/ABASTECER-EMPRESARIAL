@@ -3,6 +3,7 @@ import {
   Flame, TriangleAlert, Wrench, Laptop, Zap, Package, ShieldCheck, Medal,
   Handshake, Truck, Clock4, ReceiptText, Star, Users, Eye, MapPin, Factory,
   Hospital, Store, Building2, Tractor, Phone, Mail, Check, Sparkles,
+  Monitor, Library,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -45,6 +46,8 @@ const MAPA_ICONOS: Record<string, LucideIcon> = {
   correo: Mail,
   check: Check,
   brillo: Sparkles,
+  monitor: Monitor,
+  estanteria: Library,
 }
 
 export function iconoDe(nombre: string | null | undefined): LucideIcon {
