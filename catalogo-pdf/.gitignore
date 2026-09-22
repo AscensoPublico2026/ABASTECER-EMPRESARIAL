@@ -1,0 +1,5 @@
+# Archivos de trabajo pesados/temporales del procesamiento (no versionar)
+trabajo/
+*_ocr_pg_*.png
+
+__pycache__/
