@@ -35,16 +35,16 @@ export function Portada({ contenido }: { contenido: Contenido }) {
   return (
     <section className="relative overflow-hidden bg-marca-900 text-white">
       <div className="absolute -left-48 top-10 h-[520px] w-[520px] rounded-full bg-[radial-gradient(closest-side,rgba(22,130,60,0.25),transparent)]" aria-hidden="true" />
-      <div className="relative mx-auto grid max-w-7xl gap-10 px-5 pb-10 pt-12 sm:px-6 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:pb-16 lg:pt-20">
+      <div className="relative mx-auto grid max-w-7xl gap-10 px-5 pb-10 pt-12 sm:px-6 lg:min-h-[calc(100svh-108px)] lg:max-h-[860px] lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-12 lg:py-10">
         <div className="flex flex-col justify-center">
           <Antetitulo tono="oro">Portafolio comercial</Antetitulo>
-          <h1 className="mt-6 font-marca text-[2.5rem] font-extrabold leading-[1.04] tracking-[-0.02em] sm:text-[3.4rem] lg:text-[4rem]">
+          <h1 className="mt-5 font-marca text-[2.5rem] font-extrabold leading-[1.05] tracking-[-0.02em] sm:text-[3.2rem] lg:text-[clamp(2.4rem,min(4.2vw,7.2svh),4rem)]">
             Un solo aliado para <span className="text-oro-400">múltiples necesidades</span> de suministro
           </h1>
-          <p className="mt-6 max-w-xl text-[16.5px] leading-[1.7] text-[#b8c2cc]">
+          <p className="mt-5 max-w-xl text-[16px] leading-[1.65] text-[#b8c2cc] lg:mt-[clamp(0.75rem,2.2svh,1.5rem)]">
             {QUIENES_SOMOS.parrafos[1]}
           </p>
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap lg:mt-[clamp(1.25rem,3.5svh,2.25rem)]">
             <BotonWhatsapp href={urlWhatsapp(contenido, 'Hola, quiero solicitar una cotización con Abastecer Empresarial.')} variante="oro">
               Solicita tu cotización
             </BotonWhatsapp>
@@ -52,7 +52,7 @@ export function Portada({ contenido }: { contenido: Contenido }) {
               Ver las 12 líneas
             </BotonEnlace>
           </div>
-          <p className="mt-6 text-[13px] text-white/45">
+          <p className="mt-5 text-[13px] text-white/45">
             WhatsApp {texto(contenido, 'contacto_telefono')} · {texto(contenido, 'contacto_ciudad')}
           </p>
         </div>
@@ -63,7 +63,7 @@ export function Portada({ contenido }: { contenido: Contenido }) {
             <img
               src="/sitio/fotos/bodega.webp"
               alt="Bodega de suministros empresariales"
-              className="aspect-[4/3] h-full w-full object-cover lg:aspect-[5/5.2]"
+              className="aspect-[4/3] h-full w-full object-cover lg:aspect-auto lg:h-[min(calc(100svh-200px),560px)] lg:min-h-[340px]"
               fetchPriority="high"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-marca-900/55 via-transparent to-transparent" />

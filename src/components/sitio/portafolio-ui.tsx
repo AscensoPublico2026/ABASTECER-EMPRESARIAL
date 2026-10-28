@@ -209,10 +209,10 @@ export function CabeceraPagina({
     <section className="relative overflow-hidden bg-marca-900">
       <div className="absolute -right-40 -top-40 h-[480px] w-[480px] rounded-full bg-[radial-gradient(closest-side,rgba(242,183,5,0.12),transparent)]" aria-hidden="true" />
       <div className="absolute -left-40 bottom-0 h-[420px] w-[420px] rounded-full bg-[radial-gradient(closest-side,rgba(22,130,60,0.22),transparent)]" aria-hidden="true" />
-      <div className="relative mx-auto max-w-7xl px-5 pb-16 pt-12 sm:px-6 lg:pb-24 lg:pt-16">
+      <div className="relative mx-auto max-w-7xl px-5 pb-14 pt-10 sm:px-6 lg:pb-16 lg:pt-12">
         <Migas items={migas} />
-        <Antetitulo tono="oro" className="mt-8">{antetitulo}</Antetitulo>
-        <h1 className="mt-4 max-w-4xl font-marca text-[2.2rem] font-extrabold leading-[1.06] tracking-[-0.015em] text-white sm:text-5xl lg:text-[3.4rem]">
+        <Antetitulo tono="oro" className="mt-6">{antetitulo}</Antetitulo>
+        <h1 className="mt-4 max-w-4xl font-marca text-[2.2rem] font-extrabold leading-[1.06] tracking-[-0.015em] text-white sm:text-5xl lg:text-[clamp(2.4rem,min(3.6vw,6.5svh),3.4rem)]">
           {titulo}
         </h1>
         {texto ? <p className="mt-6 max-w-2xl text-[16px] leading-relaxed text-white/65">{texto}</p> : null}
