@@ -63,7 +63,7 @@ export function Portada({ contenido }: { contenido: Contenido }) {
             <img
               src="/sitio/fotos/bodega.webp"
               alt="Bodega de suministros empresariales"
-              className="aspect-[4/3] h-full w-full object-cover lg:aspect-auto lg:h-[min(calc(100svh-200px),560px)] lg:min-h-[340px]"
+              className="aspect-[4/3] h-full w-full object-cover object-[32%_50%] lg:aspect-auto lg:h-[min(calc(100svh-200px),560px)] lg:min-h-[340px]"
               fetchPriority="high"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-marca-900/55 via-transparent to-transparent" />
