@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { Menu, X, Phone, Mail, Clock4, ClipboardList, Search, LogIn } from 'lucide-react'
-import LogoAbastecer from './LogoAbastecer'
 import { IconoWhatsapp } from './IconosRedes'
 import { useCotizacion } from './CotizacionProvider'
 import { MENU_SITIO } from '@/lib/sitio/config'
@@ -54,9 +53,10 @@ export default function HeaderSitio({
     <header className="sticky top-0 z-50">
       {/* Barra superior de contacto */}
       <div className="hidden bg-marca-900 text-white/85 lg:block">
+        <div className="flex h-[3px]" aria-hidden="true"><i className="w-[62%] bg-marca-900" /><i className="w-[12%] bg-oro-400" /><i className="flex-1 bg-[#16823c]" /></div>
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-2 text-[13px]">
           <p className="flex items-center gap-2 font-medium text-white/70">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-oro-400" />
+            <span className="inline-flex" aria-hidden="true"><i className="block h-[7px] w-[9px] -skew-x-[22deg] bg-[#16823c]" /><i className="-ml-px block h-[7px] w-[9px] -skew-x-[22deg] bg-oro-400" /></span>
             {tagline}
           </p>
           <div className="flex items-center gap-6">
@@ -92,7 +92,8 @@ export default function HeaderSitio({
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link href="/" className="shrink-0" aria-label="Abastecer Empresarial - Inicio">
-            <LogoAbastecer tamano="md" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/sitio/logo-horizontal.webp" alt="Abastecer Empresarial S.A.S." width={900} height={221} className="h-10 w-auto sm:h-11" />
           </Link>
 
           {/* Menu escritorio */}
@@ -102,10 +103,10 @@ export default function HeaderSitio({
                 key={item.href}
                 href={item.href}
                 className={clsx(
-                  'rounded-lg px-3.5 py-2 text-sm font-semibold transition',
+                  'relative px-3.5 py-2 text-[14px] font-semibold transition after:absolute after:inset-x-3.5 after:-bottom-[15px] after:h-[3px] after:rounded-full after:transition',
                   activo(item.href)
-                    ? 'bg-marca-50 text-marca-900'
-                    : 'text-acero-600 hover:bg-marca-50/70 hover:text-marca-900'
+                    ? 'text-marca-900 after:bg-oro-400'
+                    : 'text-acero-600 after:bg-transparent hover:text-marca-900'
                 )}
               >
                 {item.nombre}
@@ -124,7 +125,7 @@ export default function HeaderSitio({
 
             <Link
               href="/cotizacion"
-              className="relative flex h-10 items-center gap-2 rounded-xl border border-marca-100 px-3 text-sm font-semibold text-marca-900 transition hover:border-verde-200 hover:bg-verde-50"
+              className="relative flex h-10 items-center gap-2 rounded-full border border-marca-100 px-4 text-sm font-semibold text-marca-900 transition hover:border-verde-200 hover:bg-verde-50"
             >
               <ClipboardList className="h-4 w-4" />
               <span className="hidden sm:inline">Mi lista</span>
@@ -139,10 +140,10 @@ export default function HeaderSitio({
               href={urlWhatsapp}
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden h-10 items-center gap-2 rounded-xl bg-verde-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-verde-700 sm:flex"
+              className="hidden h-10 items-center gap-2 rounded-full bg-[#16823c] px-5 text-[12px] font-extrabold uppercase tracking-[0.1em] text-white shadow-sm transition hover:bg-[#12702f] sm:flex"
             >
               <IconoWhatsapp className="h-4 w-4" />
-              Cotizar ahora
+              Cotizar
             </a>
 
             <button

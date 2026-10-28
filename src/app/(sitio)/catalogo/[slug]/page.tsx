@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { nombreLegible } from '@/lib/sitio/formato'
 import { notFound } from 'next/navigation'
 import { ChevronRight, ShieldCheck, Truck, ReceiptText, Info, ArrowRight } from 'lucide-react'
 import {
@@ -25,14 +26,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const descripcion =
     producto.descripcion?.slice(0, 160) ??
-    `${producto.nombre} disponible en Abastecer Empresarial. Cotiza sin compromiso y recibe respuesta en menos de 24 horas hábiles.`
+    `${producto.nombre} disponible en Abastecer Empresarial. Cotiza sin compromiso por WhatsApp.`
 
   return {
-    title: producto.nombre,
+    title: nombreLegible(producto.nombre),
     description: descripcion,
     alternates: { canonical: `/catalogo/${producto.slug}` },
     openGraph: {
-      title: producto.nombre,
+      title: nombreLegible(producto.nombre),
       description: descripcion,
       url: `${SITIO_URL}/catalogo/${producto.slug}`,
       images: producto.imagen_url ? [{ url: producto.imagen_url }] : undefined,
@@ -108,7 +109,7 @@ export default async function PaginaProducto({ params }: Props) {
             </>
           ) : null}
           <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate font-semibold text-marca-900">{producto.nombre}</span>
+          <span className="truncate font-semibold text-marca-900">{nombreLegible(producto.nombre)}</span>
         </nav>
       </div>
 
@@ -149,7 +150,7 @@ export default async function PaginaProducto({ params }: Props) {
             ) : null}
 
             <h1 className="mt-2 font-marca text-3xl font-extrabold leading-tight tracking-tight text-marca-900 sm:text-4xl">
-              {producto.nombre}
+              {nombreLegible(producto.nombre)}
             </h1>
 
             {producto.descripcion ? (
@@ -206,9 +207,9 @@ export default async function PaginaProducto({ params }: Props) {
             {/* Sellos */}
             <ul className="mt-8 grid gap-3 border-t border-marca-100 pt-7 sm:grid-cols-3">
               {[
-                { icono: ShieldCheck, texto: 'Productos certificados' },
+                { icono: ShieldCheck, texto: 'Asesoría en la referencia' },
                 { icono: Truck, texto: 'Entregas programadas' },
-                { icono: ReceiptText, texto: 'Factura electrónica' },
+                { icono: ReceiptText, texto: 'Cotización formal' },
               ].map(({ icono: Icono, texto: etiqueta }) => (
                 <li key={etiqueta} className="flex items-center gap-2.5 text-[13px] text-acero-600">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-marca-50 text-verde-600">

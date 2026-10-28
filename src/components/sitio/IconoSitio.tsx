@@ -3,7 +3,7 @@ import {
   Flame, TriangleAlert, Wrench, Laptop, Zap, Package, ShieldCheck, Medal,
   Handshake, Truck, Clock4, ReceiptText, Star, Users, Eye, MapPin, Factory,
   Hospital, Store, Building2, Tractor, Phone, Mail, Check, Sparkles,
-  Monitor, Library,
+  Monitor, Library, Search, FileText, Camera, Tag, Link2,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -12,6 +12,11 @@ import {
  * al icono real que se dibuja en la web. Si el nombre no existe, cae en "caja".
  */
 const MAPA_ICONOS: Record<string, LucideIcon> = {
+  lupa: Search,
+  documento: FileText,
+  camara: Camera,
+  etiqueta: Tag,
+  enlace: Link2,
   casco: HardHat,
   gafas: Glasses,
   guantes: Handshake,

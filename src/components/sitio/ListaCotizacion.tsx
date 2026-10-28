@@ -27,7 +27,7 @@ export default function ListaCotizacion({ numeroWhatsapp }: { numeroWhatsapp: st
         <h2 className="font-marca text-xl font-bold text-marca-900">Tu lista está vacía</h2>
         <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-acero-500">
           Recorre el catálogo y agrega los productos que necesitas. Cuando termines, nos envías la
-          lista y te devolvemos la cotización formal en menos de 24 horas hábiles.
+          lista y te preparamos la cotización según tus cantidades y especificaciones.
         </p>
         <Link
           href="/catalogo"

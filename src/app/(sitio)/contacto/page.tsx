@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
-import { ChevronRight, MapPin, Phone, Mail, Clock4, Truck, ExternalLink } from 'lucide-react'
+import { CabeceraPagina } from '@/components/sitio/portafolio-ui'
+import { MapPin, Phone, Mail, Clock4, Truck, ExternalLink } from 'lucide-react'
 import { obtenerContenidoSitio } from '@/lib/queries/sitio'
 import { texto, textoOpcional } from '@/lib/sitio/contenido'
 import { urlCorreo, urlTelefono, urlWhatsapp, redesSociales } from '@/lib/sitio/config'
@@ -11,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const contenido = await obtenerContenidoSitio()
   return {
     title: 'Contacto',
-    description: `Escríbenos y recibe tu cotización en menos de 24 horas hábiles. ${texto(
+    description: `Escríbenos y solicita tu cotización de dotación, EPP y suministros empresariales. ${texto(
       contenido,
       'contacto_cobertura'
     )}`,
@@ -56,34 +56,20 @@ export default async function PaginaContacto() {
 
   return (
     <>
-      {/* Encabezado */}
-      <section className="relative overflow-hidden bg-marca-900 patron-marca">
-        <div className="absolute inset-0 patron-lineas opacity-50" aria-hidden="true" />
-        <div className="relative mx-auto max-w-7xl px-6 py-14 lg:py-20">
-          <nav aria-label="Ruta de navegación" className="mb-5 flex items-center gap-1.5 text-xs text-white/50">
-            <Link href="/" className="transition hover:text-oro-400">
-              Inicio
-            </Link>
-            <ChevronRight className="h-3.5 w-3.5" />
-            <span className="text-white/80">Contacto</span>
-          </nav>
-
-          <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-oro-400">
-            Estamos para atenderte
-          </p>
-          <h1 className="max-w-3xl font-marca text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-5xl">
-            Hablemos de lo que tu empresa necesita
-          </h1>
-          <p className="mt-6 max-w-2xl text-base leading-relaxed text-white/70">
-            Cuéntanos qué requieres y te enviamos una cotización formal en menos de 24 horas
-            hábiles. Sin compromiso y sin trámites.
-          </p>
-        </div>
-      </section>
+      <CabeceraPagina
+        migas={[{ nombre: 'Inicio', href: '/' }, { nombre: 'Contacto' }]}
+        antetitulo="Hablemos"
+        titulo={
+          <>
+            Solicita tu <span className="text-oro-400">cotización</span>
+          </>
+        }
+        texto="Cuéntanos qué productos necesita tu empresa. Preparamos tu cotización según tus cantidades, especificaciones y condiciones de suministro."
+      />
 
       {/* Canales */}
       <section className="bg-white py-14">
-        <div className="mx-auto grid max-w-7xl gap-4 px-6 sm:grid-cols-3">
+        <div className="mx-auto grid max-w-7xl gap-4 px-5 sm:grid-cols-3 sm:px-6">
           {canales.map((canal) => (
             <a
               key={canal.titulo}
@@ -106,7 +92,7 @@ export default async function PaginaContacto() {
               <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-acero-400">
                 {canal.titulo}
               </p>
-              <p className="mt-1 break-words font-marca text-lg font-bold leading-snug text-marca-900">
+              <p className="mt-1 break-all font-marca text-lg font-bold leading-snug text-marca-900">
                 {canal.valor}
               </p>
               <p className="mt-2 text-[13px] leading-relaxed text-acero-500">{canal.detalle}</p>
@@ -117,7 +103,7 @@ export default async function PaginaContacto() {
 
       {/* Formulario + datos */}
       <section className="bg-marca-50/50 py-16 lg:py-20">
-        <div className="mx-auto grid max-w-7xl gap-10 px-6 lg:grid-cols-12">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 sm:px-6 lg:grid-cols-12">
           <div className="lg:col-span-7">
             <FormularioSolicitud
               tipo="COTIZACION"

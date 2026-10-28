@@ -1,448 +1,147 @@
 import Link from 'next/link'
-import { ArrowRight, Check, Quote, Target, Telescope, Shield, Award, Zap } from 'lucide-react'
-import Reveal from './Reveal'
+import { ArrowRight, Download, Target, Telescope } from 'lucide-react'
 import IconoSitio from './IconoSitio'
-import TarjetaProducto from './TarjetaProducto'
-import ContadorAnimado from './ContadorAnimado'
-import { IconoWhatsapp } from './IconosRedes'
-import { texto, textoOpcional, lineas as lineasDe, filas, parrafos } from '@/lib/sitio/contenido'
-import { urlWhatsapp } from '@/lib/sitio/config'
-import type { Contenido, LineaWeb, ProductoWeb } from '@/types/sitio'
+import {
+  Antetitulo,
+  BotonEnlace,
+  BotonWhatsapp,
+  Encabezado,
+  EsquinaMarca,
+  FranjaDiagonal,
+  IconoCirculo,
+  Marca,
+  MosaicoLineas,
+  TarjetaPortafolio,
+} from './portafolio-ui'
+import { texto } from '@/lib/sitio/contenido'
+import { urlWhatsapp, urlTelefono, urlCorreo } from '@/lib/sitio/config'
+import { LINEAS, lineaPorSlug, type Producto } from '@/lib/sitio/portafolio'
+import {
+  COMPRAS_ESPECIALES,
+  MARCA,
+  MISION,
+  PILARES,
+  QUIENES_SOMOS,
+  SECTORES,
+  VALORES,
+  VISION,
+} from '@/lib/sitio/textos'
+import type { Contenido } from '@/types/sitio'
 
 // ============================================================
-// Encabezado de seccion reutilizable
+// PORTADA (inicio) — misma composición del catálogo
 // ============================================================
-export function TituloSeccion({
-  kicker,
-  titulo,
-  subtitulo,
-  centrado = true,
-  invertido = false,
-}: {
-  kicker?: string
-  titulo: string
-  subtitulo?: string
-  centrado?: boolean
-  invertido?: boolean
-}) {
+export function Portada({ contenido }: { contenido: Contenido }) {
   return (
-    <div className={centrado ? 'mx-auto max-w-3xl text-center' : 'max-w-2xl'}>
-      {kicker ? (
-        <p className={`mb-4 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.2em] ${
-          invertido
-            ? 'border border-oro-400/30 bg-oro-400/10 text-oro-400'
-            : 'border border-verde-200 bg-verde-50 text-verde-700'
-        }`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${invertido ? 'bg-oro-400' : 'bg-verde-500'}`} />
-          {kicker}
-        </p>
-      ) : null}
-      <h2 className={`font-marca text-3xl font-extrabold leading-[1.1] tracking-tight sm:text-4xl lg:text-[2.75rem] ${
-        invertido ? 'text-white' : 'text-marca-900'
-      }`}>
-        {titulo}
-      </h2>
-      {subtitulo ? (
-        <p className={`mt-5 text-[16px] leading-relaxed ${invertido ? 'text-white/65' : 'text-acero-500'}`}>
-          {subtitulo}
-        </p>
-      ) : null}
-    </div>
-  )
-}
-
-
-
-// ============================================================
-// HERO - Pantalla completa con fondo industrial premium
-// ============================================================
-export function Hero({ contenido, totalProductos }: { contenido: Contenido; totalProductos: number }) {
-  const imagen = textoOpcional(contenido, 'hero_imagen_url')
-  const badges = lineasDe(contenido, 'hero_badges')
-
-  return (
-    <section className="relative min-h-[92vh] overflow-hidden gradient-hero">
-      {/* Capas de fondo */}
-      <div className="absolute inset-0 patron-grid" aria-hidden="true" />
-      <div className="absolute inset-0 patron-marca opacity-80" aria-hidden="true" />
-
-      {/* Orbes de luz ambiental */}
-      <div className="absolute -left-32 top-1/4 h-[500px] w-[500px] rounded-full bg-verde-600/15 blur-[100px]" aria-hidden="true" />
-      <div className="absolute -right-32 bottom-1/4 h-[400px] w-[400px] rounded-full bg-oro-400/10 blur-[80px]" aria-hidden="true" />
-      <div className="absolute left-1/2 top-0 h-[300px] w-[600px] -translate-x-1/2 rounded-full bg-white/[0.02] blur-[60px]" aria-hidden="true" />
-
-      <div className="relative mx-auto grid max-w-7xl gap-12 px-6 pb-28 pt-20 lg:grid-cols-12 lg:gap-8 lg:pb-36 lg:pt-28">
-        {/* Texto principal */}
-        <div className="flex flex-col justify-center lg:col-span-7">
-          <div className="animate-aparecer">
-            <p className="inline-flex items-center gap-2.5 rounded-full border border-oro-400/25 bg-oro-400/[0.08] px-5 py-2 text-[12px] font-black uppercase tracking-[0.18em] text-oro-400 backdrop-blur-sm">
-              <span className="h-2 w-2 rounded-full bg-oro-400 animate-pulse-glow" />
-              {texto(contenido, 'hero_kicker')}
-            </p>
-          </div>
-
-          <h1 className="mt-8 font-marca text-4xl font-extrabold leading-[1.05] tracking-tight text-white animate-aparecer-arriba sm:text-5xl lg:text-[3.6rem]">
-            {texto(contenido, 'hero_titulo')}
+    <section className="relative overflow-hidden bg-marca-900 text-white">
+      <div className="absolute -left-48 top-10 h-[520px] w-[520px] rounded-full bg-[radial-gradient(closest-side,rgba(22,130,60,0.25),transparent)]" aria-hidden="true" />
+      <div className="relative mx-auto grid max-w-7xl gap-10 px-5 pb-10 pt-12 sm:px-6 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:pb-16 lg:pt-20">
+        <div className="flex flex-col justify-center">
+          <Antetitulo tono="oro">Portafolio comercial</Antetitulo>
+          <h1 className="mt-6 font-marca text-[2.5rem] font-extrabold leading-[1.04] tracking-[-0.02em] sm:text-[3.4rem] lg:text-[4rem]">
+            Un solo aliado para <span className="text-oro-400">múltiples necesidades</span> de suministro
           </h1>
-
-          <p className="mt-7 max-w-xl text-[17px] leading-[1.7] text-white/65">
-            {texto(contenido, 'hero_subtitulo')}
+          <p className="mt-6 max-w-xl text-[16.5px] leading-[1.7] text-[#b8c2cc]">
+            {QUIENES_SOMOS.parrafos[1]}
           </p>
-
-          {/* CTAs */}
-          <div className="mt-10 flex flex-wrap items-center gap-4">
-            <Link
-              href="/catalogo"
-              className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-2xl bg-verde-600 px-8 py-5 text-[15px] font-bold text-white shadow-[0_20px_40px_-12px_rgba(22,130,60,0.6)] transition-all duration-300 hover:bg-verde-500 hover:shadow-[0_24px_48px_-12px_rgba(22,130,60,0.7)] hover:-translate-y-0.5"
-            >
-              <span className="absolute inset-0 shimmer" />
-              <span className="relative">{texto(contenido, 'hero_boton_primario')}</span>
-              <ArrowRight className="relative h-4.5 w-4.5 transition-transform group-hover:translate-x-1" />
-            </Link>
-            <a
-              href={urlWhatsapp(contenido)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group inline-flex items-center gap-2.5 rounded-2xl border border-white/15 bg-white/[0.04] px-8 py-5 text-[15px] font-bold text-white backdrop-blur-md transition-all duration-300 hover:border-white/30 hover:bg-white/[0.08] hover:-translate-y-0.5"
-            >
-              <IconoWhatsapp className="h-5 w-5 text-green-400" />
-              {texto(contenido, 'hero_boton_secundario')}
-            </a>
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <BotonWhatsapp href={urlWhatsapp(contenido, 'Hola, quiero solicitar una cotización con Abastecer Empresarial.')} variante="oro">
+              Solicita tu cotización
+            </BotonWhatsapp>
+            <BotonEnlace href="/soluciones" variante="claro">
+              Ver las 12 líneas
+            </BotonEnlace>
           </div>
-
-          {/* Badges de confianza */}
-          {badges.length > 0 ? (
-            <ul className="mt-12 flex flex-wrap gap-x-7 gap-y-3">
-              {badges.map((badge, i) => (
-                <li key={badge} className="flex items-center gap-2.5 text-[13px] font-medium text-white/55" style={{ animationDelay: `${i * 100 + 400}ms` }}>
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-verde-600/20 ring-1 ring-verde-500/30">
-                    <Check className="h-3 w-3 text-verde-400" />
-                  </span>
-                  {badge}
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          <p className="mt-6 text-[13px] text-white/45">
+            WhatsApp {texto(contenido, 'contacto_telefono')} · {texto(contenido, 'contacto_ciudad')}
+          </p>
         </div>
 
-        {/* Panel visual derecho */}
-        <div className="relative hidden lg:col-span-5 lg:flex lg:items-center">
-          <div className="relative w-full">
-            {imagen ? (
-              <div className="overflow-hidden rounded-3xl border border-white/10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)]">
-                <img src={imagen} alt="Abastecer Empresarial" className="h-full w-full object-cover" />
-              </div>
-            ) : (
-              <div className="relative">
-                {/* Tarjeta principal con logo */}
-                <div className="rounded-3xl bg-white/[0.03] p-1 ring-1 ring-white/10 backdrop-blur-sm">
-                  <div className="rounded-[22px] bg-white p-10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.4)]">
-                    <img
-                      src="/logo-web.webp"
-                      alt="Abastecer Empresarial S.A.S."
-                      className="mx-auto h-auto w-full max-w-[280px]"
-                    />
-                  </div>
-                </div>
-
-                {/* Chips flotantes premium */}
-                <div className="absolute -left-6 bottom-8 glass-dark rounded-2xl px-5 py-4 shadow-2xl animate-float" style={{ animationDelay: '0.5s' }}>
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-oro-400/15">
-                      <Zap className="h-5 w-5 text-oro-400" />
-                    </span>
-                    <span className="text-left">
-                      <span className="block text-[15px] font-extrabold text-white">24 horas</span>
-                      <span className="text-[11px] text-white/50">Respuesta a cotizaciones</span>
-                    </span>
-                  </div>
-                </div>
-
-                <div className="absolute -right-4 top-8 glass-dark rounded-2xl px-5 py-4 shadow-2xl animate-float" style={{ animationDelay: '1.5s' }}>
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-verde-600/20">
-                      <Shield className="h-5 w-5 text-verde-400" />
-                    </span>
-                    <span className="text-left">
-                      <span className="block text-[15px] font-extrabold text-white">
-                        {totalProductos > 0 ? `${totalProductos}+` : '11 líneas'}
-                      </span>
-                      <span className="text-[11px] text-white/50">
-                        {totalProductos > 0 ? 'Productos en catálogo' : 'De abastecimiento'}
-                      </span>
-                    </span>
-                  </div>
-                </div>
-
-                <div className="absolute -bottom-4 right-12 glass-dark rounded-2xl px-5 py-4 shadow-2xl animate-float" style={{ animationDelay: '2.5s' }}>
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-500/20">
-                      <Award className="h-5 w-5 text-green-400" />
-                    </span>
-                    <span className="text-left">
-                      <span className="block text-[15px] font-extrabold text-white">100%</span>
-                      <span className="text-[11px] text-white/50">Factura electrónica</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
+        <div className="relative">
+          <div className="relative overflow-hidden rounded-[28px] ring-1 ring-white/10">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/sitio/fotos/bodega.webp"
+              alt="Bodega de suministros empresariales"
+              className="aspect-[4/3] h-full w-full object-cover lg:aspect-[5/5.2]"
+              fetchPriority="high"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-marca-900/55 via-transparent to-transparent" />
+            <span className="absolute bottom-4 right-5 text-[11px] text-white/60">Imagen referencial</span>
           </div>
-        </div>
-      </div>
-
-      {/* Wave separator */}
-      <div className="absolute bottom-0 left-0 right-0">
-        <svg className="block h-[50px] w-full text-white sm:h-[70px]" viewBox="0 0 1440 70" preserveAspectRatio="none" aria-hidden="true">
-          <path fill="currentColor" d="M0 70V35c180 20 360 35 540 30s360-25 540-35 360 5 360 15v25H0Z" />
-        </svg>
-      </div>
-    </section>
-  )
-}
-
-
-
-// ============================================================
-// CIFRAS con contadores animados y diseño premium
-// ============================================================
-export function SeccionCifras({ contenido }: { contenido: Contenido }) {
-  const cifras = filas(contenido, 'cifras', 2).filter(([valor]) => valor !== '')
-  if (cifras.length === 0) return null
-
-  return (
-    <section className="relative -mt-1 bg-white py-16 lg:py-20">
-      <div className="mx-auto max-w-7xl px-6">
-        <div className="grid grid-cols-2 gap-8 lg:grid-cols-4">
-          {cifras.map(([valor, etiqueta], i) => (
-            <Reveal key={`${valor}-${etiqueta}`} retraso={i * 100} className="text-center">
-              <div className="relative">
-                <p className="font-marca text-4xl font-extrabold tracking-tight text-marca-900 sm:text-5xl">
-                  <ContadorAnimado valor={valor} />
-                </p>
-                <p className="mt-2 text-[13px] font-semibold leading-snug text-acero-500">{etiqueta}</p>
-                {/* Linea decorativa debajo */}
-                <div className="mx-auto mt-4 h-1 w-12 rounded-full bg-gradient-to-r from-verde-500 to-oro-400 opacity-60" />
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// ============================================================
-// LINEAS DE PRODUCTO con diseño de tarjetas premium
-// ============================================================
-export function SeccionLineas({ lineas }: { contenido: Contenido; lineas: LineaWeb[] }) {
-  if (lineas.length === 0) return null
-
-  return (
-    <section id="lineas" className="relative overflow-hidden bg-marca-50/40 py-24 lg:py-28">
-      {/* Patron de fondo sutil */}
-      <div className="absolute inset-0 patron-puntos opacity-40" aria-hidden="true" />
-
-      <div className="relative mx-auto max-w-7xl px-6">
-        <TituloSeccion
-          kicker="Nuestras líneas"
-          titulo="Todo lo que tu empresa necesita, organizado para ti"
-          subtitulo="Desde la protección de tu personal hasta el café de la sala de juntas. Explora cada línea y arma tu lista de cotización."
-        />
-
-        <div className="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {lineas.map((linea, i) => (
-            <Reveal key={linea.id} retraso={(i % 3) * 100}>
-              <Link
-                href={`/catalogo?linea=${linea.slug}`}
-                className="group flex h-full flex-col card-premium rounded-2xl p-7"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-marca-900 text-oro-400 shadow-lg transition-all duration-400 group-hover:bg-verde-600 group-hover:text-white group-hover:shadow-verde-600/30 group-hover:scale-110">
-                    <IconoSitio nombre={linea.icono} className="h-7 w-7" />
-                  </span>
-                  {linea.total_productos > 0 ? (
-                    <span className="rounded-full bg-marca-50 px-3 py-1.5 text-[11px] font-bold tabular-nums text-acero-600 ring-1 ring-marca-100">
-                      {linea.total_productos} {linea.total_productos === 1 ? 'producto' : 'productos'}
-                    </span>
-                  ) : null}
-                </div>
-
-                <h3 className="mt-6 font-marca text-lg font-bold leading-snug text-marca-900 group-hover:text-verde-700 transition-colors">
-                  {linea.nombre}
-                </h3>
-
-                {linea.descripcion_web ? (
-                  <p className="mt-3 line-clamp-3 text-[13.5px] leading-relaxed text-acero-500">
-                    {linea.descripcion_web}
-                  </p>
-                ) : null}
-
-                <span className="mt-auto flex items-center gap-2 pt-6 text-[13px] font-bold text-verde-700 transition-all group-hover:gap-3">
-                  Explorar productos
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </span>
-              </Link>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-
-
-// ============================================================
-// PRODUCTOS DESTACADOS
-// ============================================================
-export function SeccionDestacados({ productos }: { productos: ProductoWeb[] }) {
-  if (productos.length === 0) return null
-
-  return (
-    <section className="bg-white py-24 lg:py-28">
-      <div className="mx-auto max-w-7xl px-6">
-        <div className="flex flex-wrap items-end justify-between gap-6">
-          <TituloSeccion
-            kicker="Catálogo"
-            titulo="Productos destacados"
-            subtitulo="Una muestra de lo que entregamos todas las semanas a empresas como la tuya."
-            centrado={false}
-          />
-          <Link
-            href="/catalogo"
-            className="group inline-flex items-center gap-2 rounded-2xl border border-marca-200 px-6 py-3.5 text-sm font-bold text-marca-900 transition-all hover:border-verde-300 hover:bg-verde-50 hover:-translate-y-0.5"
-          >
-            Ver todo el catálogo
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-          </Link>
-        </div>
-
-        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {productos.slice(0, 8).map((producto, i) => (
-            <Reveal key={producto.id} retraso={(i % 4) * 80} className="h-full">
-              <TarjetaProducto producto={producto} prioritaria={i < 4} />
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// ============================================================
-// BENEFICIOS - Diseño oscuro premium con glassmorphism
-// ============================================================
-export function SeccionBeneficios({ contenido }: { contenido: Contenido }) {
-  const beneficios = filas(contenido, 'beneficios', 3).filter(([, titulo]) => titulo !== '')
-  if (beneficios.length === 0) return null
-
-  return (
-    <section className="relative overflow-hidden gradient-section-dark py-24 lg:py-32">
-      <div className="absolute inset-0 patron-grid" aria-hidden="true" />
-      <div className="absolute inset-0 patron-marca opacity-60" aria-hidden="true" />
-
-      {/* Orbes de luz */}
-      <div className="absolute -left-40 top-1/3 h-[400px] w-[400px] rounded-full bg-verde-600/10 blur-[100px]" aria-hidden="true" />
-      <div className="absolute -right-40 bottom-1/4 h-[350px] w-[350px] rounded-full bg-oro-400/8 blur-[80px]" aria-hidden="true" />
-
-      <div className="relative mx-auto max-w-7xl px-6">
-        <TituloSeccion
-          kicker="Propuesta de valor"
-          titulo={texto(contenido, 'beneficios_titulo')}
-          subtitulo={texto(contenido, 'beneficios_subtitulo')}
-          invertido
-        />
-
-        <div className="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {beneficios.map(([icono, titulo, descripcion], i) => (
-            <Reveal key={titulo} retraso={(i % 3) * 100} className="h-full">
-              <div className="card-dark h-full rounded-2xl p-7">
-                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-oro-400/10 ring-1 ring-oro-400/20">
-                  <IconoSitio nombre={icono} className="h-7 w-7 text-oro-400" />
-                </span>
-                <h3 className="mt-6 font-marca text-[17px] font-bold text-white">{titulo}</h3>
-                <p className="mt-3 text-[14px] leading-relaxed text-white/55">{descripcion}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-
-
-// ============================================================
-// MISION Y VISION - Premium con tarjetas elevadas
-// ============================================================
-export function SeccionMisionVision({ contenido }: { contenido: Contenido }) {
-  const valores = filas(contenido, 'valores', 3).filter(([, titulo]) => titulo !== '')
-
-  return (
-    <section id="mision-vision" className="bg-white py-24 lg:py-28">
-      <div className="mx-auto max-w-7xl px-6">
-        <TituloSeccion
-          kicker="Nuestra esencia"
-          titulo="Lo que nos mueve todos los días"
-          subtitulo="No solo vendemos productos. Simplificamos el trabajo de las áreas de compras y de seguridad y salud en el trabajo."
-        />
-
-        <div className="mt-16 grid gap-6 lg:grid-cols-2">
-          <Reveal className="h-full">
-            <article className="relative h-full overflow-hidden rounded-3xl bg-gradient-to-br from-marca-50 via-white to-verde-50/30 p-10 ring-1 ring-marca-100">
-              <div className="absolute -right-8 -top-8 text-marca-100/60" aria-hidden="true">
-                <Target className="h-40 w-40" strokeWidth={0.8} />
-              </div>
-              <span className="relative flex h-14 w-14 items-center justify-center rounded-2xl gradient-verde text-white shadow-lg glow-verde">
-                <Target className="h-7 w-7" />
+          <div className="absolute -bottom-5 left-5 right-5 hidden rounded-2xl border border-white/10 bg-[#15293d]/95 p-4 backdrop-blur sm:block lg:-left-8 lg:right-auto lg:w-[320px]">
+            <div className="flex items-center gap-3">
+              <span className="font-marca text-4xl font-extrabold text-oro-400">12</span>
+              <span className="text-[13px] leading-snug text-white/75">
+                líneas de suministro para todas las áreas de tu empresa
               </span>
-              <h3 className="relative mt-7 font-marca text-2xl font-extrabold text-marca-900">Misión</h3>
-              <p className="relative mt-4 text-[15px] leading-[1.8] text-acero-600">
-                {texto(contenido, 'mision')}
-              </p>
-            </article>
-          </Reveal>
-
-          <Reveal retraso={150} className="h-full">
-            <article className="relative h-full overflow-hidden rounded-3xl gradient-hero p-10 text-white">
-              <div className="absolute inset-0 patron-grid opacity-50" aria-hidden="true" />
-              <div className="absolute -right-8 -top-8 text-white/5" aria-hidden="true">
-                <Telescope className="h-40 w-40" strokeWidth={0.8} />
-              </div>
-              <span className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-oro-400 text-marca-900 shadow-lg glow-oro">
-                <Telescope className="h-7 w-7" />
-              </span>
-              <h3 className="relative mt-7 font-marca text-2xl font-extrabold">Visión</h3>
-              <p className="relative mt-4 text-[15px] leading-[1.8] text-white/65">
-                {texto(contenido, 'vision')}
-              </p>
-            </article>
-          </Reveal>
-        </div>
-
-        {/* Valores */}
-        {valores.length > 0 ? (
-          <div className="mt-20">
-            <h3 className="text-center font-marca text-[12px] font-black uppercase tracking-[0.2em] text-verde-600">
-              Nuestros valores
-            </h3>
-            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
-              {valores.map(([icono, titulo, descripcion], i) => (
-                <Reveal key={titulo} retraso={i * 80} className="h-full">
-                  <div className="card-premium flex h-full flex-col items-center rounded-2xl p-6 text-center">
-                    <span className="flex h-13 w-13 items-center justify-center rounded-xl bg-verde-50 text-verde-600 ring-1 ring-verde-100">
-                      <IconoSitio nombre={icono} className="h-6 w-6" />
-                    </span>
-                    <h4 className="mt-5 font-marca text-[13px] font-bold uppercase tracking-wide text-marca-900">
-                      {titulo}
-                    </h4>
-                    <p className="mt-2 text-[12px] leading-relaxed text-acero-500">{descripcion}</p>
-                  </div>
-                </Reveal>
-              ))}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Pilares */}
+      <div className="relative mx-auto max-w-7xl px-5 pb-14 pt-6 sm:px-6 lg:pb-20 lg:pt-10">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {PILARES.map((p) => (
+            <div key={p.titulo} className="rounded-[20px] border border-[#25405a] bg-[#15293d] p-5">
+              <div className="flex items-center gap-3">
+                <IconoCirculo nombre={p.icono} className="h-10 w-10 rounded-xl" />
+                <h2 className="font-marca text-[15px] font-bold">{p.titulo}</h2>
+              </div>
+              <p className="mt-3 text-[13.5px] leading-relaxed text-[#b8c2cc]">{p.texto}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+      <FranjaDiagonal fondoAbajo="#0d1b2a" className="-mb-px" />
+    </section>
+  )
+}
+
+// ============================================================
+// LÍNEAS DE SUMINISTRO — mosaico oscuro (página 2 del catálogo)
+// ============================================================
+export function SeccionLineas({ conBoton = true }: { conBoton?: boolean }) {
+  return (
+    <section id="lineas" className="relative overflow-hidden bg-marca-900 py-20 text-white lg:py-28">
+      <div className="absolute -left-40 -top-40 h-[560px] w-[560px] rounded-full bg-[radial-gradient(closest-side,rgba(22,130,60,0.2),transparent)]" aria-hidden="true" />
+      <div className="absolute -right-48 top-40 h-[520px] w-[520px] rounded-full bg-[radial-gradient(closest-side,rgba(242,183,5,0.1),transparent)]" aria-hidden="true" />
+      <div className="relative mx-auto max-w-7xl px-5 sm:px-6">
+        <div className="flex flex-wrap items-end justify-between gap-8">
+          <Encabezado
+            invertido
+            antetitulo="Nuestras líneas de suministro"
+            titulo={
+              <>
+                Todo lo que tu operación necesita, <span className="text-oro-400">en un solo aliado.</span>
+              </>
+            }
+          />
+          <div className="border-l-2 border-oro-400 pl-4 text-right">
+            <p className="font-marca text-5xl font-extrabold leading-none">12</p>
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">Líneas de suministro</p>
+          </div>
+        </div>
+        <div className="mt-12">
+          <MosaicoLineas lineas={LINEAS} />
+        </div>
+        {conBoton ? (
+          <div className="mt-6 flex flex-col items-start gap-5 rounded-[22px] border border-white/15 bg-white/[0.04] p-5 sm:flex-row sm:items-center sm:p-6">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-oro-400 text-marca-900">
+              <IconoSitio nombre="lupa" className="h-5 w-5" />
+            </span>
+            <div className="flex-1">
+              <p className="font-marca text-[17px] font-bold">¿No ves lo que necesitas?</p>
+              <p className="mt-1 text-[14px] text-white/60">Compras especiales: buscamos alternativas para productos fuera del portafolio.</p>
+            </div>
+            <Link
+              href="/#compras-especiales"
+              className="inline-flex items-center gap-2 rounded-full bg-oro-400 px-6 py-3.5 text-[12px] font-extrabold uppercase tracking-[0.12em] text-marca-900 transition hover:-translate-y-0.5"
+            >
+              Cómo funciona
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
         ) : null}
       </div>
@@ -450,116 +149,240 @@ export function SeccionMisionVision({ contenido }: { contenido: Contenido }) {
   )
 }
 
-
-
 // ============================================================
-// COMO TRABAJAMOS - Timeline visual premium
+// DOTACIÓN CON TU LOGO — vitrina
 // ============================================================
-export function SeccionProceso({ contenido }: { contenido: Contenido }) {
-  const pasos = filas(contenido, 'proceso_pasos', 2).filter(([titulo]) => titulo !== '')
-  if (pasos.length === 0) return null
-
+export function SeccionDotacion({ contenido }: { contenido: Contenido }) {
+  const dotacion = lineaPorSlug('dotacion')!
+  const vitrina: Producto[] = [
+    dotacion.sublineas[0].productos[0],
+    dotacion.sublineas[0].productos[1],
+    dotacion.sublineas[0].productos[3],
+    dotacion.sublineas[1].productos[2],
+  ]
   return (
-    <section className="relative overflow-hidden bg-marca-50/50 py-24 lg:py-28">
-      <div className="absolute inset-0 patron-puntos opacity-30" aria-hidden="true" />
-      <div className="relative mx-auto max-w-7xl px-6">
-        <TituloSeccion
-          kicker="El proceso"
-          titulo={texto(contenido, 'proceso_titulo')}
-          subtitulo={texto(contenido, 'proceso_subtitulo')}
-        />
-
-        <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {pasos.map(([titulo, descripcion], i) => (
-            <Reveal key={titulo} retraso={i * 120} className="h-full">
-              <div className="relative h-full card-premium rounded-2xl p-7">
-                {/* Numero con gradiente */}
-                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-marca-900 font-marca text-xl font-extrabold text-oro-400 shadow-lg">
-                  {i + 1}
-                </span>
-                {/* Linea conectora */}
-                {i < pasos.length - 1 ? (
-                  <span className="absolute right-0 top-[2.6rem] hidden h-[2px] w-8 bg-gradient-to-r from-marca-200 to-transparent lg:block" aria-hidden="true" />
-                ) : null}
-                <h3 className="mt-6 font-marca text-[16px] font-bold leading-snug text-marca-900">
-                  {titulo}
-                </h3>
-                <p className="mt-3 text-[13.5px] leading-relaxed text-acero-500">{descripcion}</p>
-              </div>
-            </Reveal>
+    <section className="bg-white py-20 lg:py-28">
+      <div className="mx-auto max-w-7xl px-5 sm:px-6">
+        <div className="flex flex-wrap items-end justify-between gap-6">
+          <Encabezado
+            antetitulo="Línea 01 · Dotación"
+            titulo="Tu marca en cada prenda"
+            texto="Polos, camisas, overoles, conjuntos y gorras con tu logo bordado o estampado. Te indicamos colores y tallas de cada referencia."
+          />
+          <BotonEnlace href="/soluciones/dotacion">Ver toda la dotación</BotonEnlace>
+        </div>
+        <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {vitrina.map((p) => (
+            <TarjetaPortafolio key={p.imagen} producto={p} alto="alto" />
           ))}
         </div>
+        <BandaBordado contenido={contenido} />
       </div>
     </section>
   )
 }
 
-// ============================================================
-// SECTORES con iconos grandes y diseño de chips
-// ============================================================
-export function SeccionSectores({ contenido }: { contenido: Contenido }) {
-  const sectores = filas(contenido, 'sectores', 2).filter(([, nombre]) => nombre !== '')
-  if (sectores.length === 0) return null
-
+export function BandaBordado({ contenido }: { contenido: Contenido }) {
   return (
-    <section className="bg-white py-24 lg:py-28">
-      <div className="mx-auto max-w-7xl px-6">
-        <TituloSeccion
-          kicker="Cobertura"
-          titulo={texto(contenido, 'sectores_titulo')}
-          subtitulo={texto(contenido, 'sectores_subtitulo')}
-        />
-
-        <div className="mt-16 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {sectores.map(([icono, nombre], i) => (
-            <Reveal key={nombre} retraso={(i % 4) * 80} className="h-full">
-              <div className="card-premium flex h-full items-center gap-4 rounded-2xl px-6 py-5">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-marca-900 text-oro-400 shadow-md">
-                  <IconoSitio nombre={icono} className="h-6 w-6" />
-                </span>
-                <span className="text-[14px] font-bold leading-snug text-marca-900">{nombre}</span>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// ============================================================
-// QUIENES SOMOS (texto largo, para /nosotros)
-// ============================================================
-export function SeccionQuienesSomos({ contenido }: { contenido: Contenido }) {
-  const bloques = parrafos(contenido, 'nosotros_texto')
-
-  return (
-    <section className="bg-white py-24 lg:py-28">
-      <div className="mx-auto grid max-w-7xl gap-14 px-6 lg:grid-cols-12">
-        <div className="lg:col-span-5">
-          <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-verde-200 bg-verde-50 px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-verde-700">
-            <span className="h-1.5 w-1.5 rounded-full bg-verde-500" />
-            Quiénes somos
+    <div className="relative mt-5 overflow-hidden rounded-[22px] bg-marca-900 p-6 text-white sm:p-8">
+      <EsquinaMarca className="absolute bottom-0 right-0 h-10 w-28 sm:h-12 sm:w-36" />
+      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-oro-400 text-marca-900">
+          <IconoSitio nombre="estrella" className="h-6 w-6" />
+        </span>
+        <div className="flex-1">
+          <p className="font-marca text-xl font-bold">Bordado y estampado con tu logo</p>
+          <p className="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-[#c6ccd6]">
+            Opciones de personalización según la prenda: puede ser estampado o bordado, en la más alta calidad.
+            Para cotizar, envíanos prendas, cantidades, tallas, colores y tu logo.
           </p>
-          <h2 className="font-marca text-3xl font-extrabold leading-[1.1] tracking-tight text-marca-900 sm:text-4xl">
-            {texto(contenido, 'nosotros_titulo')}
-          </h2>
+        </div>
+        <BotonWhatsapp
+          href={urlWhatsapp(contenido, 'Hola, quiero cotizar dotación con bordado o estampado de mi logo.')}
+          variante="oro"
+          className="lg:mr-24"
+        >
+          Solicita tu cotización
+        </BotonWhatsapp>
+      </div>
+    </div>
+  )
+}
 
-          <div className="mt-10 rounded-2xl bg-marca-900 p-7">
-            <Quote className="h-7 w-7 text-oro-400" />
-            <p className="mt-4 font-marca text-[18px] font-bold leading-snug text-white">
-              {texto(contenido, 'marca_slogan')}
-            </p>
-            <p className="mt-2 text-[13px] text-white/50">{texto(contenido, 'marca_tagline')}</p>
+// ============================================================
+// COMPRAS ESPECIALES — "¿Buscas algo que no aparece?"
+// ============================================================
+export function SeccionComprasEspeciales({ contenido }: { contenido: Contenido }) {
+  return (
+    <section id="compras-especiales" className="scroll-mt-28 bg-[#f6f7f8] py-20 lg:py-28">
+      <div className="mx-auto max-w-7xl px-5 sm:px-6">
+        <div className="grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:gap-16">
+          <div>
+            <Encabezado
+              antetitulo="Compras especiales"
+              titulo={COMPRAS_ESPECIALES.titulo}
+              texto={COMPRAS_ESPECIALES.texto}
+            />
+            <p className="mt-10 text-[12px] font-bold uppercase tracking-[0.2em] text-marca-900">Puedes enviarnos</p>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {COMPRAS_ESPECIALES.puedes_enviar.map((p) => (
+                <div key={p.titulo} className="flex items-center gap-3 rounded-2xl border border-[#e3e6ea] bg-white p-4">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-marca-900 text-oro-400">
+                    <IconoSitio nombre={p.icono} className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <span className="block text-[14px] font-bold leading-tight text-marca-900">{p.titulo}</span>
+                    <span className="block text-[12.5px] text-acero-500">{p.texto}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[28px] bg-marca-900 p-7 text-white sm:p-10">
+            <p className="text-[12px] font-bold uppercase tracking-[0.2em] text-oro-400">Así funciona</p>
+            <ol className="mt-8 space-y-8">
+              {COMPRAS_ESPECIALES.pasos.map((p, i) => (
+                <li key={p.titulo} className="relative flex gap-5">
+                  {i < COMPRAS_ESPECIALES.pasos.length - 1 ? (
+                    <span className="absolute left-[19px] top-12 h-[calc(100%-8px)] border-l border-dashed border-white/25" aria-hidden="true" />
+                  ) : null}
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-oro-400 font-marca text-[17px] font-extrabold text-marca-900">
+                    {i + 1}
+                  </span>
+                  <div>
+                    <p className="font-marca text-[18px] font-bold">{p.titulo}</p>
+                    <p className="mt-1.5 text-[14.5px] leading-relaxed text-[#aeb7c4]">{p.texto}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <BotonWhatsapp href={urlWhatsapp(contenido, COMPRAS_ESPECIALES.mensaje)} variante="oro" className="mt-10 w-full sm:w-auto">
+              Cuéntanos qué necesitas
+            </BotonWhatsapp>
           </div>
         </div>
+      </div>
+    </section>
+  )
+}
 
-        <div className="lg:col-span-7">
-          <div className="space-y-6 text-[16px] leading-[1.8] text-acero-600">
-            {bloques.map((bloque, i) => (
-              <Reveal key={i} retraso={i * 100}>
-                <p>{bloque}</p>
-              </Reveal>
+// ============================================================
+// SECTORES (resumen para inicio y nosotros)
+// ============================================================
+export function SeccionSectores() {
+  return (
+    <section className="bg-white py-20 lg:py-28">
+      <div className="mx-auto max-w-7xl px-5 sm:px-6">
+        <div className="flex flex-wrap items-end justify-between gap-6">
+          <Encabezado
+            antetitulo="Sectores"
+            titulo="Empresas que atendemos"
+            texto="Si tu empresa tiene personal, tiene necesidades de abastecimiento. Estos son los sectores donde más trabajamos."
+          />
+          <BotonEnlace href="/sectores">Ver necesidades por sector</BotonEnlace>
+        </div>
+        <div className="mt-12 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {SECTORES.map((s) => (
+            <Link
+              key={s.nombre}
+              href={`/sectores#${s.icono}`}
+              className="group flex items-center gap-4 rounded-[18px] border border-[#e3e6ea] bg-white p-4 transition hover:-translate-y-0.5 hover:border-marca-900"
+            >
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-marca-900 text-oro-400">
+                <IconoSitio nombre={s.icono} className="h-6 w-6" />
+              </span>
+              <span className="font-marca text-[14.5px] font-bold leading-snug text-marca-900">{s.nombre}</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ============================================================
+// MISIÓN, VISIÓN Y VALORES
+// ============================================================
+export function SeccionMisionVision() {
+  return (
+    <section id="mision-vision" className="bg-[#f6f7f8] py-20 lg:py-28">
+      <div className="mx-auto max-w-7xl px-5 sm:px-6">
+        <Encabezado
+          antetitulo="Nuestra esencia"
+          titulo="Lo que nos mueve"
+          texto="Más que vender productos, simplificamos el trabajo de las áreas de compras, talento humano y seguridad y salud en el trabajo."
+        />
+        <div className="mt-12 grid gap-5 lg:grid-cols-2">
+          <article className="relative overflow-hidden rounded-[26px] bg-white p-8 ring-1 ring-[#e3e6ea] sm:p-10">
+            <Target className="absolute -right-6 -top-6 h-36 w-36 text-[#eef0f3]" strokeWidth={1} aria-hidden="true" />
+            <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-[#16823c] text-white">
+              <Target className="h-6 w-6" />
+            </span>
+            <h3 className="relative mt-6 font-marca text-2xl font-extrabold text-marca-900">Misión</h3>
+            <p className="relative mt-4 text-[15.5px] leading-[1.8] text-acero-600">{MISION}</p>
+          </article>
+          <article className="relative overflow-hidden rounded-[26px] bg-marca-900 p-8 text-white sm:p-10">
+            <Telescope className="absolute -right-6 -top-6 h-36 w-36 text-white/[0.05]" strokeWidth={1} aria-hidden="true" />
+            <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-oro-400 text-marca-900">
+              <Telescope className="h-6 w-6" />
+            </span>
+            <h3 className="relative mt-6 font-marca text-2xl font-extrabold">Visión</h3>
+            <p className="relative mt-4 text-[15.5px] leading-[1.8] text-white/70">{VISION}</p>
+          </article>
+        </div>
+
+        <p className="mt-16 flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#16823c]">
+          <Marca />
+          Nuestros valores
+        </p>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {VALORES.map((v) => (
+            <div key={v.titulo} className="rounded-[20px] bg-white p-6 ring-1 ring-[#e3e6ea]">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eef6f0] text-[#16823c]">
+                <IconoSitio nombre={v.icono} className="h-5 w-5" />
+              </span>
+              <h4 className="mt-5 font-marca text-[15px] font-bold text-marca-900">{v.titulo}</h4>
+              <p className="mt-2 text-[13.5px] leading-relaxed text-acero-500">{v.texto}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ============================================================
+// QUIÉNES SOMOS (texto ampliado, para /nosotros)
+// ============================================================
+export function SeccionQuienesSomos() {
+  return (
+    <section className="bg-white py-20 lg:py-28">
+      <div className="mx-auto grid max-w-7xl gap-12 px-5 sm:px-6 lg:grid-cols-[1fr_1.15fr] lg:gap-16">
+        <div>
+          <Encabezado antetitulo="Quiénes somos" titulo="El aliado que le simplifica el abastecimiento a tu empresa" />
+          <div className="mt-10 overflow-hidden rounded-[26px]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/sitio/fotos/bodega.webp" alt="Bodega de suministros" className="aspect-[16/10] w-full object-cover" loading="lazy" />
+          </div>
+        </div>
+        <div className="space-y-6 text-[16.5px] leading-[1.8] text-acero-600 lg:pt-12">
+          {[...QUIENES_SOMOS.parrafos, ...QUIENES_SOMOS.ampliado].map((p, i) => (
+            <p key={i} className={i === 0 ? 'font-marca text-[19px] font-bold leading-snug text-marca-900' : ''}>
+              {p}
+            </p>
+          ))}
+          <div className="grid gap-3 pt-4 sm:grid-cols-2">
+            {PILARES.map((p) => (
+              <div key={p.titulo} className="flex gap-3 rounded-2xl bg-[#f6f7f8] p-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-marca-900 text-oro-400">
+                  <IconoSitio nombre={p.icono} className="h-5 w-5" />
+                </span>
+                <span>
+                  <span className="block font-marca text-[14px] font-bold text-marca-900">{p.titulo}</span>
+                  <span className="block text-[13px] leading-snug text-acero-500">{p.texto}</span>
+                </span>
+              </div>
             ))}
           </div>
         </div>
@@ -569,41 +392,61 @@ export function SeccionQuienesSomos({ contenido }: { contenido: Contenido }) {
 }
 
 // ============================================================
-// LLAMADO A LA ACCION FINAL - Premium oscuro
+// LLAMADO FINAL — "Solicita tu cotización" (página 17)
 // ============================================================
 export function SeccionCTA({ contenido }: { contenido: Contenido }) {
+  const datos = [
+    { etiqueta: 'WhatsApp y llamadas', valor: texto(contenido, 'contacto_telefono'), detalle: 'Atención comercial', href: urlWhatsapp(contenido), externo: true, ancho: false },
+    { etiqueta: 'Ubicación', valor: texto(contenido, 'contacto_ciudad'), detalle: 'Despachos a todo Colombia', href: '/contacto', externo: false, ancho: false },
+    { etiqueta: 'Correo', valor: texto(contenido, 'contacto_email'), detalle: 'Envíanos tu lista de productos o tu orden de compra', href: urlCorreo(contenido, 'Solicitud de cotización'), externo: false, ancho: true },
+    { etiqueta: 'Horario de atención', valor: texto(contenido, 'contacto_horario'), detalle: '', href: urlTelefono(contenido), externo: false, ancho: true },
+  ]
   return (
-    <section className="relative overflow-hidden gradient-hero">
-      <div className="absolute inset-0 patron-grid" aria-hidden="true" />
-      <div className="absolute inset-0 patron-marca opacity-70" aria-hidden="true" />
-      {/* Orbe central */}
-      <div className="absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-verde-600/10 blur-[100px]" aria-hidden="true" />
-
-      <div className="relative mx-auto max-w-4xl px-6 py-24 text-center lg:py-32">
-        <h2 className="font-marca text-3xl font-extrabold leading-[1.1] tracking-tight text-white sm:text-4xl lg:text-5xl">
-          {texto(contenido, 'cta_titulo')}
-        </h2>
-        <p className="mx-auto mt-6 max-w-2xl text-[16px] leading-relaxed text-white/60">
-          {texto(contenido, 'cta_texto')}
-        </p>
-        <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
-          <a
-            href={urlWhatsapp(contenido)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-2xl bg-verde-600 px-9 py-5 text-[15px] font-bold text-white shadow-[0_20px_40px_-12px_rgba(22,130,60,0.6)] transition-all hover:bg-verde-500 hover:shadow-[0_24px_48px_-12px_rgba(22,130,60,0.7)] hover:-translate-y-0.5"
-          >
-            <span className="absolute inset-0 shimmer" />
-            <IconoWhatsapp className="relative h-5 w-5" />
-            <span className="relative">{texto(contenido, 'cta_boton')}</span>
-          </a>
-          <Link
-            href="/contacto"
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.04] px-9 py-5 text-[15px] font-bold text-white backdrop-blur-md transition-all hover:border-white/30 hover:bg-white/[0.08] hover:-translate-y-0.5"
-          >
-            Escribir un mensaje
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+    <section className="relative overflow-hidden bg-white">
+      <div className="mx-auto max-w-7xl px-5 py-20 sm:px-6 lg:py-28">
+        <div className="relative overflow-hidden rounded-[32px] bg-marca-900 px-6 py-12 text-white sm:px-12 lg:px-16 lg:py-16">
+          <div className="absolute -right-24 -top-24 h-[380px] w-[380px] rounded-full bg-[radial-gradient(closest-side,rgba(242,183,5,0.14),transparent)]" aria-hidden="true" />
+          <EsquinaMarca className="absolute bottom-0 right-0 h-20 w-56 sm:h-24 sm:w-72" />
+          <div className="relative grid gap-10 lg:grid-cols-[1.2fr_1fr] lg:items-center">
+            <div>
+              <Antetitulo tono="oro">Hablemos</Antetitulo>
+              <h2 className="mt-4 font-marca text-[2.2rem] font-extrabold leading-[1.05] tracking-[-0.015em] sm:text-5xl">
+                Solicita tu <span className="text-oro-400">cotización</span>
+              </h2>
+              <p className="mt-5 max-w-xl text-[16px] leading-relaxed text-white/65">
+                Cuéntanos qué productos necesita tu empresa. Preparamos tu cotización según tus cantidades,
+                especificaciones y condiciones de suministro.
+              </p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <BotonWhatsapp href={urlWhatsapp(contenido, 'Hola, quiero solicitar una cotización con Abastecer Empresarial.')} variante="oro">
+                  Solicita tu cotización
+                </BotonWhatsapp>
+                <a
+                  href={MARCA.portafolio_pdf}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/20 bg-white/5 px-7 py-4 text-[13px] font-extrabold uppercase tracking-[0.12em] text-white transition hover:-translate-y-0.5 hover:bg-white/10"
+                  download
+                >
+                  <Download className="h-4 w-4" />
+                  Descargar portafolio
+                </a>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:mb-10">
+              {datos.map((d) => (
+                <a
+                  key={d.etiqueta}
+                  href={d.href}
+                  target={d.externo ? '_blank' : undefined}
+                  rel={d.externo ? 'noopener noreferrer' : undefined}
+                  className={`rounded-2xl border border-white/12 bg-white/[0.05] p-4 transition hover:border-white/30 ${d.ancho ? 'sm:col-span-2' : ''}`}
+                >
+                  <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-oro-400">{d.etiqueta}</span>
+                  <span className={`mt-1.5 block font-marca font-bold leading-snug ${d.etiqueta === 'Horario de atención' ? 'text-[14px]' : 'text-[15px]'}`}>{d.valor}</span>
+                  {d.detalle ? <span className="mt-1 block text-[12px] leading-snug text-white/50">{d.detalle}</span> : null}
+                </a>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </section>

@@ -3,6 +3,7 @@ import { ArrowRight } from 'lucide-react'
 import ImagenProducto from './ImagenProducto'
 import { BotonAgregarRapido } from './BotonAgregarCotizacion'
 import type { ProductoWeb } from '@/types/sitio'
+import { nombreLegible } from '@/lib/sitio/formato'
 
 export default function TarjetaProducto({
   producto,
@@ -12,11 +13,11 @@ export default function TarjetaProducto({
   prioritaria?: boolean
 }) {
   return (
-    <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-marca-100 transition-all duration-500 hover:ring-verde-200 hover:shadow-[0_20px_50px_-12px_rgba(13,27,42,0.15)] hover:-translate-y-2">
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-[22px] bg-white ring-1 ring-[#e3e6ea] transition-all duration-300 hover:-translate-y-1 hover:ring-marca-900 hover:shadow-[0_24px_40px_-24px_rgba(13,27,42,0.45)]">
       {/* Imagen con overlay al hover */}
       <Link
         href={`/catalogo/${producto.slug}`}
-        className="relative block aspect-[4/3] overflow-hidden bg-marca-50"
+        className="relative block aspect-[4/3] overflow-hidden bg-[#f3f3f3]"
       >
         <div className="h-full w-full transition-transform duration-700 ease-out group-hover:scale-110">
           <ImagenProducto
@@ -64,7 +65,7 @@ export default function TarjetaProducto({
 
         <h3 className="font-marca text-[15px] font-bold leading-snug text-marca-900 transition-colors group-hover:text-verde-700">
           <Link href={`/catalogo/${producto.slug}`}>
-            {producto.nombre}
+            {nombreLegible(producto.nombre)}
           </Link>
         </h3>
 
