@@ -85,7 +85,6 @@ export default async function LayoutSitio({ children }: { children: React.ReactN
         <HeaderSitio
           telefono={texto(contenido, 'contacto_telefono')}
           correo={texto(contenido, 'contacto_email')}
-          horario={texto(contenido, 'contacto_horario')}
           urlWhatsapp={enlaceWhatsapp}
           urlTelefono={urlTelefono(contenido)}
           tagline={MARCA.slogan}

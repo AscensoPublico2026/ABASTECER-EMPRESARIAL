@@ -79,10 +79,6 @@ export default async function PaginaInicio() {
                 <dd className="mt-1 break-words font-semibold text-marca-900">{texto(contenido, 'contacto_email')}</dd>
               </div>
               <div>
-                <dt className="text-[11px] font-bold uppercase tracking-[0.18em] text-acero-400">Atención</dt>
-                <dd className="mt-1 text-acero-600">{texto(contenido, 'contacto_horario')}</dd>
-              </div>
-              <div>
                 <dt className="text-[11px] font-bold uppercase tracking-[0.18em] text-acero-400">Cobertura</dt>
                 <dd className="mt-1 text-acero-600">{texto(contenido, 'contacto_cobertura')}</dd>
               </div>

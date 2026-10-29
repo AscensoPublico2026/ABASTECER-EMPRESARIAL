@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { Menu, X, Phone, Mail, Clock4, ClipboardList, Search, LogIn } from 'lucide-react'
+import { Menu, X, Phone, Mail, ClipboardList, Search, LogIn } from 'lucide-react'
 import { IconoWhatsapp } from './IconosRedes'
 import { useCotizacion } from './CotizacionProvider'
 import { MENU_SITIO } from '@/lib/sitio/config'
@@ -12,7 +12,6 @@ import { MENU_SITIO } from '@/lib/sitio/config'
 interface Props {
   telefono: string
   correo: string
-  horario: string
   urlWhatsapp: string
   urlTelefono: string
   tagline: string
@@ -23,7 +22,6 @@ interface Props {
 export default function HeaderSitio({
   telefono,
   correo,
-  horario,
   urlWhatsapp,
   urlTelefono,
   tagline,
@@ -60,10 +58,6 @@ export default function HeaderSitio({
             {tagline}
           </p>
           <div className="flex items-center gap-6">
-            <span className="hidden max-w-[24rem] items-center gap-1.5 truncate text-white/60 xl:flex">
-              <Clock4 className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">{horario}</span>
-            </span>
             <a href={urlTelefono} className="flex items-center gap-1.5 transition hover:text-oro-400">
               <Phone className="h-3.5 w-3.5" />
               {telefono}

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { MapPin, Phone, Mail, Clock4, Truck, ArrowUpRight } from 'lucide-react'
+import { MapPin, Phone, Mail, Truck, ArrowUpRight } from 'lucide-react'
 import { IconoWhatsapp, IconoRed } from './IconosRedes'
 import { MENU_SITIO, redesSociales, urlCorreo, urlTelefono, urlWhatsapp } from '@/lib/sitio/config'
 import { texto } from '@/lib/sitio/contenido'
@@ -132,10 +132,6 @@ export default function FooterSitio({
                 <a href={urlCorreo(contenido)} className="break-all hover:text-oro-400">
                   {texto(contenido, 'contacto_email')}
                 </a>
-              </li>
-              <li className="flex gap-3">
-                <Clock4 className="mt-0.5 h-4 w-4 shrink-0 text-oro-400" />
-                <span>{texto(contenido, 'contacto_horario')}</span>
               </li>
               <li className="flex gap-3">
                 <Truck className="mt-0.5 h-4 w-4 shrink-0 text-oro-400" />

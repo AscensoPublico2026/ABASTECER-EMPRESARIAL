@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { CabeceraPagina } from '@/components/sitio/portafolio-ui'
-import { MapPin, Phone, Mail, Clock4, Truck } from 'lucide-react'
+import { MapPin, Phone, Mail, Truck } from 'lucide-react'
 import { obtenerContenidoSitio } from '@/lib/queries/sitio'
 import { texto } from '@/lib/sitio/contenido'
 import { urlCorreo, urlTelefono, urlWhatsapp, redesSociales } from '@/lib/sitio/config'
@@ -28,7 +28,7 @@ export default async function PaginaContacto() {
       icono: IconoWhatsapp,
       titulo: 'WhatsApp',
       valor: texto(contenido, 'contacto_telefono'),
-      detalle: 'La vía más rápida. Respondemos en horario laboral.',
+      detalle: 'La vía más rápida para cotizar.',
       href: urlWhatsapp(contenido),
       externo: true,
       destacado: true,
@@ -37,7 +37,7 @@ export default async function PaginaContacto() {
       icono: Phone,
       titulo: 'Teléfono',
       valor: texto(contenido, 'contacto_telefono'),
-      detalle: texto(contenido, 'contacto_horario'),
+      detalle: 'Atención comercial',
       href: urlTelefono(contenido),
       externo: false,
       destacado: false,
@@ -130,19 +130,6 @@ export default async function PaginaContacto() {
                   </div>
                 </li>
 
-                <li className="flex gap-3.5">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-marca-50 text-verde-600">
-                    <Clock4 className="h-4 w-4" />
-                  </span>
-                  <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-acero-400">
-                      Horario de atención
-                    </p>
-                    <p className="mt-0.5 leading-relaxed text-marca-900">
-                      {texto(contenido, 'contacto_horario')}
-                    </p>
-                  </div>
-                </li>
 
                 <li className="flex gap-3.5">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-marca-50 text-verde-600">

@@ -14,7 +14,7 @@ import {
   TarjetaPortafolio,
 } from './portafolio-ui'
 import { texto } from '@/lib/sitio/contenido'
-import { urlWhatsapp, urlTelefono, urlCorreo } from '@/lib/sitio/config'
+import { urlWhatsapp, urlCorreo } from '@/lib/sitio/config'
 import { LINEAS, lineaPorSlug, type Producto } from '@/lib/sitio/portafolio'
 import {
   COMPRAS_ESPECIALES,
@@ -399,7 +399,6 @@ export function SeccionCTA({ contenido }: { contenido: Contenido }) {
     { etiqueta: 'WhatsApp y llamadas', valor: texto(contenido, 'contacto_telefono'), detalle: 'Atención comercial', href: urlWhatsapp(contenido), externo: true, ancho: false },
     { etiqueta: 'Ubicación', valor: texto(contenido, 'contacto_ciudad'), detalle: 'Despachos a todo Colombia', href: '/contacto', externo: false, ancho: false },
     { etiqueta: 'Correo', valor: texto(contenido, 'contacto_email'), detalle: 'Envíanos tu lista de productos o tu orden de compra', href: urlCorreo(contenido, 'Solicitud de cotización'), externo: false, ancho: true },
-    { etiqueta: 'Horario de atención', valor: texto(contenido, 'contacto_horario'), detalle: '', href: urlTelefono(contenido), externo: false, ancho: true },
   ]
   return (
     <section className="relative overflow-hidden bg-white">
