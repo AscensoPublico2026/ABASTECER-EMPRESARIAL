@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import { CabeceraPagina } from '@/components/sitio/portafolio-ui'
-import { MapPin, Phone, Mail, Clock4, Truck, ExternalLink } from 'lucide-react'
+import { MapPin, Phone, Mail, Clock4, Truck } from 'lucide-react'
 import { obtenerContenidoSitio } from '@/lib/queries/sitio'
-import { texto, textoOpcional } from '@/lib/sitio/contenido'
+import { texto } from '@/lib/sitio/contenido'
 import { urlCorreo, urlTelefono, urlWhatsapp, redesSociales } from '@/lib/sitio/config'
 import FormularioSolicitud from '@/components/sitio/FormularioSolicitud'
 import { IconoWhatsapp, IconoRed } from '@/components/sitio/IconosRedes'
@@ -21,7 +21,6 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function PaginaContacto() {
   const contenido = await obtenerContenidoSitio()
-  const maps = textoOpcional(contenido, 'contacto_maps_url')
   const redes = redesSociales(contenido)
 
   const canales = [
@@ -125,23 +124,9 @@ export default async function PaginaContacto() {
                   </span>
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-wide text-acero-400">
-                      Dirección
+                      Ubicación
                     </p>
-                    <p className="mt-0.5 font-semibold text-marca-900">
-                      {texto(contenido, 'contacto_direccion')}
-                    </p>
-                    <p className="text-acero-500">{texto(contenido, 'contacto_ciudad')}</p>
-                    {maps ? (
-                      <a
-                        href={maps}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-1.5 inline-flex items-center gap-1 text-xs font-bold text-verde-700 hover:underline"
-                      >
-                        Ver en Google Maps
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    ) : null}
+                    <p className="mt-0.5 font-semibold text-marca-900">{texto(contenido, 'contacto_ciudad')}</p>
                   </div>
                 </li>
 

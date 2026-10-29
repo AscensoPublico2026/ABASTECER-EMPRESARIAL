@@ -34,7 +34,6 @@ export default async function PaginaInicio() {
     telephone: `+${numeroWhatsapp(contenido)}`,
     address: {
       '@type': 'PostalAddress',
-      streetAddress: texto(contenido, 'contacto_direccion'),
       addressLocality: EMPRESA.ciudad,
       addressRegion: EMPRESA.departamento,
       addressCountry: 'CO',

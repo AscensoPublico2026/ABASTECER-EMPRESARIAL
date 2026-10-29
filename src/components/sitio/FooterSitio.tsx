@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { MapPin, Phone, Mail, Clock4, Truck, ArrowUpRight } from 'lucide-react'
 import { IconoWhatsapp, IconoRed } from './IconosRedes'
 import { MENU_SITIO, redesSociales, urlCorreo, urlTelefono, urlWhatsapp } from '@/lib/sitio/config'
-import { texto, textoOpcional } from '@/lib/sitio/contenido'
+import { texto } from '@/lib/sitio/contenido'
 import type { Contenido } from '@/types/sitio'
 import type { Linea } from '@/lib/sitio/portafolio'
 import { MARCA } from '@/lib/sitio/textos'
@@ -16,7 +16,6 @@ export default function FooterSitio({
   lineas: Linea[]
 }) {
   const redes = redesSociales(contenido)
-  const maps = textoOpcional(contenido, 'contacto_maps_url')
   const anio = new Date().getFullYear()
 
   return (
@@ -120,21 +119,7 @@ export default function FooterSitio({
             <ul className="mt-5 space-y-3.5 text-sm">
               <li className="flex gap-3">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-oro-400" />
-                <span>
-                  {maps ? (
-                    <a href={maps} target="_blank" rel="noopener noreferrer" className="hover:text-oro-400">
-                      {texto(contenido, 'contacto_direccion')}
-                      <br />
-                      {texto(contenido, 'contacto_ciudad')}
-                    </a>
-                  ) : (
-                    <>
-                      {texto(contenido, 'contacto_direccion')}
-                      <br />
-                      {texto(contenido, 'contacto_ciudad')}
-                    </>
-                  )}
-                </span>
+                <span>{texto(contenido, 'contacto_ciudad')}</span>
               </li>
               <li className="flex gap-3">
                 <Phone className="mt-0.5 h-4 w-4 shrink-0 text-oro-400" />
