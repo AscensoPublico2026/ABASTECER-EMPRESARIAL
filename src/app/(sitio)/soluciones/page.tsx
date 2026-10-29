@@ -55,7 +55,7 @@ export default async function PaginaSoluciones() {
                 className="group flex flex-col overflow-hidden rounded-[24px] bg-[#f3f3f3] transition duration-300 hover:-translate-y-1 hover:shadow-[0_28px_44px_-28px_rgba(13,27,42,0.55)]"
               >
                 <div className="relative flex h-[210px] items-end justify-center gap-3 px-6 pt-10">
-                  <span className="absolute left-5 top-4 font-marca text-[2.6rem] font-extrabold leading-none text-transparent [-webkit-text-stroke:1.2px_#c3c9d2]">
+                  <span className="absolute left-5 top-4 font-marca text-[2.6rem] font-extrabold leading-none text-[#d9dee4]">
                     {l.numero}
                   </span>
                   {l.portada.slice(0, 3).map((img) => (

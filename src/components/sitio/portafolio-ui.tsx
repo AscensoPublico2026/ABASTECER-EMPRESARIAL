@@ -344,7 +344,7 @@ export function MosaicoLineas({ lineas }: { lineas: Linea[] }) {
           >
             <span
               className={clsx(
-                'font-marca font-extrabold leading-none text-transparent [-webkit-text-stroke:1.2px_#c3c9d2]',
+                'font-marca font-extrabold leading-none text-[#d9dee4]',
                 grande ? 'text-6xl sm:text-7xl' : ancha ? 'text-5xl' : 'text-[2.1rem]'
               )}
             >
