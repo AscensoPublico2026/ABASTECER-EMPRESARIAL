@@ -10,7 +10,7 @@ import FormularioSolicitud from '@/components/sitio/FormularioSolicitud'
 export const metadata: Metadata = {
   title: 'Mi lista de cotización',
   description:
-    'Arma tu lista de productos y solicita la cotización formal. Respondemos en menos de 24 horas hábiles.',
+    'Arma tu lista de productos y solicita la cotización formal a Abastecer Empresarial.',
   alternates: { canonical: '/cotizacion' },
   robots: { index: false, follow: true },
 }
@@ -42,7 +42,7 @@ export default async function PaginaCotizacion() {
 
           <ul className="mt-8 flex flex-wrap gap-x-7 gap-y-3 text-sm text-white/60">
             {[
-              { icono: Clock4, texto: 'Respuesta en menos de 24 horas hábiles' },
+              { icono: Clock4, texto: 'Atención personalizada' },
               { icono: ShieldCheck, texto: 'Sin compromiso de compra' },
               { icono: ReceiptText, texto: 'Cotización formal con IVA' },
             ].map(({ icono: Icono, texto: etiqueta }) => (

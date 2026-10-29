@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ArrowLeft, ArrowRight, PackageSearch, ChevronRight } from 'lucide-react'
+import { CabeceraPagina } from '@/components/sitio/portafolio-ui'
+import { ArrowLeft, ArrowRight, PackageSearch } from 'lucide-react'
 import { buscarCatalogoWeb, obtenerContenidoSitio, obtenerLineasWeb } from '@/lib/queries/sitio'
-import { texto } from '@/lib/sitio/contenido'
 import { urlWhatsapp } from '@/lib/sitio/config'
 import BuscadorCatalogo from '@/components/sitio/BuscadorCatalogo'
 import TarjetaProducto from '@/components/sitio/TarjetaProducto'
@@ -17,7 +17,7 @@ interface Props {
 }
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
-  const [contenido, lineas] = await Promise.all([obtenerContenidoSitio(), obtenerLineasWeb()])
+  const lineas = await obtenerLineasWeb()
   const linea = lineas.find((l) => l.slug === searchParams.linea)
   const busqueda = (searchParams.q ?? '').trim()
 
@@ -25,11 +25,11 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
     ? `${linea.nombre} — Catálogo`
     : busqueda
       ? `Resultados para "${busqueda}" — Catálogo`
-      : texto(contenido, 'catalogo_titulo')
+      : 'Catálogo de referencias'
 
   return {
     title: titulo,
-    description: linea?.descripcion_web ?? texto(contenido, 'catalogo_subtitulo'),
+    description: linea?.descripcion_web ?? 'Catálogo de referencias de Abastecer Empresarial: dotación, EPP, aseo, cafetería, papelería, tecnología y más. Arma tu lista y cotiza.',
     alternates: { canonical: linea ? `/catalogo?linea=${linea.slug}` : '/catalogo' },
     robots: busqueda ? { index: false, follow: true } : { index: true, follow: true },
   }
@@ -67,43 +67,27 @@ export default async function PaginaCatalogo({ searchParams }: Props) {
 
   return (
     <>
-      {/* Encabezado */}
-      <section className="relative overflow-hidden bg-marca-900 patron-marca">
-        <div className="absolute inset-0 patron-lineas opacity-50" aria-hidden="true" />
-        <div className="relative mx-auto max-w-7xl px-6 py-14 lg:py-16">
-          <nav aria-label="Ruta de navegación" className="mb-5 flex items-center gap-1.5 text-xs text-white/50">
-            <Link href="/" className="transition hover:text-oro-400">
-              Inicio
-            </Link>
-            <ChevronRight className="h-3.5 w-3.5" />
-            <Link href="/catalogo" className="transition hover:text-oro-400">
-              Catálogo
-            </Link>
-            {lineaActiva ? (
-              <>
-                <ChevronRight className="h-3.5 w-3.5" />
-                <span className="text-white/80">{lineaActiva.nombre}</span>
-              </>
-            ) : null}
-          </nav>
-
-          <div className="flex flex-wrap items-start gap-5">
-            {lineaActiva ? (
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-oro-400/15 text-oro-400">
-                <IconoSitio nombre={lineaActiva.icono} className="h-7 w-7" />
-              </span>
-            ) : null}
-            <div className="max-w-3xl">
-              <h1 className="font-marca text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-4xl">
-                {lineaActiva ? lineaActiva.nombre : texto(contenido, 'catalogo_titulo')}
-              </h1>
-              <p className="mt-4 text-base leading-relaxed text-white/70">
-                {lineaActiva?.descripcion_web ?? texto(contenido, 'catalogo_subtitulo')}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+      <CabeceraPagina
+        migas={[
+          { nombre: 'Inicio', href: '/' },
+          { nombre: 'Catálogo de referencias', href: lineaActiva ? '/catalogo' : undefined },
+          ...(lineaActiva ? [{ nombre: lineaActiva.nombre }] : []),
+        ]}
+        antetitulo="Catálogo de referencias"
+        titulo={lineaActiva ? lineaActiva.nombre : 'Busca la referencia que necesitas'}
+        texto={
+          lineaActiva?.descripcion_web ??
+          'Consulta las referencias publicadas, arma tu lista y solicita la cotización. Si no encuentras un producto, escríbenos: lo buscamos con nuestros proveedores.'
+        }
+      >
+        <Link
+          href="/soluciones"
+          className="mt-7 inline-flex items-center gap-2 text-[13px] font-bold text-oro-400 transition hover:text-oro-300"
+        >
+          Ver el portafolio por líneas de suministro
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+      </CabeceraPagina>
 
       {/* Buscador + filtros */}
       <section className="sticky top-[68px] z-30 border-b border-marca-100 bg-white/95 backdrop-blur lg:top-[108px]">
@@ -255,7 +239,7 @@ export default async function PaginaCatalogo({ searchParams }: Props) {
           ) : null}
 
           <p className="mx-auto mt-12 max-w-2xl rounded-2xl bg-white px-6 py-5 text-center text-[13px] leading-relaxed text-acero-500 shadow-tarjeta">
-            {texto(contenido, 'catalogo_nota')}
+            Los precios se cotizan según cantidad, especificaciones y condiciones de entrega. Arma tu lista y te enviamos la cotización formal.
           </p>
         </div>
       </section>

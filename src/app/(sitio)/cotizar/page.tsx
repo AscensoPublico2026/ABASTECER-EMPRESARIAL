@@ -5,7 +5,7 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Cotizar por WhatsApp',
-  description: 'Solicita tu cotización directamente por WhatsApp. Respondemos en menos de 24 horas hábiles.',
+  description: 'Solicita tu cotización directamente por WhatsApp con Abastecer Empresarial.',
 }
 
 /**

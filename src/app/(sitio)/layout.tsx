@@ -4,7 +4,9 @@ import HeaderSitio from '@/components/sitio/HeaderSitio'
 import FooterSitio from '@/components/sitio/FooterSitio'
 import BotonWhatsappFlotante from '@/components/sitio/BotonWhatsappFlotante'
 import { CotizacionProvider } from '@/components/sitio/CotizacionProvider'
-import { obtenerContenidoSitio, obtenerLineasWeb } from '@/lib/queries/sitio'
+import { obtenerContenidoSitio } from '@/lib/queries/sitio'
+import { MARCA } from '@/lib/sitio/textos'
+import { LINEAS } from '@/lib/sitio/portafolio'
 import { texto } from '@/lib/sitio/contenido'
 import { SITIO_URL, urlTelefono, urlWhatsapp } from '@/lib/sitio/config'
 import { URL_LOGIN } from '@/lib/modo-app'
@@ -22,14 +24,13 @@ const montserrat = Montserrat({
 export const revalidate = 300
 
 export async function generateMetadata(): Promise<Metadata> {
-  const contenido = await obtenerContenidoSitio()
-  const nombre = texto(contenido, 'marca_nombre')
-  const descripcion = texto(contenido, 'marca_descripcion_seo')
+  const nombre = MARCA.nombre
+  const descripcion = MARCA.descripcion_seo
 
   return {
     metadataBase: new URL(SITIO_URL),
     title: {
-      default: `${nombre} | ${texto(contenido, 'marca_tagline')}`,
+      default: MARCA.titulo_seo,
       template: `%s | Abastecer Empresarial`,
     },
     description: descripcion,
@@ -44,6 +45,11 @@ export async function generateMetadata(): Promise<Metadata> {
       'papelería empresarial',
       'proveedor de dotación Colombia',
       'Abastecer Empresarial',
+      'calzado de seguridad Cali',
+      'señalización industrial',
+      'extintores Cali',
+      'carnés y portacarnés',
+      'anchetas empresariales',
     ],
     authors: [{ name: nombre }],
     alternates: { canonical: '/' },
@@ -52,7 +58,7 @@ export async function generateMetadata(): Promise<Metadata> {
       locale: 'es_CO',
       url: SITIO_URL,
       siteName: nombre,
-      title: `${nombre} | ${texto(contenido, 'marca_tagline')}`,
+      title: MARCA.titulo_seo,
       description: descripcion,
       images: [{ url: '/og-abastecer.png', width: 1200, height: 630, alt: nombre }],
     },
@@ -67,10 +73,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function LayoutSitio({ children }: { children: React.ReactNode }) {
-  const [contenido, lineas] = await Promise.all([
-    obtenerContenidoSitio(),
-    obtenerLineasWeb(),
-  ])
+  const contenido = await obtenerContenidoSitio()
 
   const enlaceWhatsapp = urlWhatsapp(contenido)
 
@@ -82,16 +85,15 @@ export default async function LayoutSitio({ children }: { children: React.ReactN
         <HeaderSitio
           telefono={texto(contenido, 'contacto_telefono')}
           correo={texto(contenido, 'contacto_email')}
-          horario={texto(contenido, 'contacto_horario')}
           urlWhatsapp={enlaceWhatsapp}
           urlTelefono={urlTelefono(contenido)}
-          tagline={texto(contenido, 'marca_tagline')}
+          tagline={MARCA.slogan}
           urlPortal={URL_LOGIN}
         />
 
         <main className="flex-1">{children}</main>
 
-        <FooterSitio contenido={contenido} lineas={lineas} />
+        <FooterSitio contenido={contenido} lineas={LINEAS} />
         <BotonWhatsappFlotante url={enlaceWhatsapp} />
       </CotizacionProvider>
     </div>

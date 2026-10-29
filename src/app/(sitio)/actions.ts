@@ -108,7 +108,7 @@ export async function enviarSolicitud(formData: FormData): Promise<ResultadoForm
       ok: true,
       mensaje:
         tipo === 'COTIZACION'
-          ? '¡Listo! Recibimos tu solicitud. Te enviamos la cotización en menos de 24 horas hábiles.'
+          ? '¡Listo! Recibimos tu solicitud. Nuestro equipo comercial te contactará con tu cotización.'
           : '¡Gracias por escribirnos! Te respondemos muy pronto.',
     }
   } catch {

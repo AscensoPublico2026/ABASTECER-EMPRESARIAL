@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next'
 import { obtenerLineasWeb, obtenerSlugsCatalogo } from '@/lib/queries/sitio'
 import { SITIO_URL } from '@/lib/sitio/config'
+import { LINEAS } from '@/lib/sitio/portafolio'
 
 export const revalidate = 3600
 
@@ -10,7 +11,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const fijas: MetadataRoute.Sitemap = [
     { url: `${SITIO_URL}/`, lastModified: ahora, changeFrequency: 'weekly', priority: 1 },
-    { url: `${SITIO_URL}/catalogo`, lastModified: ahora, changeFrequency: 'weekly', priority: 0.9 },
+    { url: `${SITIO_URL}/soluciones`, lastModified: ahora, changeFrequency: 'monthly', priority: 0.9 },
+    ...LINEAS.map((l) => ({
+      url: `${SITIO_URL}/soluciones/${l.slug}`,
+      lastModified: ahora,
+      changeFrequency: 'monthly' as const,
+      priority: 0.85,
+    })),
+    { url: `${SITIO_URL}/catalogo`, lastModified: ahora, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${SITIO_URL}/sectores`, lastModified: ahora, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${SITIO_URL}/nosotros`, lastModified: ahora, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${SITIO_URL}/contacto`, lastModified: ahora, changeFrequency: 'monthly', priority: 0.8 },
   ]

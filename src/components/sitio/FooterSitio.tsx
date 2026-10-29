@@ -1,32 +1,40 @@
 import Link from 'next/link'
-import { MapPin, Phone, Mail, Clock4, Truck, ArrowUpRight } from 'lucide-react'
-import LogoAbastecer from './LogoAbastecer'
+import { MapPin, Phone, Mail, Truck, ArrowUpRight } from 'lucide-react'
 import { IconoWhatsapp, IconoRed } from './IconosRedes'
 import { MENU_SITIO, redesSociales, urlCorreo, urlTelefono, urlWhatsapp } from '@/lib/sitio/config'
-import { texto, textoOpcional } from '@/lib/sitio/contenido'
-import type { Contenido, LineaWeb } from '@/types/sitio'
+import { texto } from '@/lib/sitio/contenido'
+import type { Contenido } from '@/types/sitio'
+import type { Linea } from '@/lib/sitio/portafolio'
+import { MARCA } from '@/lib/sitio/textos'
+import { EMPRESA } from '@/lib/empresa'
 
 export default function FooterSitio({
   contenido,
   lineas,
 }: {
   contenido: Contenido
-  lineas: LineaWeb[]
+  lineas: Linea[]
 }) {
   const redes = redesSociales(contenido)
-  const maps = textoOpcional(contenido, 'contacto_maps_url')
   const anio = new Date().getFullYear()
 
   return (
-    <footer className="mt-auto bg-marca-900 patron-marca text-white/70">
+    <footer className="mt-auto bg-marca-900 text-white/70">
+      <div className="flex h-[5px]" aria-hidden="true"><i className="w-[62%] bg-marca-900" /><i className="w-[12%] bg-oro-400" /><i className="flex-1 bg-[#16823c]" /></div>
       <div className="mx-auto max-w-7xl px-6 py-14">
         <div className="grid gap-10 lg:grid-cols-12">
           {/* Marca */}
-          <div className="lg:col-span-4">
-            <LogoAbastecer tamano="md" invertido />
+          <div className="lg:col-span-3">
+            <span className="inline-flex rounded-2xl bg-white px-4 py-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/sitio/logo-horizontal.webp" alt="Abastecer Empresarial S.A.S." width={900} height={221} className="h-11 w-auto" loading="lazy" />
+            </span>
             <p className="mt-5 max-w-sm text-sm leading-relaxed">
-              {texto(contenido, 'footer_texto')}
+              Un solo aliado para múltiples necesidades de suministro: dotación, EPP, señalización, aseo, papelería, tecnología y mucho más.
             </p>
+            <a href={MARCA.portafolio_pdf} download className="mt-3 inline-flex text-sm font-semibold text-oro-400 transition hover:text-oro-300">
+              Descargar portafolio comercial (PDF)
+            </a>
 
             <a
               href={urlWhatsapp(contenido)}
@@ -57,18 +65,16 @@ export default function FooterSitio({
           </div>
 
           {/* Lineas */}
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-4">
             <h3 className="font-marca text-sm font-bold uppercase tracking-[0.14em] text-white">
-              Líneas de producto
+              Líneas de suministro
             </h3>
-            <ul className="mt-5 space-y-2.5 text-sm">
-              {(lineas.length > 0 ? lineas.slice(0, 8) : []).map((linea) => (
-                <li key={linea.id}>
-                  <Link
-                    href={`/catalogo?linea=${linea.slug}`}
-                    className="transition hover:text-oro-400"
-                  >
-                    {linea.nombre}
+            <ul className="mt-5 grid grid-cols-1 gap-x-6 gap-y-2 text-[13.5px] sm:grid-cols-2">
+              {lineas.map((linea) => (
+                <li key={linea.slug}>
+                  <Link href={`/soluciones/${linea.slug}`} className="flex gap-2 transition hover:text-oro-400">
+                    <span className="w-5 shrink-0 font-bold text-white/35">{linea.numero}</span>
+                    {linea.corto}
                   </Link>
                 </li>
               ))}
@@ -77,7 +83,7 @@ export default function FooterSitio({
                   href="/catalogo"
                   className="inline-flex items-center gap-1 font-semibold text-oro-400 transition hover:text-oro-300"
                 >
-                  Ver todo el catálogo
+                  Catálogo de referencias
                   <ArrowUpRight className="h-3.5 w-3.5" />
                 </Link>
               </li>
@@ -113,21 +119,7 @@ export default function FooterSitio({
             <ul className="mt-5 space-y-3.5 text-sm">
               <li className="flex gap-3">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-oro-400" />
-                <span>
-                  {maps ? (
-                    <a href={maps} target="_blank" rel="noopener noreferrer" className="hover:text-oro-400">
-                      {texto(contenido, 'contacto_direccion')}
-                      <br />
-                      {texto(contenido, 'contacto_ciudad')}
-                    </a>
-                  ) : (
-                    <>
-                      {texto(contenido, 'contacto_direccion')}
-                      <br />
-                      {texto(contenido, 'contacto_ciudad')}
-                    </>
-                  )}
-                </span>
+                <span>{texto(contenido, 'contacto_ciudad')}</span>
               </li>
               <li className="flex gap-3">
                 <Phone className="mt-0.5 h-4 w-4 shrink-0 text-oro-400" />
@@ -142,10 +134,6 @@ export default function FooterSitio({
                 </a>
               </li>
               <li className="flex gap-3">
-                <Clock4 className="mt-0.5 h-4 w-4 shrink-0 text-oro-400" />
-                <span>{texto(contenido, 'contacto_horario')}</span>
-              </li>
-              <li className="flex gap-3">
                 <Truck className="mt-0.5 h-4 w-4 shrink-0 text-oro-400" />
                 <span>{texto(contenido, 'contacto_cobertura')}</span>
               </li>
@@ -158,7 +146,7 @@ export default function FooterSitio({
       <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-6 py-5 text-xs text-white/45 sm:flex-row">
           <p>
-            © {anio} {texto(contenido, 'footer_legal')}
+            © {anio} Abastecer Empresarial S.A.S. · NIT {EMPRESA.nit} · {EMPRESA.ciudad}, {EMPRESA.departamento}, Colombia
           </p>
           <div className="flex items-center gap-5">
             <span>Todos los derechos reservados</span>
