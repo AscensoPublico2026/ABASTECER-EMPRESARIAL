@@ -25,7 +25,7 @@ export default async function EditarCotizacionPage({ params }: { params: { id: s
     redirect(`/ventas/${params.id}`)
   }
 
-  const clientes = await obtenerClientesParaSelect()
+  const clientes = await obtenerClientesParaSelect(cot.cliente_id)
   const productos = await obtenerProductoParaSelect()
 
   const cotizacionData = {
