@@ -30,15 +30,38 @@ export async function obtenerClientes(): Promise<{
 
 
 
-export async function obtenerClientesParaSelect(): Promise<{ id: string; razon_social: string }[]> {
+/**
+ * Clientes que se pueden elegir en una cotizacion o venta.
+ *
+ * Incluye PROSPECTO: todo cliente nuevo se crea como prospecto y la primera
+ * cotizacion suele hacerse antes de que pase a ACTIVO. Se excluyen INACTIVO
+ * y MOROSO. Si se pasa `incluirId`, ese cliente siempre aparece (por ejemplo,
+ * el cliente que ya tiene asignado la cotizacion que se esta editando).
+ */
+export async function obtenerClientesParaSelect(
+  incluirId?: string | null
+): Promise<{ id: string; razon_social: string }[]> {
   try {
     const supabase = createServerSupabaseClient()
     const { data } = await supabase
       .from('clientes')
       .select('id, razon_social')
-      .in('estado', ['ACTIVO', 'CREDITO_APROBADO'])
+      .in('estado', ['PROSPECTO', 'ACTIVO', 'CREDITO_APROBADO'])
       .order('razon_social')
-    return (data ?? []).map((c) => ({ id: String(c.id), razon_social: String(c.razon_social) }))
+    const lista = (data ?? []).map((c) => ({ id: String(c.id), razon_social: String(c.razon_social) }))
+
+    if (incluirId && !lista.some((c) => c.id === incluirId)) {
+      const { data: actual } = await supabase
+        .from('clientes')
+        .select('id, razon_social')
+        .eq('id', incluirId)
+        .maybeSingle()
+      if (actual) {
+        lista.push({ id: String(actual.id), razon_social: String(actual.razon_social) })
+        lista.sort((a, b) => a.razon_social.localeCompare(b.razon_social, 'es'))
+      }
+    }
+    return lista
   } catch {
     return []
   }
