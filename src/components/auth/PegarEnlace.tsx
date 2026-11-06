@@ -29,6 +29,10 @@ export default function PegarEnlace() {
   async function continuar(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    if (/error_code=otp_expired|error=access_denied/.test(texto)) {
+      setError('Ese correo ya venció o ya se usó. Pide uno nuevo con "¿Olvidaste tu contraseña?" y usa solo el ÚLTIMO que llegue.')
+      return
+    }
     const { code, hash, token } = extraerEnlace(texto)
     if (code) { window.location.href = `/actualizar-clave?code=${encodeURIComponent(code)}`; return }
     if (hash) { window.location.href = `/actualizar-clave#${hash}`; return }
