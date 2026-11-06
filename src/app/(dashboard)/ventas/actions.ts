@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { renombrarCotizacionPedida, siguienteNumeroCotizacion } from '@/lib/cotizaciones/numeracion'
 import { obtenerNombreUsuarioActual } from '@/lib/queries/perfil'
 import { uppercaseFormData } from '@/lib/uppercase'
 
@@ -60,14 +61,26 @@ export async function crearCotizacion(formData: FormData): Promise<ResultadoAcci
   try {
     const supabase = createServerSupabaseClient()
     const usuario = await obtenerNombreUsuarioActual()
-    const { data: cot, error: errorCot } = await supabase.from('cotizaciones').insert({
-      numero: '', cliente_id: cliente_id || null, fecha: fecha || new Date().toISOString().slice(0, 10),
+    const fila = {
+      cliente_id: cliente_id || null, fecha: fecha || new Date().toISOString().slice(0, 10),
       fecha_validez: fecha_validez || null, subtotal: Math.round(subtotal), iva_total: Math.round(iva_total),
       total, costo_total: Math.round(costo_total), utilidad_estimada, margen_pct, estado: 'PENDIENTE',
       forma_pago, dias_credito, observaciones: observaciones || null,
       creado_por_id: usuario.id, creado_por_nombre: usuario.nombre,
-    }).select('id, numero').single()
-    if (errorCot) return { ok: false, mensaje: errorCot.message }
+    }
+
+    // Numeracion: la COT-2026-072 pasa a 472 y se sigue consecutivo (ver lib/cotizaciones/numeracion).
+    // Si dos personas crean al mismo tiempo y el numero ya se uso, se reintenta con el siguiente.
+    await renombrarCotizacionPedida(supabase)
+    let cot: { id: string; numero: string } | null = null
+    let errorCot: { message: string; code?: string } | null = null
+    for (let intento = 0; intento < 4; intento++) {
+      const numero = (await siguienteNumeroCotizacion(supabase)) ?? ''
+      const r = await supabase.from('cotizaciones').insert({ numero, ...fila }).select('id, numero').single()
+      cot = r.data; errorCot = r.error
+      if (!errorCot || errorCot.code !== '23505' || !numero) break
+    }
+    if (errorCot || !cot) return { ok: false, mensaje: errorCot?.message ?? 'Error al crear.' }
 
     const { error: errorItems } = await supabase.from('cotizacion_items').insert(
       itemsCalculados.map((item) => ({ ...item, cotizacion_id: cot.id }))
