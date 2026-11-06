@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config'
-import { MODO_SITIO } from '@/lib/modo-app'
+import { MODO_SITIO, URL_ERP } from '@/lib/modo-app'
 import { esCorreoAutorizado } from '@/lib/auth/acceso'
 
 /**
@@ -23,6 +23,7 @@ const RUTAS_PUBLICAS_PREFIJO = [
   '/marcas',
   '/lineas',
   '/login',
+  '/actualizar-clave',
 ]
 
 function esRutaPublica(pathname: string): boolean {
@@ -46,6 +47,18 @@ export async function updateSession(request: NextRequest) {
   //  - Ruta publica  -> se sirve.
   //  - Ruta del ERP  -> se manda al inicio del sitio.
   // ============================================================
+  // Enlaces de "cambiar contrasena": si Supabase los manda a la pagina de
+  // inicio (?code=...), se pasan a /actualizar-clave de la plataforma (ERP).
+  const enlaceClave = pathname === '/' && request.nextUrl.searchParams.has('code')
+  if (MODO_SITIO && (enlaceClave || pathname === '/actualizar-clave')) {
+    return NextResponse.redirect(`${URL_ERP}/actualizar-clave${request.nextUrl.search}`)
+  }
+  if (!MODO_SITIO && enlaceClave) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/actualizar-clave'
+    return NextResponse.redirect(url)
+  }
+
   if (MODO_SITIO) {
     if (esRutaPublica(pathname) && !pathname.startsWith('/login')) {
       return response
