@@ -1,6 +1,6 @@
 'use client'
 
-import { Trash2, Plus, Package, AlertTriangle } from 'lucide-react'
+import { Trash2, Plus, Package, AlertTriangle, Pencil, RotateCcw } from 'lucide-react'
 import { ivaPorcentaje, montoDesdeTexto, cantidadValida } from '@/lib/numeros'
 
 // ============================================================
@@ -19,6 +19,8 @@ export interface ItemCotizacionLocal {
   costo_unitario: string
   iva_porcentaje: string
   _busqueda?: string
+  /** Solo en pantalla: el usuario pidio cambiar la descripcion del producto. */
+  _editarDesc?: boolean
 }
 
 export interface ProductoSelect {
@@ -124,6 +126,7 @@ export function EditorItemsCotizacion({ items, onChange, productos, accionesExtr
       costo_unitario: numeroAInput(p.costo_promedio),
       iva_porcentaje: String(p.iva_porcentaje ?? 19),
       _busqueda: '',
+      _editarDesc: false,
     })
   }
 
@@ -199,17 +202,44 @@ export function EditorItemsCotizacion({ items, onChange, productos, accionesExtr
                   </button>
                 </div>
 
-                <div className="flex gap-2 items-center">
-                  <span className="w-6 shrink-0" aria-hidden="true" />
-                  <input
-                    value={item.descripcion}
-                    onChange={(e) => actualizar(idx, { descripcion: e.target.value })}
-                    placeholder="Descripcion que vera el cliente"
-                    title="Descripcion que vera el cliente en la cotizacion"
-                    className={`${inputBase} flex-1 min-w-0 text-gray-600 bg-gray-50`}
-                  />
-                  <span className="w-7 shrink-0" aria-hidden="true" />
-                </div>
+                {/* Descripcion: con producto del catalogo se usa su nombre y solo se
+                    muestra el campo si el usuario quiere personalizarla. */}
+                {(() => {
+                  const descProducto = producto ? `${producto.codigo} - ${producto.nombre}` : ''
+                  const personalizada = !!descProducto && item.descripcion.trim() !== '' && item.descripcion !== descProducto
+                  // Mientras se busca un producto (hay sugerencias abiertas) no se muestra el campo.
+                  const mostrarCampo = (!item.producto_id && lista.length === 0) || item._editarDesc || personalizada
+                  if (!mostrarCampo && !item.producto_id) return null
+                  if (!mostrarCampo) {
+                    return (
+                      <div className="pl-8">
+                        <button type="button" onClick={() => actualizar(idx, { _editarDesc: true })} className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600">
+                          <Pencil className="w-3 h-3" /> Cambiar el texto que vera el cliente
+                        </button>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div className="pl-8 pr-9">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-[11px] font-medium text-gray-500">
+                          {item.producto_id ? 'Texto que vera el cliente' : 'Descripcion del item (sin producto del catalogo)'}
+                        </span>
+                        {item.producto_id && (
+                          <button type="button" onClick={() => actualizar(idx, { descripcion: descProducto, _editarDesc: false })} className="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-blue-600">
+                            <RotateCcw className="w-3 h-3" /> Usar el nombre del producto
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        value={item.descripcion}
+                        onChange={(e) => actualizar(idx, { descripcion: e.target.value })}
+                        placeholder={item.producto_id ? 'Texto que vera el cliente' : 'Describe el item que vas a cotizar'}
+                        className={`${inputBase} text-gray-700`}
+                      />
+                    </div>
+                  )
+                })()}
 
                 {/* Valores */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pl-8">
