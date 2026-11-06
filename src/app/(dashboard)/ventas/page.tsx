@@ -7,10 +7,14 @@ import FormVentaDirecta from './FormVentaDirecta'
 import TablaCotizaciones from './TablaCotizaciones'
 import { obtenerClientesParaSelect } from '@/lib/queries/clientes'
 import { obtenerProductoParaSelect } from '@/lib/queries/productos'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { renombrarCotizacionPedida } from '@/lib/cotizaciones/numeracion'
 
 export const dynamic = 'force-dynamic'
 
 export default async function VentasPage() {
+  // COT-2026-072 -> COT-2026-472 (una sola vez; despues no hace nada)
+  await renombrarCotizacionPedida(createServerSupabaseClient())
   const { data: cotizaciones, error } = await obtenerCotizaciones()
   const clientes = await obtenerClientesParaSelect()
   const productos = await obtenerProductoParaSelect()
