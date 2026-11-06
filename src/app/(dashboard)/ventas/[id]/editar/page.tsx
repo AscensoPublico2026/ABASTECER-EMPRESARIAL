@@ -9,6 +9,13 @@ import { obtenerProductoParaSelect } from '@/lib/queries/productos'
 
 export const dynamic = 'force-dynamic'
 
+/** Numero de la BD -> texto para el formulario, con maximo 2 decimales. */
+function aInput(valor: unknown, porDefecto = ''): string {
+  const n = Number(valor)
+  if (valor === null || valor === undefined || valor === '' || !Number.isFinite(n)) return porDefecto
+  return String(Math.round(n * 100) / 100)
+}
+
 export default async function EditarCotizacionPage({ params }: { params: { id: string } }) {
   const supabase = createServerSupabaseClient()
 
@@ -41,9 +48,9 @@ export default async function EditarCotizacionPage({ params }: { params: { id: s
       id: String(item.id ?? ''),
       producto_id: String(item.producto_id ?? ''),
       descripcion: String(item.descripcion ?? ''),
-      cantidad: String(item.cantidad ?? '1'),
-      precio_unitario: String(item.precio_unitario ?? ''),
-      costo_unitario: String(item.costo_unitario ?? ''),
+      cantidad: aInput(item.cantidad, '1'),
+      precio_unitario: aInput(item.precio_unitario),
+      costo_unitario: aInput(item.costo_unitario),
       iva_porcentaje: String(item.iva_porcentaje ?? '19'),
     })),
   }
