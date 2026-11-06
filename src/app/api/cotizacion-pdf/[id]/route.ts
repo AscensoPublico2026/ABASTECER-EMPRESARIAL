@@ -27,6 +27,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       subtotal: Number(cot.subtotal),
       iva_total: Number(cot.iva_total),
       total: Number(cot.total),
+      elaborado_por: (cot.creado_por_nombre as string | null) ?? null,
       cliente,
       items: items.map((item) => ({
         descripcion: String(item.descripcion ?? ''),

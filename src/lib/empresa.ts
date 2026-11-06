@@ -22,8 +22,8 @@ export const EMPRESA = {
   // Logo se sirve desde /logo.png en el directorio public/
   logo_url: '/logo.png',
   // Datos bancarios (Bold)
-  banco: 'Bold. Compania de Financiamiento S.A.',
-  tipo_cuenta: 'Deposito ordinario',
+  banco: 'Bold. Compañía de Financiamiento S.A.',
+  tipo_cuenta: 'Depósito ordinario',
   numero_cuenta: '1700-1337-9217',
   cuenta_desde: '27/07/2026',
 } as const
