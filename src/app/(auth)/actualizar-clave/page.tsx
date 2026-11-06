@@ -5,6 +5,7 @@ import { Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { esCorreoAutorizado } from '@/lib/auth/acceso'
+import PegarEnlace from '@/components/auth/PegarEnlace'
 
 // Pagina a la que llega el enlace del correo "Cambiar contrasena".
 // Valida el enlace, pide la contrasena nueva dos veces y la guarda.
@@ -100,8 +101,9 @@ export default function ActualizarClavePage() {
 
           {estado === 'invalido' && (
             <div className="text-center space-y-4">
-              <p className="text-sm text-red-600">El enlace no es válido o ya venció. Pide uno nuevo desde la pantalla de ingreso.</p>
+              <p className="text-sm text-red-600">El enlace no es válido o ya venció (dura 1 hora). Pide uno nuevo desde la pantalla de ingreso con &quot;¿Olvidaste tu contraseña?&quot;.</p>
               <a href="/login" className="inline-block text-sm font-semibold text-[#0D1B2A] underline">Volver a ingresar</a>
+              <div className="text-left"><PegarEnlace /></div>
             </div>
           )}
 

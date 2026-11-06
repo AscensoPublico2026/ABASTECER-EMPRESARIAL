@@ -5,6 +5,7 @@ import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { esCorreoAutorizado, CORREOS_AUTORIZADOS } from '@/lib/auth/acceso'
+import PegarEnlace from '@/components/auth/PegarEnlace'
 
 // Solo inicio de sesion: no existe registro de cuentas nuevas.
 // Unicamente el correo autorizado (lib/auth/acceso.ts) puede entrar.
@@ -19,6 +20,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [aviso, setAviso] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const [mostrarPegar, setMostrarPegar] = useState(false)
   const router = useRouter()
 
   // "Olvide mi contrasena": envia el correo para cambiarla. Solo al correo autorizado.
@@ -34,6 +36,7 @@ export default function LoginPage() {
       setError(error.message.toLowerCase().includes('rate') ? 'Ya se envió un correo hace poco. Espera unos minutos y revisa tu bandeja (y la carpeta de spam).' : error.message)
       return
     }
+    setMostrarPegar(true)
     setAviso(`Te enviamos un correo a ${correo}. Ábrelo en este mismo navegador y da clic en el enlace para poner la contraseña nueva. Revisa también la carpeta de spam.`)
   }
 
@@ -160,7 +163,17 @@ export default function LoginPage() {
               >
                 {enviando ? 'Enviando correo…' : '¿Olvidaste tu contraseña?'}
               </button>
+              {!mostrarPegar && (
+                <button
+                  type="button"
+                  onClick={() => setMostrarPegar(true)}
+                  className="block mx-auto mt-2 text-xs text-[#636B73] hover:text-[#0D1B2A] hover:underline"
+                >
+                  Ya tengo el enlace del correo
+                </button>
+              )}
             </div>
+            {mostrarPegar && <PegarEnlace />}
           </div>
         </div>
       </div>
