@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { EMPRESA } from '@/lib/empresa'
-import { formatCOP, formatFecha } from '@/lib/format'
+import { formatCOP } from '@/lib/format'
+import { fechaLarga, numeroEnLetras, separarCodigo } from '@/lib/cotizaciones/formato'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
@@ -27,8 +28,13 @@ export default async function CotizacionDetallePage({ params }: { params: { id: 
 
   if (!cot) notFound()
 
-  const cliente = cot.clientes as Record<string, string> | null
+  const cliente = cot.clientes as Record<string, string | null> | null
   const items = (cot.cotizacion_items ?? []) as Record<string, unknown>[]
+  const conCodigo = items.some((it) => separarCodigo(String(it.descripcion ?? '')).codigo)
+  const observaciones = String(cot.observaciones ?? '')
+    .split(/\n+/)
+    .map((l) => l.replace(/^[\s•\-*·]+/, '').trim())
+    .filter(Boolean)
 
   // Analisis financiero interno
   const analisis = await obtenerAnalisisVenta(params.id)
@@ -55,84 +61,148 @@ export default async function CotizacionDetallePage({ params }: { params: { id: 
         </div>
       </div>
 
-      {/* Documento de cotizacion (imprimible) */}
-      <div className="max-w-[210mm] mx-auto my-8 print:my-0 bg-white shadow-lg print:shadow-none p-10 print:p-[15mm]">
+      {/* Documento de cotizacion (imprimible) — mismo diseno que el PDF */}
+      <div className="max-w-[210mm] mx-auto my-8 print:my-0 bg-white shadow-lg print:shadow-none overflow-hidden text-[#1F2937]">
+        {/* Franja con los colores de la marca */}
+        <div className="flex h-1.5">
+          <div className="flex-[6] bg-[#0D1B2A]" />
+          <div className="flex-[2] bg-[#16B23C]" />
+          <div className="flex-[1] bg-[#F2B705]" />
+        </div>
 
-        {/* Encabezado */}
-        <div className="flex items-start justify-between border-b border-gray-200 pb-6 mb-6">
-          <div className="flex items-center gap-4">
-            <img src="/logo.png" alt="Logo" className="w-16 h-16 object-contain" />
-            <div>
-              <h1 className="text-lg font-bold text-gray-800">{EMPRESA.razon_social}</h1>
-              <p className="text-xs text-gray-500">NIT: {EMPRESA.nit}</p>
-              <p className="text-xs text-gray-500">{EMPRESA.direccion}, {EMPRESA.ciudad}</p>
-              <p className="text-xs text-gray-500">Tel: {EMPRESA.telefono} | {EMPRESA.email}</p>
+        <div className="px-6 sm:px-10 pt-6 pb-8 print:px-[12mm]">
+          {/* Encabezado */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E2E7EE]">
+            <div className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo-icono.png" alt="Logo" className="h-12 w-auto object-contain" />
+              <div>
+                <h1 className="text-lg font-bold text-[#0D1B2A] leading-tight">{EMPRESA.razon_social}</h1>
+                <p className="text-[11px] text-[#636B73]">NIT {EMPRESA.nit} · {EMPRESA.direccion}, {EMPRESA.ciudad}</p>
+                <p className="text-[11px] text-[#636B73]">Tel. {EMPRESA.telefono} · {EMPRESA.email}</p>
+              </div>
+            </div>
+            <div className="sm:text-right">
+              <p className="text-[11px] font-bold tracking-[0.3em] text-[#16B23C]">COTIZACIÓN</p>
+              <p className="text-2xl font-bold text-[#0D1B2A]">{cot.numero}</p>
             </div>
           </div>
-          <div className="text-right">
-            <h2 className="text-2xl font-bold text-blue-600">COTIZACION</h2>
-            <p className="text-lg font-mono font-bold text-gray-800 mt-1">{cot.numero}</p>
-            <p className="text-xs text-gray-500 mt-2">Fecha: {formatFecha(cot.fecha)}</p>
-            {cot.fecha_validez && <p className="text-xs text-gray-500">Validez: {formatFecha(cot.fecha_validez)}</p>}
+
+          {/* Cliente | Condiciones */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
+            <div className="bg-[#F2F4F7] rounded-md border-l-[3px] border-[#0D1B2A] px-4 py-3">
+              <p className="text-[10px] font-bold tracking-widest text-[#636B73] mb-1">CLIENTE</p>
+              <p className="text-base font-bold text-[#0D1B2A]">{cliente?.razon_social ?? 'Sin cliente'}</p>
+              {cliente?.nit && <p className="text-xs text-gray-700 mt-0.5">NIT {cliente.nit}</p>}
+              {cliente?.contacto_nombre && (
+                <p className="text-xs text-gray-700 mt-0.5">Atención: {cliente.contacto_nombre}{cliente.contacto_telefono ? ` · ${cliente.contacto_telefono}` : ''}</p>
+              )}
+              {!cliente?.contacto_nombre && cliente?.contacto_telefono && <p className="text-xs text-gray-700 mt-0.5">Tel. {cliente.contacto_telefono}</p>}
+              {cliente?.contacto_email && <p className="text-xs text-gray-700 mt-0.5">{cliente.contacto_email}</p>}
+              {(cliente?.direccion_entrega || cliente?.ciudad) && (
+                <p className="text-xs text-gray-700 mt-0.5">{[cliente?.direccion_entrega, cliente?.ciudad].filter(Boolean).join(', ')}</p>
+              )}
+            </div>
+            <div className="bg-[#F2F4F7] rounded-md border-l-[3px] border-[#16B23C] px-4 py-3">
+              <p className="text-[10px] font-bold tracking-widest text-[#636B73] mb-1">CONDICIONES</p>
+              {[
+                ['Fecha', fechaLarga(cot.fecha)],
+                ['Válida hasta', fechaLarga(cot.fecha_validez)],
+                ['Forma de pago', cot.forma_pago || 'Contado'],
+                ['Productos', String(items.length)],
+              ].map(([label, valor]) => (
+                <div key={label} className="flex justify-between text-xs mt-1">
+                  <span className="text-[#636B73]">{label}</span>
+                  <span className="font-bold text-[#0D1B2A]">{valor}</span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Datos del cliente */}
-        <div className="mb-6 bg-gray-50 rounded-lg p-4">
-          <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Cliente</h3>
-          <p className="font-medium text-gray-800">{cliente?.razon_social ?? 'Sin cliente'}</p>
-          {cliente?.nit && <p className="text-xs text-gray-500">NIT: {cliente.nit}</p>}
-          {cliente?.contacto_email && <p className="text-xs text-gray-500">Email: {cliente.contacto_email}</p>}
-          {cliente?.direccion_entrega && <p className="text-xs text-gray-500">Direccion: {cliente.direccion_entrega}, {cliente?.ciudad}</p>}
-        </div>
-
-        {/* Tabla de items */}
-        <table className="w-full text-sm mb-6">
-          <thead>
-            <tr className="bg-blue-600 text-white">
-              <th className="px-3 py-2 text-left text-xs">#</th>
-              <th className="px-3 py-2 text-left text-xs">Descripcion</th>
-              <th className="px-3 py-2 text-center text-xs">Cant.</th>
-              <th className="px-3 py-2 text-right text-xs">P. Unitario</th>
-              <th className="px-3 py-2 text-center text-xs">IVA</th>
-              <th className="px-3 py-2 text-right text-xs">Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, idx) => (
-              <tr key={String(item.id)} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                <td className="px-3 py-2 text-gray-500">{idx + 1}</td>
-                <td className="px-3 py-2 text-gray-800">{String(item.descripcion)}</td>
-                <td className="px-3 py-2 text-center text-gray-600">{String(item.cantidad)}</td>
-                <td className="px-3 py-2 text-right tabular-nums text-gray-600">{formatCOP(Number(item.precio_unitario))}</td>
-                <td className="px-3 py-2 text-center text-gray-500">{String(item.iva_porcentaje)}%</td>
-                <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-800">{formatCOP(Number(item.subtotal))}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* Totales */}
-        <div className="flex justify-end mb-8">
-          <div className="w-72 space-y-1.5 text-sm">
-            <div className="flex justify-between text-gray-600"><span>Subtotal:</span><span className="tabular-nums">{formatCOP(Number(cot.subtotal))}</span></div>
-            <div className="flex justify-between text-gray-600"><span>IVA:</span><span className="tabular-nums">{formatCOP(Number(cot.iva_total))}</span></div>
-            <div className="flex justify-between font-bold text-lg text-gray-800 pt-2 border-t border-gray-300"><span>TOTAL:</span><span className="tabular-nums">{formatCOP(Number(cot.total))}</span></div>
+          {/* Tabla de productos */}
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full text-[13px] min-w-[560px]">
+              <thead>
+                <tr className="bg-[#0D1B2A] text-white text-[11px] tracking-wide">
+                  <th className="px-2 py-2 text-left font-bold rounded-l-md w-8">#</th>
+                  {conCodigo && <th className="px-2 py-2 text-left font-bold w-20">CÓDIGO</th>}
+                  <th className="px-2 py-2 text-left font-bold">DESCRIPCIÓN</th>
+                  <th className="px-2 py-2 text-center font-bold w-14">CANT.</th>
+                  <th className="px-2 py-2 text-right font-bold w-24">VR. UNITARIO</th>
+                  <th className="px-2 py-2 text-center font-bold w-12">IVA</th>
+                  <th className="px-2 py-2 text-right font-bold rounded-r-md w-28">SUBTOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, idx) => {
+                  const { codigo, texto } = separarCodigo(String(item.descripcion ?? ''))
+                  return (
+                    <tr key={String(item.id)} className={`border-b border-[#E2E7EE] ${idx % 2 === 1 ? 'bg-[#F8FAFC]' : ''}`}>
+                      <td className="px-2 py-2 text-[#636B73]">{idx + 1}</td>
+                      {conCodigo && <td className="px-2 py-2 text-xs text-[#636B73] whitespace-nowrap">{codigo || '—'}</td>}
+                      <td className="px-2 py-2">{conCodigo ? texto : String(item.descripcion ?? '')}</td>
+                      <td className="px-2 py-2 text-center tabular-nums">{Number(item.cantidad).toLocaleString('es-CO')}</td>
+                      <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{formatCOP(Number(item.precio_unitario))}</td>
+                      <td className="px-2 py-2 text-center text-[#636B73]">{String(item.iva_porcentaje)}%</td>
+                      <td className="px-2 py-2 text-right tabular-nums font-bold text-[#0D1B2A] whitespace-nowrap">{formatCOP(Number(item.subtotal))}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
 
-        {/* Condiciones */}
-        <div className="border-t border-gray-200 pt-6 space-y-3 text-xs text-gray-600">
-          <div><strong>Forma de pago:</strong> {cot.forma_pago}</div>
-          {cot.fecha_validez && <div><strong>Validez de la oferta:</strong> Hasta {formatFecha(cot.fecha_validez)}</div>}
-          {cot.observaciones && <div><strong>Observaciones:</strong> {cot.observaciones}</div>}
-          <div><strong>Datos para pago:</strong> {EMPRESA.banco} | {EMPRESA.tipo_cuenta} | No. {EMPRESA.numero_cuenta} | A nombre de {EMPRESA.razon_social} NIT {EMPRESA.nit}</div>
-        </div>
+          {/* Observaciones | Totales */}
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_260px] gap-4 mt-5 break-inside-avoid">
+            <div className="bg-[#F2F4F7] rounded-md px-4 py-3">
+              <p className="text-[10px] font-bold tracking-widest text-[#636B73] mb-1">OBSERVACIONES</p>
+              <ul className="space-y-1">
+                {(observaciones.length ? observaciones : ['Sin observaciones.']).map((o, i) => (
+                  <li key={i} className="flex gap-2 text-xs text-gray-700 leading-snug">
+                    <span className="text-[#16B23C] font-bold">•</span><span>{o}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <div className="flex justify-between text-sm px-3 py-1.5 border-b border-[#E2E7EE]">
+                <span className="text-[#636B73]">Subtotal</span><span className="font-bold text-[#0D1B2A] tabular-nums">{formatCOP(Number(cot.subtotal))}</span>
+              </div>
+              <div className="flex justify-between text-sm px-3 py-1.5 border-b border-[#E2E7EE]">
+                <span className="text-[#636B73]">IVA</span><span className="font-bold text-[#0D1B2A] tabular-nums">{formatCOP(Number(cot.iva_total))}</span>
+              </div>
+              <div className="flex justify-between items-center mt-2 px-3 py-2.5 bg-[#0D1B2A] text-white rounded-md border-l-4 border-[#16B23C] print:[-webkit-print-color-adjust:exact]">
+                <span className="font-bold tracking-wider">TOTAL</span>
+                <span className="text-xl font-bold tabular-nums">{formatCOP(Number(cot.total))}</span>
+              </div>
+              <p className="text-[10px] text-[#636B73] text-right mt-1.5 leading-snug">Son: {numeroEnLetras(Number(cot.total))}</p>
+            </div>
+          </div>
 
-        {/* Pie */}
-        <div className="mt-12 text-center text-xs text-gray-400">
-          <p>{EMPRESA.slogan}</p>
-          <p>{EMPRESA.direccion}, {EMPRESA.ciudad} | Tel: {EMPRESA.telefono} | {EMPRESA.email}</p>
+          {/* Datos para pago | Firma */}
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_260px] gap-4 mt-6 items-end break-inside-avoid">
+            <div className="border border-[#E2E7EE] rounded-md px-4 py-3">
+              <p className="text-[10px] font-bold tracking-widest text-[#636B73] mb-1">DATOS PARA PAGO</p>
+              {[
+                ['Entidad', EMPRESA.banco],
+                [EMPRESA.tipo_cuenta, `No. ${EMPRESA.numero_cuenta}`],
+                ['Titular', `${EMPRESA.razon_social} · NIT ${EMPRESA.nit}`],
+              ].map(([label, valor]) => (
+                <div key={label} className="flex gap-3 text-xs mt-0.5">
+                  <span className="text-[#636B73] w-28 shrink-0">{label}</span>
+                  <span className="font-bold text-[#0D1B2A]">{valor}</span>
+                </div>
+              ))}
+            </div>
+            <div className="text-center">
+              <div className="border-t border-[#0D1B2A] mb-1" />
+              <p className="text-sm font-bold text-[#0D1B2A]">{cot.creado_por_nombre || EMPRESA.razon_social}</p>
+              <p className="text-[11px] text-[#636B73]">{cot.creado_por_nombre ? EMPRESA.razon_social : `Tel. ${EMPRESA.telefono}`}</p>
+            </div>
+          </div>
+
+          <p className="text-center text-sm font-bold text-[#0D1B2A] mt-6">¡Gracias por tenernos en cuenta!</p>
+          <p className="text-center text-[10px] text-gray-400 mt-4 pt-2 border-t border-[#E2E7EE]">{EMPRESA.razon_social} · {EMPRESA.slogan}</p>
         </div>
       </div>
 
