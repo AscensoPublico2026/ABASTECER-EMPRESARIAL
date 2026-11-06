@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config'
 import { MODO_SITIO } from '@/lib/modo-app'
+import { esCorreoAutorizado } from '@/lib/auth/acceso'
 
 /**
  * Rutas del SITIO WEB PUBLICO (abastecerempresarial.com).
@@ -95,6 +96,20 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
+  }
+
+  // Solo el correo autorizado puede usar la plataforma (lib/auth/acceso.ts).
+  if (user && !esCorreoAutorizado(user.email)) {
+    await supabase.auth.signOut()
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    url.search = '?error=no-autorizado'
+    const salida = NextResponse.redirect(url)
+    // Borrar las cookies de sesion de Supabase
+    request.cookies.getAll().forEach((c) => {
+      if (c.name.startsWith('sb-')) salida.cookies.set({ name: c.name, value: '', maxAge: 0, path: '/' })
+    })
+    return salida
   }
 
   if (user && pathname.startsWith('/login')) {
