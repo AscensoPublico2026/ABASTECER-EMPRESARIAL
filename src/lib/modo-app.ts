@@ -27,8 +27,14 @@ export const MODO_SITIO = process.env.NEXT_PUBLIC_MODO_APP === 'sitio'
  * Direccion donde vive el ERP. Se usa en modo sitio para que el boton
  * "Ingresar" del sitio web lleve al login del ERP.
  */
+const URL_ERP_ACTUAL = 'https://abastecer-empresarial-git-main-ascenso-publico-s-projects.vercel.app'
+// La direccion vieja (abastecer-empresarial-steel) abre una version antigua
+// de la plataforma: si alguna variable la trae, se ignora.
+const URL_ERP_VIEJA = /abastecer-empresarial-steel\.vercel\.app/i
+const urlErpVariable = process.env.NEXT_PUBLIC_URL_ERP?.trim()
+
 export const URL_ERP = (
-  process.env.NEXT_PUBLIC_URL_ERP ?? 'https://abastecer-empresarial-steel.vercel.app'
+  urlErpVariable && !URL_ERP_VIEJA.test(urlErpVariable) ? urlErpVariable : URL_ERP_ACTUAL
 ).replace(/\/$/, '')
 
 /** Enlace del boton "Ingresar" segun el despliegue */
