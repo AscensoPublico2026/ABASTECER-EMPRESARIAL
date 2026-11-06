@@ -12,8 +12,19 @@ import PegarEnlace from '@/components/auth/PegarEnlace'
 
 type Estado = 'validando' | 'listo' | 'invalido' | 'guardado'
 
+/** Traduce el error de Supabase a algo que el usuario entienda. */
+function explicar(msg: string): string {
+  const m = msg.toLowerCase()
+  if (m.includes('verifier') || m.includes('flow state'))
+    return 'El correo se pidió desde otro navegador o pestaña privada. Pide un correo nuevo y pega la dirección en ESTE mismo navegador. (' + msg + ')'
+  if (m.includes('expired') || m.includes('invalid'))
+    return 'Ese enlace ya se usó o venció. Usa solo el ÚLTIMO correo que llegó. (' + msg + ')'
+  return msg
+}
+
 export default function ActualizarClavePage() {
   const [estado, setEstado] = useState<Estado>('validando')
+  const [detalle, setDetalle] = useState('')
   const [clave, setClave] = useState('')
   const [clave2, setClave2] = useState('')
   const [ver, setVer] = useState(false)
@@ -30,7 +41,7 @@ export default function ActualizarClavePage() {
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code)
         if (!activo) return
-        if (error) { setEstado('invalido'); return }
+        if (error) { setDetalle(explicar(error.message)); setEstado('invalido'); return }
         window.history.replaceState(null, '', '/actualizar-clave')
       }
       // Enlace con #access_token (flujo antiguo): el cliente lo lee solo.
@@ -38,11 +49,14 @@ export default function ActualizarClavePage() {
         const { data } = await supabase.auth.getSession()
         if (!activo) return
         if (data.session) {
+          if (!esCorreoAutorizado(data.session.user.email)) setDetalle(`El enlace es de otro correo (${data.session.user.email}), que no tiene acceso.`)
           setEstado(esCorreoAutorizado(data.session.user.email) ? 'listo' : 'invalido')
           return
         }
         await new Promise((r) => setTimeout(r, 300))
       }
+      const hashErr = new URLSearchParams(window.location.hash.slice(1)).get('error_description')
+      setDetalle(hashErr ? explicar(hashErr) : 'No llegó ningún código en la dirección.')
       setEstado('invalido')
     }
     validar()
@@ -102,6 +116,7 @@ export default function ActualizarClavePage() {
           {estado === 'invalido' && (
             <div className="text-center space-y-4">
               <p className="text-sm text-red-600">El enlace no es válido o ya venció (dura 1 hora). Pide uno nuevo desde la pantalla de ingreso con &quot;¿Olvidaste tu contraseña?&quot;.</p>
+              {detalle && <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-2 text-left break-words">Detalle: {detalle}</p>}
               <a href="/login" className="inline-block text-sm font-semibold text-[#0D1B2A] underline">Volver a ingresar</a>
               <div className="text-left"><PegarEnlace /></div>
             </div>
