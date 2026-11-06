@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { esCorreoAutorizado } from '@/lib/auth/acceso'
+import { esCorreoAutorizado, CORREOS_AUTORIZADOS } from '@/lib/auth/acceso'
 
 // Solo inicio de sesion: no existe registro de cuentas nuevas.
 // Unicamente el correo autorizado (lib/auth/acceso.ts) puede entrar.
@@ -17,7 +17,25 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [aviso, setAviso] = useState('')
+  const [enviando, setEnviando] = useState(false)
   const router = useRouter()
+
+  // "Olvide mi contrasena": envia el correo para cambiarla. Solo al correo autorizado.
+  const recuperar = async () => {
+    setError(''); setAviso('')
+    const correo = esCorreoAutorizado(email) ? email.trim().toLowerCase() : CORREOS_AUTORIZADOS[0]
+    setEnviando(true)
+    const { error } = await createClient().auth.resetPasswordForEmail(correo, {
+      redirectTo: `${window.location.origin}/actualizar-clave`,
+    })
+    setEnviando(false)
+    if (error) {
+      setError(error.message.toLowerCase().includes('rate') ? 'Ya se envió un correo hace poco. Espera unos minutos y revisa tu bandeja (y la carpeta de spam).' : error.message)
+      return
+    }
+    setAviso(`Te enviamos un correo a ${correo}. Ábrelo en este mismo navegador y da clic en el enlace para poner la contraseña nueva. Revisa también la carpeta de spam.`)
+  }
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('error') === 'no-autorizado') {
@@ -76,6 +94,12 @@ export default function LoginPage() {
 
             <h2 className="text-lg font-semibold text-center text-gray-700 mb-6">Iniciar sesión</h2>
 
+            {aviso && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
+                {aviso}
+              </div>
+            )}
+
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
                 {error}
@@ -126,6 +150,17 @@ export default function LoginPage() {
                 {loading ? 'Ingresando...' : 'Ingresar'}
               </button>
             </form>
+
+            <div className="mt-5 text-center">
+              <button
+                type="button"
+                onClick={recuperar}
+                disabled={enviando}
+                className="text-sm font-medium text-[#0D1B2A] hover:text-[#16B23C] underline-offset-2 hover:underline disabled:opacity-50"
+              >
+                {enviando ? 'Enviando correo…' : '¿Olvidaste tu contraseña?'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
